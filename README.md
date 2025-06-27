@@ -1,51 +1,50 @@
-🔁 Fluxo Completo e Resumido
-1. Login Técnico
-Apenas equipe técnica faz login no painel.
+# 📺 Plataforma de Gerenciamento de Conteúdo para Dispositivos Remotos
 
-Clientes e TVs não precisam de login.
+## 🔁 Fluxo Completo e Resumido
 
-2. Pareamento do Dispositivo (uma vez)
-A TV abre uma URL especial (ex: https://sua-plataforma.com/pair).
+### 1. Login Técnico
+- **Acesso restrito ao painel** apenas para a **equipe técnica**.
+- **Clientes e dispositivos (TVs, totens)** não fazem login.
 
-A plataforma exibe um token de pareamento temporário (ex: ABC123).
+### 2. Pareamento do Dispositivo (único por dispositivo)
+- A TV acessa uma URL especial:  
+  `https://sua-plataforma.com/pair`
+- A plataforma exibe um **token temporário de pareamento** (ex: `ABC123`).
+- O técnico, logado no painel, insere esse token e atribui um nome à TV.
+- O sistema:
+  - Associa o dispositivo ao técnico autenticado.
+  - Gera um **token permanente de autenticação** (ex: `a1b2c3d4...`).
+  - Salva esse token **localmente na TV**.
 
-No painel, o técnico insere esse token e dá um nome à TV.
+### 3. Playback (uso contínuo)
+- A TV acessa o endpoint de conteúdo:
+  `https://sua-plataforma.com/playback?token=a1b2c3d4...`
+- A plataforma:
+  - Valida o token.
+  - Entrega o conteúdo vinculado ao dispositivo.
+- O conteúdo pode ser atualizado remotamente **sem alterar o token**.
 
-O sistema associa o dispositivo ao técnico (usuário logado) e gera um token permanente de autenticação (ex: a1b2c3d4...).
+### 4. Gerenciamento Remoto (via painel)
+- Técnicos têm controle total via painel:
+  - Visualização do status de cada TV (ex: `lastSeen`, `online/offline`).
+  - Atualização de conteúdos por dispositivo ou em massa.
+  - Revogação e reconfiguração de dispositivos.
 
-Esse token é salvo localmente na TV.
+## 🔐 Segurança
+- Tokens:
+  - **Únicos**, **longos**, **aleatórios**.
+  - **Salvos apenas localmente** na TV.
+- Dispositivos:
+  - Acesso **somente ao conteúdo**, **sem acesso ao painel**.
+- Tokens:
+  - **Revogáveis remotamente**.
+- Tráfego:
+  - **100% via HTTPS** (obrigatório).
 
-3. Playback (sempre)
-A TV acessa:
-https://sua-plataforma.com/playback?token=a1b2c3d4...
-
-A plataforma valida o token e entrega o conteúdo associado.
-
-O conteúdo pode ser atualizado remotamente, sem mudar o token.
-
-4. Gerenciamento Remoto
-No painel, técnicos podem:
-
-Ver status das TVs (lastSeen, online/offline).
-
-Atualizar conteúdos individualmente ou em grupo.
-
-Revogar ou reconfigurar dispositivos.
-
-🔐 Segurança
-Tokens são únicos, longos e aleatórios.
-
-Dispositivos só acessam conteúdo, sem acesso ao painel.
-
-Tokens podem ser revogados remotamente.
-
-HTTPS obrigatório.
-
-🧱 Banco de Dados (essencial)
-users: técnicos/administradores.
-
-devices: TVs e totens.
-
-deviceTokens: autenticação permanente de cada dispositivo.
-
-(Mais tarde) media e deviceContent para gestão de arquivos e exibição.
+## 🧱 Estrutura Essencial do Banco de Dados
+- `users`: Técnicos e administradores do sistema.
+- `devices`: TVs, totens e outros dispositivos.
+- `deviceTokens`: Tokens de autenticação permanente para dispositivos.
+- *(Futuro)*:
+  - `media`: Arquivos de mídia gerenciados.
+  - `deviceContent`: Relação entre conteúdos e dispositivos.
