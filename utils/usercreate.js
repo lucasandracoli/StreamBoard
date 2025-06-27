@@ -19,7 +19,7 @@ async function promptUserDetails() {
               resolve({
                 username,
                 email,
-                displayName,
+                display_name: displayName,
                 role: role || "user",
                 password,
               });
@@ -33,14 +33,14 @@ async function promptUserDetails() {
 
 async function createUser() {
   try {
-    const { username, email, displayName, role, password } =
+    const { username, email, display_name, role, password } =
       await promptUserDetails();
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     await db.query(
-      "INSERT INTO users (username, email, password, userRole, displayName) VALUES ($1, $2, $3, $4, $5)",
-      [username, email, hashedPassword, role, displayName]
+      "INSERT INTO users (username, email, password, user_role, display_name) VALUES ($1, $2, $3, $4, $5)",
+      [username, email, hashedPassword, role, display_name]
     );
 
     console.log("\n✅ Usuário criado com sucesso!");

@@ -4,16 +4,21 @@ const session = require("express-session");
 const bodyParser = require("body-parser");
 const bcrypt = require("bcrypt");
 const db = require("./config/streamboard");
+const helmet = require("helmet");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "Gwt3c9rm3h@",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false },
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      sameSite: "strict",
+    },
   })
 );
 
@@ -29,6 +34,7 @@ app.set("view engine", "ejs");
 app.use(express.static("public"));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(helmet());
 
 const isAuthenticated = async (req, res, next) => {
   if (!req.session.userId) {
@@ -52,7 +58,7 @@ const isAuthenticated = async (req, res, next) => {
 };
 
 const isAdmin = (req, res, next) => {
-  if (req.user && req.user.userrole !== "admin") {
+  if (req.user && req.user.user_role !== "admin") {
     return res.status(403).send("Acesso negado. Você não tem permissão.");
   }
   next();
@@ -95,7 +101,7 @@ app.post("/login", async (req, res) => {
       if (match) {
         req.session.userId = user.id;
         req.session.username = user.username;
-        req.session.userRole = user.userrole;
+        req.session.userRole = user.user_role;
         return res.status(200).json({
           code: 200,
           status: "success",
