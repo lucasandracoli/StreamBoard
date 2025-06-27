@@ -1,15 +1,16 @@
-<nav class="sb-navbar">
-  <div class="sb-navbar-logo">StreamBoard</div>
+<nav class="navbar">
+  <div class="navbar-logo">StreamBoard</div>
 
-  <div class="sb-navbar-links">
+  <div class="navbar-links">
     <a
       href="/dashboard"
-      class="sb-navbar-link <%= currentRoute === '/dashboard' ? 'active' : '' %>"
-      >Início</a
+      class="navbar-link <%= currentRoute === '/dashboard' ? 'active' : '' %>"
     >
+      Início
+    </a>
   </div>
 
-  <div class="sb-navbar-user">
+  <div class="navbar-user">
     <a href="/logout" title="Sair" aria-label="Logout">
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -29,7 +30,3 @@
     </a>
   </div>
 </nav>
-
-<footer class="sb-footer">
-  <div class="sb-footer-content">Versão <%= appVersion %></div>
-</footer>

@@ -26,7 +26,7 @@
   font-family: var(--font-family);
 }
 
-.sb-body {
+.login-body {
   background-color: var(--color-background);
   color: var(--color-text);
   display: flex;
@@ -36,10 +36,9 @@
   padding: 0 24px;
   font-size: var(--text-sm);
   flex-direction: column;
-  margin: 0;
 }
 
-.sb-form {
+.login-form {
   background-color: var(--color-surface);
   padding: 36px 28px;
   border-radius: var(--radius);
@@ -50,18 +49,40 @@
   flex-direction: column;
   gap: 16px;
   border: 1px solid var(--color-border);
-  box-sizing: border-box;
 }
 
-.sb-form__title {
-  font-size: var(--text-lg);
-  font-weight: 500;
-  text-align: center;
+.login-logo {
+  display: block;
+  max-width: 200px;
+  margin: 0 auto 16px auto;
+}
+
+.login-input-icon {
+  position: relative;
+  max-width: 280px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.login-input-icon i {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: #6b7280;
+  font-size: 0.95rem;
+  pointer-events: none;
+}
+
+.login-input-icon:focus-within i {
   color: var(--color-primary);
-  margin-bottom: 4px;
 }
 
-.sb-input {
+.login-input-icon .login-input {
+  padding-left: 36px;
+}
+
+.login-input {
   height: 38px;
   max-width: 280px;
   margin: 0 auto;
@@ -73,22 +94,21 @@
   color: var(--color-text);
   transition: all var(--transition);
   width: 100%;
-  box-sizing: border-box;
 }
 
-.sb-input::placeholder {
+.login-input::placeholder {
   color: var(--color-muted);
   font-size: 0.8rem;
   opacity: 0.85;
 }
 
-.sb-input:focus {
+.login-input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
   outline: none;
 }
 
-.sb-button {
+.login-button {
   height: 44px;
   max-width: 280px;
   margin: 0 auto;
@@ -102,22 +122,21 @@
   cursor: pointer;
   transition: background-color var(--transition), box-shadow var(--transition);
   width: 100%;
-  box-sizing: border-box;
 }
 
-.sb-button:hover {
+.login-button:hover {
   background-color: var(--color-primary-hover);
   box-shadow: 0 4px 16px rgba(124, 58, 237, 0.2);
 }
 
-.sb-response-message {
+.login-response-message {
   font-size: 0.78rem;
   text-align: center;
   color: var(--color-error);
   margin-top: -6px;
 }
 
-.sb-navbar {
+.navbar {
   background: #1e1e1e;
   padding: 16px 28px;
   display: flex;
@@ -130,19 +149,19 @@
   max-width: 1000px;
 }
 
-.sb-navbar-logo {
+.navbar-logo {
   color: rgba(255, 255, 255, 0.85);
   font-weight: 400;
   font-size: 0.95rem;
   letter-spacing: 1px;
 }
 
-.sb-navbar-links {
+.navbar-links {
   display: flex;
   gap: 24px;
 }
 
-.sb-navbar-link {
+.navbar-link {
   text-decoration: none;
   color: white;
   font-weight: 500;
@@ -150,12 +169,12 @@
   transition: color var(--transition);
 }
 
-.sb-navbar-link:hover,
-.sb-navbar-link.active {
+.navbar-link:hover,
+.navbar-link.active {
   color: var(--color-primary);
 }
 
-.sb-navbar-user a {
+.navbar-user a {
   display: flex;
   align-items: center;
   padding: 4px;
@@ -165,18 +184,18 @@
   font-size: var(--text-sm);
 }
 
-.sb-navbar-user a:hover {
+.navbar-user a:hover {
   cursor: pointer;
 }
 
-.sb-navbar-user svg {
+.navbar-user svg {
   fill: white;
   width: 20px;
   height: 20px;
   transition: fill var(--transition);
 }
 
-.sb-footer {
+.footer {
   position: fixed;
   bottom: 0;
   left: 0;
@@ -191,38 +210,38 @@
   border-radius: 0;
 }
 
-.sb-footer-content {
+.footer-content {
   max-width: 860px;
   margin: 0 auto;
 }
 
-.sb-logo {
+.logo {
   display: block;
   max-width: 200px;
   margin: 0 auto 16px auto;
 }
 
-.sb-input-icon {
+.input-icon {
   position: relative;
   max-width: 280px;
   margin: 0 auto;
   width: 100%;
 }
 
-.sb-input-icon i {
+.input-icon i {
   position: absolute;
   top: 50%;
   left: 12px;
   transform: translateY(-50%);
-  color: #6b7280; /* cor visível */
+  color: #6b7280;
   font-size: 0.95rem;
   pointer-events: none;
 }
 
-.sb-input-icon:focus-within i {
-  color: var(--color-primary); /* muda de cor ao focar */
+.input-icon:focus-within i {
+  color: var(--color-primary);
 }
 
-.sb-input-icon .sb-input {
-  padding-left: 36px; /* espaço pro ícone */
+.input-icon .input {
+  padding-left: 36px;
 }

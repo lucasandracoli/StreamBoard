@@ -67,11 +67,3 @@ Administradores têm a capacidade de:
 - Revogar tokens a qualquer momento, interrompendo o acesso do dispositivo ao conteúdo.
 
 ---
-
-## Banco de Dados
-
-O banco de dados do **StreamBoard** é composto por três tabelas principais:
-
-1. **Tabela `users`**: Armazena informações dos administradores (nome de usuário, email, senha criptografada, papel, etc.)
-2. **Tabela `devices`**: Armazena informações dos dispositivos pareados (nome, tipo, status, token temporário de pareamento, etc.)
-3. **Tabela `deviceTokens`**: Armazena os tokens permanentes de autenticação dos dispositivos.
