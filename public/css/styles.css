@@ -2,8 +2,8 @@
 
 :root {
   --font-family: "Inter", sans-serif;
-  --color-primary: #7c3aed;
-  --color-primary-hover: #a78bfa;
+  --color-primary: #00c86f;
+  --color-primary-hover: #05a35c;
   --color-error: #ef4444;
   --color-text: #111827;
   --color-muted: #9ca3af;
@@ -65,7 +65,7 @@
   height: 38px;
   max-width: 280px;
   margin: 0 auto;
-  padding: 10px 12px;
+  padding: 20px;
   background-color: var(--color-input-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -118,7 +118,7 @@
 }
 
 .sb-navbar {
-  background: #1f1f1f;
+  background: #1e1e1e;
   padding: 16px 28px;
   display: flex;
   justify-content: space-between;
@@ -127,7 +127,7 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
   margin: 32px auto;
   width: 100%;
-  max-width: 860px;
+  max-width: 1000px;
 }
 
 .sb-navbar-logo {
@@ -166,7 +166,6 @@
 }
 
 .sb-navbar-user a:hover {
-  background-color: rgba(124, 58, 237, 0.15);
   cursor: pointer;
 }
 
@@ -182,7 +181,7 @@
   bottom: 0;
   left: 0;
   width: 100%;
-  background: #1f1f1f;
+  background: #1e1e1e;
   color: var(--color-primary);
   padding: 12px 24px;
   font-size: 0.7rem;
@@ -199,7 +198,7 @@
 
 .sb-logo {
   display: block;
-  max-width: 120px;
+  max-width: 200px;
   margin: 0 auto 16px auto;
 }
 

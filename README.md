@@ -1,50 +1,77 @@
-# 📺 Plataforma de Gerenciamento de Conteúdo para Dispositivos Remotos
+# StreamBoard - Sistema de Controle de Dispositivos e Usuários
 
-## 🔁 Fluxo Completo e Resumido
+**StreamBoard** é uma plataforma de gerenciamento de dispositivos (como TVs e totens), que permite aos administradores controlar o acesso ao conteúdo, configurar dispositivos e gerenciar autenticação com tokens. O sistema foi projetado para ser escalável, seguro e fácil de usar, com autenticação via tokens, criptografia de senhas e gerenciamento de dispositivos em tempo real.
 
-### 1. Login Técnico
-- **Acesso restrito ao painel** apenas para a **equipe técnica**.
-- **Clientes e dispositivos (TVs, totens)** não fazem login.
+---
 
-### 2. Pareamento do Dispositivo (único por dispositivo)
-- A TV acessa uma URL especial:  
-  `https://sua-plataforma.com/pair`
-- A plataforma exibe um **token temporário de pareamento** (ex: `ABC123`).
-- O técnico, logado no painel, insere esse token e atribui um nome à TV.
-- O sistema:
-  - Associa o dispositivo ao técnico autenticado.
-  - Gera um **token permanente de autenticação** (ex: `a1b2c3d4...`).
-  - Salva esse token **localmente na TV**.
+## Objetivo do Projeto
 
-### 3. Playback (uso contínuo)
-- A TV acessa o endpoint de conteúdo:
-  `https://sua-plataforma.com/playback?token=a1b2c3d4...`
-- A plataforma:
-  - Valida o token.
-  - Entrega o conteúdo vinculado ao dispositivo.
-- O conteúdo pode ser atualizado remotamente **sem alterar o token**.
+O objetivo do **StreamBoard** é permitir que administradores configurem e gerenciem dispositivos em uma plataforma centralizada. O sistema oferece controle completo sobre dispositivos, como TVs, que podem ser configurados, pareados, autenticados e controlados remotamente pelos administradores.
 
-### 4. Gerenciamento Remoto (via painel)
-- Técnicos têm controle total via painel:
-  - Visualização do status de cada TV (ex: `lastSeen`, `online/offline`).
-  - Atualização de conteúdos por dispositivo ou em massa.
-  - Revogação e reconfiguração de dispositivos.
+As principais funcionalidades incluem:
 
-## 🔐 Segurança
-- Tokens:
-  - **Únicos**, **longos**, **aleatórios**.
-  - **Salvos apenas localmente** na TV.
-- Dispositivos:
-  - Acesso **somente ao conteúdo**, **sem acesso ao painel**.
-- Tokens:
-  - **Revogáveis remotamente**.
-- Tráfego:
-  - **100% via HTTPS** (obrigatório).
+- **Autenticação e Criação de Usuários**: Permitir a criação de usuários administradores.
+- **Pareamento de Dispositivos**: Permitir que dispositivos sejam pareados à plataforma e recebam tokens de autenticação.
+- **Gerenciamento de Tokens**: Gerenciar tokens temporários e permanentes para autenticação dos dispositivos.
+- **Controle Remoto de Dispositivos**: Administradores podem ver o status dos dispositivos, revogar tokens e configurar novos dispositivos.
 
-## 🧱 Estrutura Essencial do Banco de Dados
-- `users`: Técnicos e administradores do sistema.
-- `devices`: TVs, totens e outros dispositivos.
-- `deviceTokens`: Tokens de autenticação permanente para dispositivos.
-- *(Futuro)*:
-  - `media`: Arquivos de mídia gerenciados.
-  - `deviceContent`: Relação entre conteúdos e dispositivos.
+---
+
+## Estrutura do Projeto
+
+1. **Banco de Dados**:
+   - Tabelas para armazenar dados de **usuários**, **dispositivos** e **tokens**.
+2. **Scripts de Criação de Usuários**:
+
+   - Script interativo para criação de novos administradores (usuários) com criptografia de senhas.
+
+3. **Gestão de Dispositivos**:
+
+   - Sistema para pareamento e autenticação de dispositivos utilizando tokens temporários e permanentes.
+
+4. **Interface do Administrador**:
+
+   - Painel administrativo para gerenciar usuários e dispositivos.
+
+5. **Interface do Dispositivo**:
+   - Interface onde os dispositivos se conectam e acessam o conteúdo utilizando tokens.
+
+---
+
+## Funcionalidades do Sistema
+
+### 1. Criação de Usuários
+
+O sistema permite que administradores sejam criados para acessar a plataforma e realizar as configurações. Os administradores podem ser criados com:
+
+- Nome de usuário
+- Email
+- Nome de exibição
+- Papel (`admin` ou `user`)
+- Senha (criptografada)
+
+### 2. Pareamento de Dispositivos
+
+Dispositivos, como TVs e totens, se conectam ao sistema através de um **token temporário**, gerado no momento do pareamento. O administrador insere o token para completar o pareamento e associar um dispositivo ao sistema.
+
+### 3. Autenticação Contínua
+
+Após o pareamento, é gerado um **token permanente** para autenticação contínua do dispositivo. Esse token será utilizado para acessar o conteúdo, garantindo que o dispositivo tenha acesso sem a necessidade de reautenticação.
+
+### 4. Gerenciamento de Dispositivos
+
+Administradores têm a capacidade de:
+
+- Visualizar o status de cada dispositivo (última vez online, ativo/inativo, etc.)
+- Atualizar o conteúdo do dispositivo
+- Revogar tokens a qualquer momento, interrompendo o acesso do dispositivo ao conteúdo.
+
+---
+
+## Banco de Dados
+
+O banco de dados do **StreamBoard** é composto por três tabelas principais:
+
+1. **Tabela `users`**: Armazena informações dos administradores (nome de usuário, email, senha criptografada, papel, etc.)
+2. **Tabela `devices`**: Armazena informações dos dispositivos pareados (nome, tipo, status, token temporário de pareamento, etc.)
+3. **Tabela `deviceTokens`**: Armazena os tokens permanentes de autenticação dos dispositivos.
