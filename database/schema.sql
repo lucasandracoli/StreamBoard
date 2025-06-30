@@ -27,7 +27,6 @@ CREATE TABLE IF NOT EXISTS device_tokens (
     device_id UUID REFERENCES devices(id) ON DELETE CASCADE,
     token TEXT NOT NULL,
     refresh_token TEXT NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
     is_revoked BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW()
 );
