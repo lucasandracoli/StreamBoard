@@ -10,6 +10,7 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { DateTime } = require("luxon");
 const cookieParser = require("cookie-parser");
+const axios = require("axios");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -171,35 +172,86 @@ app.get("/dashboard", isAuthenticated, isAdmin, (req, res) => {
   res.render("dashboard", { user: req.user });
 });
 
-app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
+app.get("/companies", isAuthenticated, isAdmin, async (req, res) => {
   try {
     const result = await db.query(
+      "SELECT * FROM companies ORDER BY created_at DESC"
+    );
+    res.render("companies", { companies: result.rows });
+  } catch (err) {
+    res.status(500).send("Erro ao carregar empresas.");
+  }
+});
+
+app.post("/companies", isAuthenticated, isAdmin, async (req, res) => {
+  const { name, email, cnpj, cep, city, state } = req.body;
+  try {
+    await db.query(
+      "INSERT INTO companies (name, email, cnpj, cep, city, state) VALUES ($1, $2, $3, $4, $5, $6)",
+      [name, email, cnpj, cep, city, state]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Erro ao cadastrar empresa:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Erro ao cadastrar empresa." });
+  }
+});
+
+app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const companiesResult = await db.query("SELECT * FROM companies");
+    const devicesResult = await db.query(
       "SELECT * FROM devices ORDER BY registered_at DESC"
     );
-    const devices = result.rows.map((d) => ({
+    const devices = devicesResult.rows.map((d) => ({
       ...d,
       last_seen_formatted: d.last_seen
         ? DateTime.fromISO(d.last_seen.toISOString())
             .setZone("America/Sao_Paulo")
             .toFormat("dd/MM/yyyy HH:mm:ss")
         : "Nunca",
+      company_name:
+        companiesResult.rows.find((company) => company.id === d.company_id)
+          ?.name || "Nenhuma",
     }));
-    res.render("devices", { devices });
+    res.render("devices", { devices, companies: companiesResult.rows });
   } catch (err) {
     res.status(500).send("Erro ao carregar dispositivos.");
   }
 });
 
+app.post("/devices/:id", isAuthenticated, isAdmin, async (req, res) => {
+  const { company_id, sector } = req.body;
+  try {
+    await db.query(
+      "UPDATE devices SET company_id = $1, sector = $2 WHERE id = $3",
+      [company_id, sector, req.params.id]
+    );
+    res.redirect("/devices");
+  } catch (err) {
+    res.status(500).send("Erro ao atualizar dispositivo.");
+  }
+});
+
 app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
-  const { name, device_type } = req.body;
+  const { name, device_type, company_id, sector } = req.body;
   const device_identifier = uuidv4();
   const authentication_key = crypto.randomBytes(32).toString("hex");
 
   try {
     await db.query(
-      `INSERT INTO devices (name, device_identifier, authentication_key, device_type)
-       VALUES ($1, $2, $3, $4)`,
-      [name, device_identifier, authentication_key, device_type]
+      `INSERT INTO devices (name, device_identifier, authentication_key, device_type, company_id, sector)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        name,
+        device_identifier,
+        authentication_key,
+        device_type,
+        company_id,
+        sector,
+      ]
     );
     res.redirect("/devices");
   } catch (err) {
@@ -302,6 +354,18 @@ app.get("/player", deviceAuth, async (req, res) => {
     res.render("player", { deviceName });
   } catch (err) {
     res.status(500).send("Erro ao carregar dispositivo.");
+  }
+});
+
+app.get("/api/cep/:cep", async (req, res) => {
+  const cep = req.params.cep;
+  const url = `https://viacep.com.br/ws/${cep}/json/`;
+
+  try {
+    const response = await axios.get(url);
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ message: "Erro ao buscar o CEP" });
   }
 });
 
