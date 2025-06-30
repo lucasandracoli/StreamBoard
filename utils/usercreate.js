@@ -7,15 +7,15 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-console.log("👤 Criador de Usuários - StreamBoard\n");
+console.log("👤 User Creator - StreamBoard\n");
 
 async function promptUserDetails() {
   return new Promise((resolve) => {
-    rl.question("📝 Nome de usuário: ", (username) => {
+    rl.question("📝 Username: ", (username) => {
       rl.question("📧 Email: ", (email) => {
-        rl.question("🏷️ Nome de exibição: ", (displayName) => {
-          rl.question("🔐 Papel (admin/user): ", (role) => {
-            rl.question("🔑 Senha: ", (password) => {
+        rl.question("🏷️ Display Name: ", (displayName) => {
+          rl.question("🔐 Role (admin/user): ", (role) => {
+            rl.question("🔑 Password: ", (password) => {
               resolve({
                 username,
                 email,
@@ -43,9 +43,9 @@ async function createUser() {
       [username, email, hashedPassword, role, display_name]
     );
 
-    console.log("\n✅ Usuário criado com sucesso!");
+    console.log("\n✅ User successfully created!");
   } catch (error) {
-    console.error(`\n❌ Erro ao criar usuário: ${error.message}`);
+    console.error(`\n❌ Failed to create user: ${error.message}`);
   } finally {
     rl.close();
     process.exit();

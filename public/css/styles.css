@@ -5,8 +5,8 @@
   --color-primary: #00c86f;
   --color-primary-hover: #05a35c;
   --color-error: #ef4444;
-  --color-text: #374151;
-  --color-muted: #6b7280;
+  --color-text: #333;
+  --color-muted: #666666;
   --color-background: #f9fafb;
   --color-surface: #ffffff;
   --color-border: #e5e7eb;
@@ -276,7 +276,7 @@
 .device-button {
   background-color: var(--color-primary);
   color: var(--color-surface);
-  padding: 8px 16px;
+  padding: 16px;
   border: none;
   border-radius: var(--radius);
   font-size: var(--text-sm);
@@ -299,20 +299,19 @@
 }
 
 .device-table-wrapper {
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  overflow-x: auto;
   background-color: var(--color-surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow-card);
   border: none;
-  overflow: hidden;
+  margin: 0 auto;
 }
 
 .device-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-sm);
-  color: var(--color-text);
+  table-layout: fixed;
 }
 
 .device-table thead {
@@ -320,15 +319,13 @@
 }
 
 .device-table thead tr {
-  text-transform: uppercase;
-  font-size: 0.72rem;
-  font-weight: 400;
-  letter-spacing: 0.3px;
+  font-size: var(--text-sm);
   color: var(--color-muted);
 }
 
 .device-table thead th {
-  padding: 8px 12px;
+  font-weight: 500;
+  padding: 16px 20px;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
   vertical-align: middle;
@@ -336,7 +333,7 @@
 }
 
 .device-table tbody td {
-  padding: 10px 14px;
+  padding: 16px 20px;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
   vertical-align: middle;
@@ -350,24 +347,30 @@
 }
 
 .action-icon {
-  background-color: transparent;
+  background-color: rgba(0, 200, 111, 0.1);
   border-radius: var(--radius);
-  padding: 6px;
+  padding: 8px;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform var(--transition);
+  transition: transform var(--transition), background-color var(--transition);
   cursor: pointer;
+}
+
+.action-icon i {
+  color: var(--color-primary);
+  font-size: 1rem;
+}
+
+.action-icon:hover {
+  transform: scale(1.05);
+  background-color: rgba(0, 200, 111, 0.2);
 }
 
 .action-icon svg {
   width: 16px;
   height: 16px;
-}
-
-.action-icon:hover svg {
-  transform: scale(1.1);
 }
 
 .action-red {
@@ -410,9 +413,20 @@
   align-items: center;
 }
 
+.modal-header.centered {
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
 .modal-title {
   font-size: var(--text-base);
   font-weight: 500;
+  color: var(--color-text);
+}
+
+.modal-title.centered {
+  text-align: center;
+  font-size: var(--text-lg);
   color: var(--color-text);
 }
 
@@ -430,11 +444,87 @@
   gap: 12px;
 }
 
+.modal-form.connection-modal-form {
+  padding: 0 12px;
+  gap: 16px;
+}
+
 .modal-input {
-  padding: 10px 14px;
+  padding: 16px;
   border-radius: var(--radius);
   border: 1px solid var(--color-border);
   background: var(--color-input-bg);
   font-size: var(--text-sm);
   color: var(--color-text);
+}
+
+.connection-input-group {
+  display: flex;
+  align-items: center;
+  background-color: var(--color-input-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0 12px;
+  height: 44px;
+}
+
+.connection-input-group i {
+  color: #6b7280;
+  font-size: 1rem;
+  margin-right: 8px;
+}
+
+.connection-input-group input {
+  border: none;
+  outline: none;
+  background: transparent;
+  width: 100%;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.connection-input-group:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(0, 200, 111, 0.15);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.modal-actions.centered {
+  justify-content: center;
+}
+
+.device-button-cancel {
+  background-color: #e5e7eb;
+  color: #111827;
+  font-weight: 500;
+  transition: background-color var(--transition), color var(--transition);
+}
+
+.device-button-cancel:hover {
+  background-color: #d1d5db;
+  color: #000;
+}
+
+.status {
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  display: inline-block;
+}
+
+.status-ativo {
+  background-color: rgba(0, 200, 111, 0.12);
+  color: var(--color-primary);
+}
+
+.status-inativo {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: var(--color-error);
 }

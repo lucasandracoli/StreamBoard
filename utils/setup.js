@@ -24,9 +24,9 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS devices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
-    device_id VARCHAR(100) UNIQUE NOT NULL,
-    device_secret TEXT NOT NULL,
-    active BOOLEAN DEFAULT TRUE,
+    device_identifier VARCHAR(100) UNIQUE NOT NULL,
+    authentication_key TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
     last_seen TIMESTAMP,
     registered_at TIMESTAMP DEFAULT NOW()
 );
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS device_tokens (
     token TEXT NOT NULL,
     refresh_token TEXT NOT NULL,
     expires_at TIMESTAMP NOT NULL,
-    revoked BOOLEAN DEFAULT FALSE,
+    is_revoked BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 `;
@@ -72,9 +72,9 @@ const main = async () => {
     await dbClient.query(schemaSql);
     await dbClient.end();
 
-    console.log("✅ Banco de dados configurado com sucesso!");
+    console.log("✅ Database successfully initialized!");
   } catch (err) {
-    console.error("❌ Erro durante o setup:", err.message);
+    console.error("❌ Setup error:", err.message);
   }
 };
 
