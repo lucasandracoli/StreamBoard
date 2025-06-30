@@ -52,7 +52,9 @@ document.addEventListener("DOMContentLoaded", () => {
     cnpjInput.value = cnpj;
   };
 
-  cnpjInput.addEventListener("input", formatCNPJ);
+  const formatCEP = (cep) => {
+    return cep.replace(/^(\d{5})(\d{3})$/, "$1-$2");
+  };
 
   cepInput.addEventListener("blur", () => {
     const cep = cepInput.value.replace(/\D/g, "");

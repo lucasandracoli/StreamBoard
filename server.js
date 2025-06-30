@@ -177,11 +177,16 @@ app.get("/companies", isAuthenticated, isAdmin, async (req, res) => {
     const result = await db.query(
       "SELECT * FROM companies ORDER BY created_at DESC"
     );
-    res.render("companies", { companies: result.rows });
+    const formatCEP = (cep) => {
+      return cep.replace(/^(\d{5})(\d{3})$/, "$1-$2");
+    };
+
+    res.render("companies", { companies: result.rows, formatCEP });
   } catch (err) {
     res.status(500).send("Erro ao carregar empresas.");
   }
 });
+
 
 app.post("/companies", isAuthenticated, isAdmin, async (req, res) => {
   const { name, email, cnpj, cep, city, state } = req.body;
