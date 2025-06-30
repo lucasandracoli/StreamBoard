@@ -1,69 +1,84 @@
-# StreamBoard - Sistema de Controle de Dispositivos e Usuários
+# StreamBoard
 
-**StreamBoard** é uma plataforma de gerenciamento de dispositivos (como TVs e totens), que permite aos administradores controlar o acesso ao conteúdo, configurar dispositivos e gerenciar autenticação com tokens. O sistema foi projetado para ser escalável, seguro e fácil de usar, com autenticação via tokens, criptografia de senhas e gerenciamento de dispositivos em tempo real.
-
----
-
-## Objetivo do Projeto
-
-O objetivo do **StreamBoard** é permitir que administradores configurem e gerenciem dispositivos em uma plataforma centralizada. O sistema oferece controle completo sobre dispositivos, como TVs, que podem ser configurados, pareados, autenticados e controlados remotamente pelos administradores.
-
-As principais funcionalidades incluem:
-
-- **Autenticação e Criação de Usuários**: Permitir a criação de usuários administradores.
-- **Pareamento de Dispositivos**: Permitir que dispositivos sejam pareados à plataforma e recebam tokens de autenticação.
-- **Gerenciamento de Tokens**: Gerenciar tokens temporários e permanentes para autenticação dos dispositivos.
-- **Controle Remoto de Dispositivos**: Administradores podem ver o status dos dispositivos, revogar tokens e configurar novos dispositivos.
+Painel administrativo com distribuição de ofertas e controle de dispositivos (TVs, players, apps conectados). O sistema permite cadastrar usuários, emparelhar dispositivos e gerenciar o conteúdo exibido remotamente.
 
 ---
 
-## Estrutura do Projeto
+## ✅ Funcionalidades implementadas
 
-1. **Banco de Dados**:
-   - Tabelas para armazenar dados de **usuários**, **dispositivos** e **tokens**.
-2. **Scripts de Criação de Usuários**:
+### 🔐 Autenticação de Usuário
+- Sessão baseada em cookie (express-session)
+- Login de administrador via `/login`
+- Logout via `/logout`
+- Proteção de rotas com middleware `isAuthenticated` + `isAdmin`
 
-   - Script interativo para criação de novos administradores (usuários) com criptografia de senhas.
+### 🖥️ Gerenciamento de Dispositivos
+- Rota `/devices` com:
+  - Cadastro de novos dispositivos
+  - Geração automática de `device_id` e `device_secret`
+  - Exibição do status (ativo/inativo), último acesso
+  - Ações de ativar/desativar
+- Interface com layout responsivo em EJS
 
-3. **Gestão de Dispositivos**:
+### 🔗 Emparelhamento de Dispositivo
+- Rota visual `/deviceLogin` com formulário simples (`pair.ejs`)
+- Validação de `device_id` e `device_secret`
+- Geração de `access_token` e `refresh_token` via JWT
+- Tela de confirmação pós-emparelhamento (`player.ejs`)
 
-   - Sistema para pareamento e autenticação de dispositivos utilizando tokens temporários e permanentes.
+### 🔒 Autenticação via Token (JWT)
+- Rotas:
+  - `POST /device/auth`: autentica e retorna token
+  - `POST /device/refresh`: emite novos tokens
+- Middleware `deviceAuth` para proteger rotas futuras
+- Tokens persistidos na tabela `device_tokens`
 
-4. **Interface do Administrador**:
+---
 
-   - Painel administrativo para gerenciar usuários e dispositivos.
+## 🔧 Estrutura de Banco de Dados
 
-5. **Interface do Dispositivo**:
-   - Interface onde os dispositivos se conectam e acessam o conteúdo utilizando tokens.
+Tabelas criadas:
+
+- `users`: controle de administradores
+- `devices`: controle de dispositivos registrados
+- `device_tokens`: tokens de acesso/refresh emitidos
 
 ---
 
-## Funcionalidades do Sistema
+## 📂 Estrutura de Views (EJS)
 
-### 1. Criação de Usuários
-
-O sistema permite que administradores sejam criados para acessar a plataforma e realizar as configurações. Os administradores podem ser criados com:
-
-- Nome de usuário
-- Email
-- Nome de exibição
-- Papel (`admin` ou `user`)
-- Senha (criptografada)
-
-### 2. Pareamento de Dispositivos
-
-Dispositivos, como TVs e totens, se conectam ao sistema através de um **token temporário**, gerado no momento do pareamento. O administrador insere o token para completar o pareamento e associar um dispositivo ao sistema.
-
-### 3. Autenticação Contínua
-
-Após o pareamento, é gerado um **token permanente** para autenticação contínua do dispositivo. Esse token será utilizado para acessar o conteúdo, garantindo que o dispositivo tenha acesso sem a necessidade de reautenticação.
-
-### 4. Gerenciamento de Dispositivos
-
-Administradores têm a capacidade de:
-
-- Visualizar o status de cada dispositivo (última vez online, ativo/inativo, etc.)
-- Atualizar o conteúdo do dispositivo
-- Revogar tokens a qualquer momento, interrompendo o acesso do dispositivo ao conteúdo.
+| Página              | View         |
+|---------------------|--------------|
+| Login de usuário    | `login.ejs`  |
+| Dashboard admin     | `dashboard.ejs` |
+| Gerenciar devices   | `devices.ejs` |
+| Emparelhar device   | `pair.ejs`   |
+| Player após login   | `player.ejs` |
 
 ---
+
+## 🟡 Próximos passos
+
+### 📦 Distribuição de Conteúdo
+
+- [ ] Criar tabela `offers` (ofertas)
+- [ ] Associar ofertas a dispositivos
+- [ ] Implementar rota `GET /deviceOffers` (JWT protegido)
+- [ ] Renderizar ofertas no player
+
+### 🧠 Funcionalidades Futuras
+
+- [ ] Visualização de logs de conexão por dispositivo
+- [ ] Notificações de dispositivo offline
+- [ ] Upload de vídeos/imagens no painel
+- [ ] QR Code na tela `/devices` para emparelhamento rápido
+- [ ] Interface pública para visualização externa (modo kiosk)
+
+---
+
+## 🚀 Setup Rápido
+
+```bash
+npm install
+node scripts/setup-database.js
+node server.js

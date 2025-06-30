@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Emparelhar Dispositivo</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+    />
+  </head>
+  <body class="login-body">
+    <form method="POST" action="/pair/" class="login-form">
+      <div class="login-input-icon">
+        <i class="bi bi-cpu"></i>
+        <input
+          type="text"
+          name="device_id"
+          placeholder="Device ID"
+          required
+          class="login-input"
+        />
+      </div>
+
+      <div class="login-input-icon">
+        <i class="bi bi-key"></i>
+        <input
+          type="text"
+          name="device_secret"
+          placeholder="Device Secret"
+          required
+          class="login-input"
+        />
+      </div>
+
+      <button type="submit" class="login-button">Emparelhar</button>
+
+      <% if (typeof error !== 'undefined') { %>
+      <p class="login-response-message"><%= error %></p>
+      <% } %>
+    </form>
+  </body>
+</html>
