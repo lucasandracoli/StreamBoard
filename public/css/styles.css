@@ -335,11 +335,11 @@
 .device-table tbody td {
   padding: 16px 20px;
   text-align: left;
-  border-bottom: 1px solid var(--color-border);
   vertical-align: middle;
   white-space: nowrap;
   font-size: var(--text-sm);
   color: var(--color-text);
+  font-weight: 500;
 }
 
 .device-table tbody tr:last-child td {
@@ -456,6 +456,20 @@
   background: var(--color-input-bg);
   font-size: var(--text-sm);
   color: var(--color-text);
+  transition: all var(--transition);
+  width: 100%;
+}
+
+.modal-input::placeholder {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.modal-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
+  outline: none;
 }
 
 .connection-input-group {
@@ -527,4 +541,17 @@
 .status-inativo {
   background-color: rgba(239, 68, 68, 0.12);
   color: var(--color-error);
+}
+
+.icon-cell i {
+  background-color: rgba(0, 200, 111, 0.1);
+  border-radius: var(--radius);
+  padding: 8px;
+  display: inline-block;
+  transition: transform var(--transition), background-color var(--transition);
+}
+
+.icon-cell i:hover {
+  background-color: rgba(0, 200, 111, 0.2);
+  transform: scale(1.05);
 }

@@ -38,6 +38,7 @@
           <thead>
             <tr>
               <th>Nome</th>
+              <th>Tipo</th>
               <th>Status</th>
               <th>Último Acesso</th>
               <th>Dados de Acesso</th>
@@ -46,13 +47,52 @@
           <tbody>
             <% if (devices.length === 0) { %>
             <tr>
-              <td colspan="4" style="text-align: center">
+              <td colspan="5" style="text-align: center">
                 Nenhum dispositivo cadastrado.
               </td>
             </tr>
             <% } else { %> <% devices.forEach(device => { %>
             <tr>
               <td><%= device.name %></td>
+              <td class="icon-cell">
+                <% if (device.device_type === 'tv') { %>
+                <i
+                  class="bi bi-tv"
+                  style="color: var(--color-primary); font-size: 1rem"
+                ></i>
+                <% } else if (device.device_type === 'windows') { %>
+                <i
+                  class="bi bi-windows"
+                  style="color: var(--color-primary); font-size: 1rem"
+                ></i>
+                <% } else if (device.device_type === 'linux') { %>
+                <i
+                  class="bi bi-terminal"
+                  style="color: var(--color-primary); font-size: 1rem"
+                ></i>
+                <% } else if (device.device_type === 'android') { %>
+                <i
+                  class="bi bi-android2"
+                  style="color: var(--color-primary); font-size: 1rem"
+                ></i>
+                <% } else if (device.device_type === 'ios') { %>
+                <i
+                  class="bi bi-apple"
+                  style="color: var(--color-primary); font-size: 1rem"
+                ></i>
+                <% } else if (device.device_type === 'web') { %>
+                <i
+                  class="bi bi-globe2"
+                  style="color: var(--color-primary); font-size: 1rem"
+                ></i>
+                <% } else { %>
+                <i
+                  class="bi bi-question-circle"
+                  style="color: #999; font-size: 1rem"
+                ></i>
+                <% } %>
+              </td>
+
               <td>
                 <span
                   class="status <%= device.is_active ? 'status-ativo' : 'status-inativo' %>"
@@ -60,10 +100,7 @@
                   <%= device.is_active ? 'Ativo' : 'Inativo' %>
                 </span>
               </td>
-              <td>
-                <%= device.last_seen ? new
-                Date(device.last_seen).toLocaleString() : 'Nunca' %>
-              </td>
+              <td><%= device.last_seen_formatted %></td>
               <td>
                 <button
                   class="action-icon show-connection"
@@ -109,6 +146,15 @@
             required
             class="modal-input"
           />
+          <select name="device_type" class="modal-input" required>
+            <option value="tv">TV</option>
+            <option value="windows">Windows</option>
+            <option value="linux">Linux</option>
+            <option value="android">Android</option>
+            <option value="ios">iOS</option>
+            <option value="web">Web</option>
+            <option value="unknown" selected>Outro</option>
+          </select>
           <div class="modal-actions">
             <button type="submit" class="device-button">Adicionar</button>
             <button

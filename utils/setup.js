@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS devices (
     authentication_key TEXT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     last_seen TIMESTAMP,
-    registered_at TIMESTAMP DEFAULT NOW()
+    registered_at TIMESTAMP DEFAULT NOW(),
+    device_type VARCHAR(30) DEFAULT 'unknown'
 );
 
 CREATE TABLE IF NOT EXISTS device_tokens (

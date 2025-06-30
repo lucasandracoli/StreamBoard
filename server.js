@@ -182,13 +182,16 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
 });
 
 app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
-  const { name } = req.body;
+  const { name, device_type } = req.body;
+
   const device_identifier = uuidv4();
   const authentication_key = crypto.randomBytes(32).toString("hex");
+
   try {
     await db.query(
-      `INSERT INTO devices (name, device_identifier, authentication_key) VALUES ($1, $2, $3)`,
-      [name, device_identifier, authentication_key]
+      `INSERT INTO devices (name, device_identifier, authentication_key, device_type)
+       VALUES ($1, $2, $3, $4)`,
+      [name, device_identifier, authentication_key, device_type]
     );
     res.redirect("/devices");
   } catch (err) {
