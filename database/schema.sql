@@ -31,9 +31,8 @@ CREATE TABLE IF NOT EXISTS devices (
     last_seen TIMESTAMP,
     registered_at TIMESTAMP DEFAULT NOW(),
     device_type VARCHAR(30) DEFAULT 'unknown',
-    sector VARCHAR(50),  -- Campo do setor do dispositivo
-    company_id INTEGER REFERENCES companies(id) ON DELETE SET NULL, -- Relacionando dispositivo com a empresa
-    created_at TIMESTAMP DEFAULT NOW() -- Data de criação do dispositivo
+    sector VARCHAR(50),
+    created_at TIMESTAMP DEFAULT NOW() 
 );
 
 CREATE TABLE IF NOT EXISTS device_tokens (

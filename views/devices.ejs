@@ -8,6 +8,10 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
     />
+    <link
+      href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css"
+      rel="stylesheet"
+    />
   </head>
   <body class="dashboard">
     <%- include("partials/navbar") %>
@@ -42,14 +46,13 @@
               <th>Status</th>
               <th>Último Acesso</th>
               <th>Setor</th>
-              <th>Empresa</th>
               <th>Dados de Acesso</th>
             </tr>
           </thead>
           <tbody>
             <% if (devices.length === 0) { %>
             <tr>
-              <td colspan="7" style="text-align: center">
+              <td colspan="6" style="text-align: center">
                 Nenhum dispositivo cadastrado.
               </td>
             </tr>
@@ -103,7 +106,6 @@
               </td>
               <td><%= device.last_seen_formatted %></td>
               <td><%= device.sector %></td>
-              <td><%= device.company_name || 'Nenhuma' %></td>
               <td>
                 <button
                   class="action-icon show-connection"
@@ -165,12 +167,6 @@
             required
             class="modal-input"
           />
-          <select name="company_id" class="modal-input" required>
-            <option value="">Selecione a Empresa</option>
-            <% companies.forEach((company) => { %>
-            <option value="<%= company.id %>"><%= company.name %></option>
-            <% }) %>
-          </select>
           <div class="modal-actions">
             <button type="submit" class="device-button">Adicionar</button>
             <button
@@ -213,6 +209,7 @@
     </div>
 
     <%- include("partials/footer") %>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
     <script src="/js/devices.js"></script>
   </body>
 </html>

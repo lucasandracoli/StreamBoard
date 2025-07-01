@@ -4,7 +4,6 @@ const session = require("express-session");
 const bodyParser = require("body-parser");
 const bcrypt = require("bcrypt");
 const db = require("./config/streamboard");
-const helmet = require("helmet");
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
@@ -78,7 +77,6 @@ app.set("view engine", "ejs");
 app.use(express.static("public"));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-app.use(helmet());
 
 const isAuthenticated = async (req, res, next) => {
   if (!req.session.userId) return res.redirect("/login");
@@ -172,40 +170,8 @@ app.get("/dashboard", isAuthenticated, isAdmin, (req, res) => {
   res.render("dashboard", { user: req.user });
 });
 
-app.get("/companies", isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const result = await db.query(
-      "SELECT * FROM companies ORDER BY created_at DESC"
-    );
-    const formatCEP = (cep) => {
-      return cep.replace(/^(\d{5})(\d{3})$/, "$1-$2");
-    };
-
-    res.render("companies", { companies: result.rows, formatCEP });
-  } catch (err) {
-    res.status(500).send("Erro ao carregar empresas.");
-  }
-});
-
-app.post("/companies", isAuthenticated, isAdmin, async (req, res) => {
-  const { name, email, cnpj, cep, city, state } = req.body;
-  try {
-    await db.query(
-      "INSERT INTO companies (name, email, cnpj, cep, city, state) VALUES ($1, $2, $3, $4, $5, $6)",
-      [name, email, cnpj, cep, city, state]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error("Erro ao cadastrar empresa:", err);
-    res
-      .status(500)
-      .json({ success: false, message: "Erro ao cadastrar empresa." });
-  }
-});
-
 app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const companiesResult = await db.query("SELECT * FROM companies");
     const devicesResult = await db.query(
       "SELECT * FROM devices ORDER BY registered_at DESC"
     );
@@ -216,23 +182,20 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
             .setZone("America/Sao_Paulo")
             .toFormat("dd/MM/yyyy HH:mm:ss")
         : "Nunca",
-      company_name:
-        companiesResult.rows.find((company) => company.id === d.company_id)
-          ?.name || "Nenhuma",
     }));
-    res.render("devices", { devices, companies: companiesResult.rows });
+    res.render("devices", { devices });
   } catch (err) {
     res.status(500).send("Erro ao carregar dispositivos.");
   }
 });
 
 app.post("/devices/:id", isAuthenticated, isAdmin, async (req, res) => {
-  const { company_id, sector } = req.body;
+  const { sector } = req.body;
   try {
-    await db.query(
-      "UPDATE devices SET company_id = $1, sector = $2 WHERE id = $3",
-      [company_id, sector, req.params.id]
-    );
+    await db.query("UPDATE devices SET sector = $1 WHERE id = $2", [
+      sector,
+      req.params.id,
+    ]);
     res.redirect("/devices");
   } catch (err) {
     res.status(500).send("Erro ao atualizar dispositivo.");
@@ -240,26 +203,38 @@ app.post("/devices/:id", isAuthenticated, isAdmin, async (req, res) => {
 });
 
 app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
-  const { name, device_type, company_id, sector } = req.body;
+  const { name, device_type, sector } = req.body;
+
+  if (!name || !device_type || !sector) {
+    return res.status(400).json({
+      code: 400,
+      status: "error",
+      message: "Todos os campos são obrigatórios.",
+    });
+  }
+
   const device_identifier = uuidv4();
   const authentication_key = crypto.randomBytes(32).toString("hex");
 
   try {
     await db.query(
-      `INSERT INTO devices (name, device_identifier, authentication_key, device_type, company_id, sector)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [
-        name,
-        device_identifier,
-        authentication_key,
-        device_type,
-        company_id,
-        sector,
-      ]
+      `INSERT INTO devices (name, device_identifier, authentication_key, device_type, sector)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [name, device_identifier, authentication_key, device_type, sector]
     );
-    res.redirect("/devices");
+
+    res.json({
+      code: 200,
+      status: "success",
+      message: "Dispositivo cadastrado com sucesso.",
+    });
   } catch (err) {
-    res.status(500).send("Erro ao cadastrar dispositivo.");
+    console.error("Erro ao cadastrar dispositivo:", err);
+    res.status(500).json({
+      code: 500,
+      status: "error",
+      message: "Erro ao cadastrar dispositivo. Tente novamente.",
+    });
   }
 });
 

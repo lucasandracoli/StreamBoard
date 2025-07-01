@@ -1,3 +1,5 @@
+const notyf = new Notyf();
+
 document
   .getElementById("loginForm")
   .addEventListener("submit", async function (e) {
@@ -13,9 +15,13 @@ document
     });
 
     const result = await response.json();
-    document.getElementById("responseMessage").textContent = result.message;
 
     if (result.code === 200) {
-      window.location.href = "/dashboard";
+      notyf.success(result.message);
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 2000);
+    } else {
+      notyf.error(result.message);
     }
   });
