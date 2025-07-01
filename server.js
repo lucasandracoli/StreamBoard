@@ -160,19 +160,6 @@ app.post("/login", async (req, res) => {
   }
 });
 
-app.get("/logout", (req, res) => {
-  const refreshToken = req.cookies.refresh_token;
-
-  revokeToken(refreshToken);
-
-  res.clearCookie("access_token");
-  res.clearCookie("refresh_token");
-
-  req.session.destroy(() => {
-    res.redirect("/login");
-  });
-});
-
 app.get("/dashboard", isAuthenticated, isAdmin, (req, res) => {
   res.render("dashboard", { user: req.user });
 });
@@ -389,6 +376,19 @@ app.get("/api/cep/:cep", async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: "Erro ao buscar o CEP" });
   }
+});
+
+app.get("/logout", (req, res) => {
+  const refreshToken = req.cookies.refresh_token;
+
+  revokeToken(refreshToken);
+
+  res.clearCookie("access_token");
+  res.clearCookie("refresh_token");
+
+  req.session.destroy(() => {
+    res.redirect("/login?logout=true");
+  });
 });
 
 app.listen(PORT, () => {
