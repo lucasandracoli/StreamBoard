@@ -187,7 +187,6 @@ app.get("/companies", isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-
 app.post("/companies", isAuthenticated, isAdmin, async (req, res) => {
   const { name, email, cnpj, cep, city, state } = req.body;
   try {
