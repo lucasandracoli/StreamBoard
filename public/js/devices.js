@@ -39,6 +39,30 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  // Revogar Token
+  document.querySelectorAll(".revoke-token").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const identifier = button.getAttribute("data-identifier");
+
+      try {
+        const response = await fetch(`/devices/${identifier}/revoke`, {
+          method: "POST",
+        });
+
+        if (response.ok) {
+          notyf.success("Token revogado com sucesso.");
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } else {
+          throw new Error("Erro ao revogar token.");
+        }
+      } catch (error) {
+        notyf.error(error.message);
+      }
+    });
+  });
+
   window.addEventListener("click", (e) => {
     if (e.target === deviceModal) {
       deviceModal.style.display = "none";

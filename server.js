@@ -161,6 +161,13 @@ app.post("/login", async (req, res) => {
 });
 
 app.get("/logout", (req, res) => {
+  const refreshToken = req.cookies.refresh_token;
+
+  revokeToken(refreshToken);
+
+  res.clearCookie("access_token");
+  res.clearCookie("refresh_token");
+
   req.session.destroy(() => {
     res.redirect("/login");
   });
@@ -298,6 +305,11 @@ app.post("/pair", async (req, res) => {
     const accessToken = generateAccessToken(device);
     const refreshToken = generateRefreshToken(device);
 
+    await db.query(
+      "INSERT INTO tokens (device_id, token, refresh_token) VALUES ($1, $2, $3)",
+      [device.id, accessToken, refreshToken]
+    );
+
     res.cookie("access_token", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -317,6 +329,37 @@ app.post("/pair", async (req, res) => {
     res.render("pair", { error: "Erro ao autenticar dispositivo." });
   }
 });
+
+app.post(
+  "/devices/:identifier/revoke",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { identifier } = req.params;
+
+    try {
+      const result = await db.query(
+        "SELECT * FROM devices WHERE device_identifier = $1",
+        [identifier]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "Dispositivo não encontrado." });
+      }
+
+      const device = result.rows[0];
+
+      await db.query(
+        "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
+        [device.id]
+      );
+
+      res.status(200).json({ message: "Token revogado com sucesso." });
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao revogar token." });
+    }
+  }
+);
 
 app.get("/player", deviceAuth, async (req, res) => {
   try {
@@ -351,3 +394,10 @@ app.get("/api/cep/:cep", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🔥 Server Running in http://127.0.0.1:${PORT}`);
 });
+
+async function revokeToken(refreshToken) {
+  await db.query(
+    "UPDATE tokens SET is_revoked = TRUE WHERE refresh_token = $1",
+    [refreshToken]
+  );
+}

@@ -31,7 +31,7 @@ Painel administrativo com distribuição de ofertas e controle de dispositivos (
   - `POST /device/auth`: autentica e retorna token
   - `POST /device/refresh`: emite novos tokens
 - Middleware `deviceAuth` para proteger rotas futuras
-- Tokens persistidos na tabela `device_tokens`
+- Tokens persistidos na tabela `tokens`
 
 ---
 
@@ -41,7 +41,7 @@ Tabelas criadas:
 
 - `users`: controle de administradores
 - `devices`: controle de dispositivos registrados
-- `device_tokens`: tokens de acesso/refresh emitidos
+- `tokens`: tokens de acesso/refresh emitidos
 
 ---
 

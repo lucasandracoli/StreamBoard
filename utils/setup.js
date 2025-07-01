@@ -17,7 +17,6 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     user_role VARCHAR(20) DEFAULT 'user',
     display_name VARCHAR(100),
-    last_login TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW()
 );
 

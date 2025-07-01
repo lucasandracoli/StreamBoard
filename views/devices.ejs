@@ -58,7 +58,7 @@
             </tr>
             <% } else { %> <% devices.forEach(device => { %>
             <tr>
-              <td><%= device.name %></td>
+              <td class="break-word"><%= device.name %></td>
               <td class="icon-cell">
                 <% if (device.device_type === 'tv') { %>
                 <i
@@ -104,8 +104,8 @@
                   <%= device.is_active ? 'Ativo' : 'Inativo' %>
                 </span>
               </td>
-              <td><%= device.last_seen_formatted %></td>
-              <td><%= device.sector %></td>
+              <td class="break-word"><%= device.last_seen_formatted %></td>
+              <td class="break-word"><%= device.sector %></td>
               <td>
                 <button
                   class="action-icon show-connection"
