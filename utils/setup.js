@@ -41,6 +41,31 @@ CREATE TABLE IF NOT EXISTS tokens (
     is_revoked BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS campaigns (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    start_date TIMESTAMP,
+    end_date TIMESTAMP,
+    midia TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS campaign_device (
+    campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+    device_id UUID REFERENCES devices(id) ON DELETE CASCADE,
+    execution_order INTEGER,
+    PRIMARY KEY (campaign_id, device_id)
+);
+
+CREATE TABLE IF NOT EXISTS campaign_uploads (
+    id SERIAL PRIMARY KEY,
+    campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+    file_name VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_type VARCHAR(50) NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT NOW()
+);
 `;
 
 const main = async () => {

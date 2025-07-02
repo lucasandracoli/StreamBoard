@@ -10,6 +10,9 @@ const jwt = require("jsonwebtoken");
 const { DateTime } = require("luxon");
 const cookieParser = require("cookie-parser");
 const axios = require("axios");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,6 +20,23 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRATION = "15m";
 const JWT_REFRESH_EXPIRATION = "7d";
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, "uploads");
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath);
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const fileExtension = path.extname(file.originalname);
+    const fileName = `${uuidv4()}${fileExtension}`;
+    cb(null, fileName);
+  },
+});
+
+const upload = multer({ storage });
 
 function generateAccessToken(device) {
   return jwt.sign(
@@ -390,6 +410,248 @@ app.get("/logout", (req, res) => {
     res.redirect("/login?logout=true");
   });
 });
+
+app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const campaignsResult = await db.query(
+      "SELECT * FROM campaigns ORDER BY created_at DESC"
+    );
+    const campaigns = campaignsResult.rows;
+
+    const devicesResult = await db.query(
+      "SELECT * FROM devices WHERE is_active = TRUE"
+    );
+    const devices = devicesResult.rows;
+
+    res.render("campaigns", { campaigns, devices });
+  } catch (err) {
+    res.status(500).send("Erro ao carregar campanhas.");
+  }
+});
+
+app.post(
+  "/campaigns",
+  isAuthenticated,
+  isAdmin,
+  upload.single("file"),
+  async (req, res) => {
+    const { name, start_date, end_date, device_id } = req.body;
+
+    if (!name || !start_date || !end_date || !device_id) {
+      return res
+        .status(400)
+        .json({ message: "Todos os campos são obrigatórios." });
+    }
+
+    let file_path = null;
+    let file_name = null;
+    let file_type = null;
+    if (req.file) {
+      file_path = `/uploads/${req.file.filename}`;
+      file_name = req.file.filename;
+      file_type = req.file.mimetype;
+    }
+
+    try {
+      const resultOrder = await db.query(
+        `SELECT MAX(execution_order) AS max_execution_order FROM campaign_device`
+      );
+
+      const execution_order = resultOrder.rows[0].max_execution_order
+        ? resultOrder.rows[0].max_execution_order + 1
+        : 1;
+
+      const result = await db.query(
+        `INSERT INTO campaigns (name, start_date, end_date, midia)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [name, start_date, end_date, file_path]
+      );
+
+      const campaign = result.rows[0];
+
+      if (file_path && file_name && file_type) {
+        await db.query(
+          `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type)
+           VALUES ($1, $2, $3, $4)`,
+          [campaign.id, file_name, file_path, file_type]
+        );
+      }
+
+      await db.query(
+        `INSERT INTO campaign_device (campaign_id, device_id, execution_order)
+         VALUES ($1, $2, $3)`,
+        [campaign.id, device_id, execution_order]
+      );
+
+      res.status(200).json({
+        code: 200,
+        message: "Campanha criada com sucesso.",
+        campaign: campaign,
+      });
+    } catch (err) {
+      res
+        .status(500)
+        .json({ message: "Erro ao criar campanha.", error: err.message });
+    }
+  }
+);
+
+app.post(
+  "/campaigns/:campaignId/devices",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { campaignId } = req.params;
+    const { device_id, execution_order } = req.body;
+
+    if (!device_id || !execution_order) {
+      return res
+        .status(400)
+        .json({ message: "Dispositivo e ordem de execução são obrigatórios." });
+    }
+
+    try {
+      const campaignResult = await db.query(
+        "SELECT * FROM campaigns WHERE id = $1",
+        [campaignId]
+      );
+      if (campaignResult.rows.length === 0) {
+        return res.status(404).json({ message: "Campanha não encontrada." });
+      }
+
+      const deviceResult = await db.query(
+        "SELECT * FROM devices WHERE id = $1",
+        [device_id]
+      );
+      if (deviceResult.rows.length === 0) {
+        return res.status(404).json({ message: "Dispositivo não encontrado." });
+      }
+
+      await db.query(
+        `INSERT INTO campaign_device (campaign_id, device_id, execution_order)
+       VALUES ($1, $2, $3)`,
+        [campaignId, device_id, execution_order]
+      );
+
+      res
+        .status(200)
+        .json({ message: "Campanha associada ao dispositivo com sucesso." });
+    } catch (err) {
+      res
+        .status(500)
+        .json({ message: "Erro ao associar campanha ao dispositivo." });
+    }
+  }
+);
+
+app.get(
+  "/campaigns/:campaignId",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { campaignId } = req.params;
+
+    try {
+      const campaignResult = await db.query(
+        "SELECT * FROM campaigns WHERE id = $1",
+        [campaignId]
+      );
+      if (campaignResult.rows.length === 0) {
+        return res.status(404).json({ message: "Campanha não encontrada." });
+      }
+
+      const devicesResult = await db.query(
+        `SELECT d.id, d.name, d.device_identifier, cd.execution_order
+       FROM devices d
+       JOIN campaign_device cd ON d.id = cd.device_id
+       WHERE cd.campaign_id = $1`,
+        [campaignId]
+      );
+
+      const campaign = campaignResult.rows[0];
+      const devices = devicesResult.rows;
+
+      res.render("campaignDetail", { campaign, devices });
+    } catch (err) {
+      res.status(500).send("Erro ao carregar dados da campanha.");
+    }
+  }
+);
+
+app.post(
+  "/campaigns/:campaignId/edit",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { campaignId } = req.params;
+    const { name, start_date, end_date, image_url, video_url } = req.body;
+
+    try {
+      const result = await db.query(
+        `UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, image_url = $4, video_url = $5
+       WHERE id = $6 RETURNING *`,
+        [name, start_date, end_date, image_url, video_url, campaignId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "Campanha não encontrada." });
+      }
+
+      res.status(200).json({
+        message: "Campanha atualizada com sucesso.",
+        campaign: result.rows[0],
+      });
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao atualizar campanha." });
+    }
+  }
+);
+
+app.post(
+  "/campaigns/:campaignId/delete",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { campaignId } = req.params;
+
+    try {
+      const result = await db.query(
+        "DELETE FROM campaigns WHERE id = $1 RETURNING *",
+        [campaignId]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "Campanha não encontrada." });
+      }
+
+      res.status(200).json({ message: "Campanha excluída com sucesso." });
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao excluir campanha." });
+    }
+  }
+);
+
+app.post(
+  "/campaigns/:campaignId/delete",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { campaignId } = req.params;
+
+    try {
+      const result = await db.query(
+        "DELETE FROM campaigns WHERE id = $1 RETURNING *",
+        [campaignId]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "Campanha não encontrada." });
+      }
+
+      res.status(200).json({ message: "Campanha excluída com sucesso." });
+    } catch (err) {
+      res.status(500).json({ message: "Erro ao excluir campanha." });
+    }
+  }
+);
 
 app.listen(PORT, () => {
   console.log(`🔥 Server Running in http://127.0.0.1:${PORT}`);
