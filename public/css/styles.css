@@ -675,3 +675,15 @@
   color: white;
   border: 1px solid var(--color-error);
 }
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange,
+.flatpickr-day.today {
+  border-radius: 50% !important;
+}
+
+.flatpickr-day {
+  width: 2.4em;
+  line-height: 2.4em;
+}

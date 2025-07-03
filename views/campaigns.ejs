@@ -1,3 +1,7 @@
+<% const now = new Date(); const tomorrow = new Date(now.getTime() + 86400000);
+const pad = n => n.toString().padStart(2, '0'); const fmt = d =>
+`${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}
+${pad(d.getHours())}:${pad(d.getMinutes())}`; %>
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
@@ -9,12 +13,16 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
     />
     <link
-      href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css"
       rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
     />
   </head>
   <body class="dashboard">
-    <%- include("partials/navbar") %>
+    <%- include('partials/navbar') %>
 
     <main class="container">
       <div class="device-header">
@@ -58,10 +66,10 @@
             <tr>
               <td class="break-word"><%= campaign.name %></td>
               <td class="break-word">
-                <%= new Date(campaign.start_date).toLocaleString("pt-BR") %>
+                <%= new Date(campaign.start_date).toLocaleString('pt-BR') %>
               </td>
               <td class="break-word">
-                <%= new Date(campaign.end_date).toLocaleString("pt-BR") %>
+                <%= new Date(campaign.end_date).toLocaleString('pt-BR') %>
               </td>
               <td>
                 <button
@@ -96,6 +104,7 @@
       <div class="confirmation-modal">
         <div class="confirmation-modal-header">
           <h3>Confirmar Exclusão</h3>
+
         </div>
         <div class="confirmation-modal-body">
           <p>Esta ação não pode ser desfeita.</p>
@@ -116,7 +125,7 @@
         <div class="modal-header centered">
           <h2 class="modal-title centered">Cadastrar Nova Campanha</h2>
         </div>
-        <form action="/campaigns" method="POST" class="modal-form">
+        <form action="/campaigns" method="POST" class="modal-form" novalidate>
           <input
             type="text"
             name="name"
@@ -125,16 +134,20 @@
             class="modal-input"
           />
           <input
-            type="datetime-local"
+            id="start_date"
+            type="text"
             name="start_date"
             required
             class="modal-input"
+            value="<%= fmt(now) %>"
           />
           <input
-            type="datetime-local"
+            id="end_date"
+            type="text"
             name="end_date"
             required
             class="modal-input"
+            value="<%= fmt(tomorrow) %>"
           />
           <select name="device_id" class="modal-input" required>
             <option value="">Selecione o Dispositivo</option>
@@ -142,7 +155,6 @@
             <option value="<%= device.id %>"><%= device.name %></option>
             <% }) %>
           </select>
-
           <div class="modal-actions">
             <button type="submit" class="device-button">Adicionar</button>
             <button
@@ -157,8 +169,10 @@
       </div>
     </div>
 
-    <%- include("partials/footer") %>
+    <%- include('partials/footer') %>
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/pt.js"></script>
     <script src="/js/main.js"></script>
   </body>
 </html>
