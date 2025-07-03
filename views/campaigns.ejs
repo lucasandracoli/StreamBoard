@@ -104,7 +104,6 @@ ${pad(d.getHours())}:${pad(d.getMinutes())}`; %>
       <div class="confirmation-modal">
         <div class="confirmation-modal-header">
           <h3>Confirmar Exclusão</h3>
-
         </div>
         <div class="confirmation-modal-body">
           <p>Esta ação não pode ser desfeita.</p>
@@ -125,7 +124,13 @@ ${pad(d.getHours())}:${pad(d.getMinutes())}`; %>
         <div class="modal-header centered">
           <h2 class="modal-title centered">Cadastrar Nova Campanha</h2>
         </div>
-        <form action="/campaigns" method="POST" class="modal-form" novalidate>
+        <form
+          action="/campaigns"
+          method="POST"
+          class="modal-form"
+          novalidate
+          enctype="multipart/form-data"
+        >
           <input
             type="text"
             name="name"
@@ -139,7 +144,6 @@ ${pad(d.getHours())}:${pad(d.getMinutes())}`; %>
             name="start_date"
             required
             class="modal-input"
-            value="<%= fmt(now) %>"
           />
           <input
             id="end_date"
@@ -147,7 +151,6 @@ ${pad(d.getHours())}:${pad(d.getMinutes())}`; %>
             name="end_date"
             required
             class="modal-input"
-            value="<%= fmt(tomorrow) %>"
           />
           <select name="device_id" class="modal-input" required>
             <option value="">Selecione o Dispositivo</option>
@@ -155,6 +158,22 @@ ${pad(d.getHours())}:${pad(d.getMinutes())}`; %>
             <option value="<%= device.id %>"><%= device.name %></option>
             <% }) %>
           </select>
+
+          <div class="file-upload-wrapper">
+            <input
+              type="file"
+              id="file-upload"
+              name="media"
+              accept="image/*,video/*"
+              hidden
+            />
+            <label for="file-upload" class="file-upload-button">
+              <i class="bi bi-upload"></i>
+              <span>Escolher Mídia (Imagem/Vídeo)</span>
+            </label>
+            <div class="file-preview-wrapper" id="file-preview-wrapper"></div>
+          </div>
+
           <div class="modal-actions">
             <button type="submit" class="device-button">Adicionar</button>
             <button

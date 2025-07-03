@@ -70,18 +70,40 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const confirmationModal = document.getElementById("confirmationModal");
+  const campaignModal = document.getElementById("campaignModal");
+
+  const fileUploadInput = document.getElementById("file-upload");
+  const filePreviewWrapper = document.getElementById("file-preview-wrapper");
+  const fileUploadLabel = document.querySelector('label[for="file-upload"]');
+
+  const resetFileInput = () => {
+    if (fileUploadInput) {
+      fileUploadInput.value = "";
+    }
+    if (filePreviewWrapper) {
+      filePreviewWrapper.innerHTML = "";
+    }
+    if (fileUploadLabel) {
+      fileUploadLabel.style.display = "inline-flex";
+    }
+  };
+
   window.addEventListener("click", (e) => {
     if (e.target === deviceModal) {
       deviceModal.classList.remove("active");
       setTimeout(() => (deviceModal.style.display = "none"), 220);
     }
-    if (e.target === connectionModal) connectionModal.style.display = "none";
+    if (e.target === connectionModal) {
+      connectionModal.style.display = "none";
+    }
     if (e.target === campaignModal) {
       campaignModal.classList.remove("active");
       setTimeout(() => (campaignModal.style.display = "none"), 220);
+      resetFileInput();
     }
-    if (e.target === confirmationModal)
+    if (e.target === confirmationModal) {
       confirmationModal.style.display = "none";
+    }
   });
 
   const deviceForm = document.querySelector('form[action="/devices"]');
@@ -112,7 +134,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  const campaignModal = document.getElementById("campaignModal");
   const openCampaignModalBtn = document.getElementById("openCampaignModal");
   const cancelCampaignModalBtn = document.getElementById("cancelCampaignModal");
 
@@ -125,6 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
   cancelCampaignModalBtn?.addEventListener("click", () => {
     campaignModal.classList.remove("active");
     setTimeout(() => (campaignModal.style.display = "none"), 220);
+    resetFileInput();
   });
 
   const campaignForm = document.querySelector('form[action="/campaigns"]');
@@ -180,39 +202,78 @@ document.addEventListener("DOMContentLoaded", () => {
   closeConfirmationModalBtn?.addEventListener("click", () => {
     confirmationModal.style.display = "none";
   });
+
   cancelConfirmationBtn?.addEventListener("click", () => {
     confirmationModal.style.display = "none";
   });
 
   const startInput = document.getElementById("start_date");
   const endInput = document.getElementById("end_date");
-  startInput.value = "";
-  endInput.value = "";
+  if (startInput) startInput.value = "";
+  if (endInput) endInput.value = "";
 
   const now = new Date();
   const tomorrow = new Date(now.getTime() + 86400000);
 
-  flatpickr(startInput, {
-    enableTime: true,
-    time_24hr: true,
-    defaultDate: now,
-    altInput: true,
-    altFormat: "d/m/Y H:i",
-    dateFormat: "Y-m-d H:i",
-    locale: "pt",
-    allowInput: true,
-    static: true,
-  });
+  if (startInput) {
+    flatpickr(startInput, {
+      enableTime: true,
+      time_24hr: true,
+      defaultDate: now,
+      altInput: true,
+      altFormat: "d/m/Y H:i",
+      dateFormat: "Y-m-d H:i",
+      locale: "pt",
+      allowInput: true,
+      static: true,
+    });
+  }
 
-  flatpickr(endInput, {
-    enableTime: true,
-    time_24hr: true,
-    defaultDate: tomorrow,
-    altInput: true,
-    altFormat: "d/m/Y H:i",
-    dateFormat: "Y-m-d H:i",
-    locale: "pt",
-    allowInput: true,
-    static: true,
+  if (endInput) {
+    flatpickr(endInput, {
+      enableTime: true,
+      time_24hr: true,
+      defaultDate: tomorrow,
+      altInput: true,
+      altFormat: "d/m/Y H:i",
+      dateFormat: "Y-m-d H:i",
+      locale: "pt",
+      allowInput: true,
+      static: true,
+    });
+  }
+
+  fileUploadInput?.addEventListener("change", function () {
+    const file = this.files[0];
+    if (file) {
+      const fileName = file.name;
+      const fileExtension = fileName.split(".").pop();
+      const isVideo = file.type.includes("video");
+      const iconClass = isVideo ? "bi-camera-video-fill" : "bi-image-fill";
+
+      const previewHTML = `
+        <div class="file-preview">
+          <div class="file-preview-icon">
+            <i class="bi ${iconClass}"></i>
+          </div>
+          <div class="file-preview-details">
+            <div class="file-preview-name">${fileName}</div>
+            <div class="file-preview-extension">${fileExtension}</div>
+          </div>
+          <button type="button" class="file-preview-remove" id="remove-file-btn">
+            <i class="bi bi-x"></i>
+          </button>
+        </div>
+      `;
+
+      filePreviewWrapper.innerHTML = previewHTML;
+      fileUploadLabel.style.display = "none";
+
+      document
+        .getElementById("remove-file-btn")
+        .addEventListener("click", () => {
+          resetFileInput();
+        });
+    }
   });
 });

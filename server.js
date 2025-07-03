@@ -425,6 +425,7 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
 
     res.render("campaigns", { campaigns, devices });
   } catch (err) {
+    console.error("Erro ao carregar campanhas:", err);
     res.status(500).send("Erro ao carregar campanhas.");
   }
 });
@@ -433,7 +434,7 @@ app.post(
   "/campaigns",
   isAuthenticated,
   isAdmin,
-  upload.single("file"),
+  upload.single("media"),
   async (req, res) => {
     const { name, start_date, end_date, device_id } = req.body;
 
@@ -489,6 +490,7 @@ app.post(
         campaign: campaign,
       });
     } catch (err) {
+      console.error("Erro ao criar campanha:", err);
       res
         .status(500)
         .json({ message: "Erro ao criar campanha.", error: err.message });
@@ -537,6 +539,7 @@ app.post(
         .status(200)
         .json({ message: "Campanha associada ao dispositivo com sucesso." });
     } catch (err) {
+      console.error("Erro ao associar campanha:", err);
       res
         .status(500)
         .json({ message: "Erro ao associar campanha ao dispositivo." });
@@ -573,6 +576,7 @@ app.get(
 
       res.render("campaignDetail", { campaign, devices });
     } catch (err) {
+      console.error("Erro ao carregar detalhes da campanha:", err);
       res.status(500).send("Erro ao carregar dados da campanha.");
     }
   }
@@ -602,52 +606,38 @@ app.post(
         campaign: result.rows[0],
       });
     } catch (err) {
+      console.error("Erro ao editar campanha:", err);
       res.status(500).json({ message: "Erro ao atualizar campanha." });
     }
   }
 );
 
 app.post(
-  "/campaigns/:campaignId/delete",
+  "/campaigns/:id/delete",
   isAuthenticated,
   isAdmin,
   async (req, res) => {
-    const { campaignId } = req.params;
+    const { id } = req.params;
 
     try {
+      await db.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
+        id,
+      ]);
+      await db.query("DELETE FROM campaign_uploads WHERE campaign_id = $1", [
+        id,
+      ]);
       const result = await db.query(
         "DELETE FROM campaigns WHERE id = $1 RETURNING *",
-        [campaignId]
+        [id]
       );
+
       if (result.rows.length === 0) {
         return res.status(404).json({ message: "Campanha não encontrada." });
       }
 
       res.status(200).json({ message: "Campanha excluída com sucesso." });
     } catch (err) {
-      res.status(500).json({ message: "Erro ao excluir campanha." });
-    }
-  }
-);
-
-app.post(
-  "/campaigns/:campaignId/delete",
-  isAuthenticated,
-  isAdmin,
-  async (req, res) => {
-    const { campaignId } = req.params;
-
-    try {
-      const result = await db.query(
-        "DELETE FROM campaigns WHERE id = $1 RETURNING *",
-        [campaignId]
-      );
-      if (result.rows.length === 0) {
-        return res.status(404).json({ message: "Campanha não encontrada." });
-      }
-
-      res.status(200).json({ message: "Campanha excluída com sucesso." });
-    } catch (err) {
+      console.error("Erro ao excluir campanha:", err);
       res.status(500).json({ message: "Erro ao excluir campanha." });
     }
   }
