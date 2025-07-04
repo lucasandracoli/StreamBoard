@@ -263,7 +263,7 @@ app.get("/dashboard", isAuthenticated, isAdmin, (req, res) => {
 
 app.post("/api/deviceHeartbeat", deviceAuth, async (req, res) => {
   const deviceId = req.device.id;
-  const { ip, effectiveType, downlink, localIp } = req.body;
+  const { localIp, effectiveType, downlink } = req.body;
 
   if (!deviceId) {
     return res.status(401).json({ message: "Dispositivo não autenticado." });
@@ -271,14 +271,13 @@ app.post("/api/deviceHeartbeat", deviceAuth, async (req, res) => {
 
   try {
     await db.query(
-      `UPDATE devices SET 
-        last_known_ip = $1, 
-        network_effective_type = $2, 
-        network_downlink = $3,
-        local_ip = $4,
+      `UPDATE devices SET
+        network_effective_type = $1,
+        network_downlink = $2,
+        local_ip = $3,
         last_seen = NOW()
-       WHERE id = $5`,
-      [ip, effectiveType, downlink, localIp, deviceId]
+        WHERE id = $4`,
+      [effectiveType, downlink, localIp, deviceId]
     );
 
     res.status(200).json({ message: "Heartbeat recebido com sucesso." });
@@ -291,7 +290,10 @@ app.post("/api/deviceHeartbeat", deviceAuth, async (req, res) => {
 app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
   try {
     const devicesResult = await db.query(
-      "SELECT * FROM devices ORDER BY registered_at DESC"
+      `SELECT d.*,
+         (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id) > 0 as has_tokens
+       FROM devices d
+       ORDER BY d.registered_at DESC`
     );
 
     const devices = devicesResult.rows.map((device) => {
@@ -303,10 +305,22 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
 
       const isOnline = clients.hasOwnProperty(device.id);
 
+      let status;
+      if (!device.is_active) {
+        status = { text: "Revogado", class: "status status-revogado" };
+      } else if (isOnline) {
+        status = { text: "Online", class: "online-status online" };
+      } else if (device.has_tokens) {
+        status = { text: "Offline", class: "online-status offline" };
+      } else {
+        status = { text: "Inativo", class: "status status-inativo" };
+      }
+
       return {
         ...device,
         last_seen_formatted: lastSeenFormatted,
         is_online: isOnline,
+        status: status,
       };
     });
 
@@ -329,8 +343,8 @@ app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
   const authentication_key = crypto.randomBytes(32).toString("hex");
   try {
     await db.query(
-      `INSERT INTO devices (name, device_identifier, authentication_key, device_type, sector)
-       VALUES ($1, $2, $3, $4, $5)`,
+      `INSERT INTO devices (name, device_identifier, authentication_key, device_type, sector, is_active)
+       VALUES ($1, $2, $3, $4, $5, TRUE)`,
       [name, device_identifier, authentication_key, device_type, sector]
     );
     res.json({
@@ -366,7 +380,9 @@ app.get("/pair", (req, res) => {
 app.post("/pair", async (req, res) => {
   const { device_identifier, authentication_key } = req.body;
   if (!device_identifier || !authentication_key) {
-    return res.render("pair", { error: "Credenciais obrigatórias." });
+    return res.render("pair", {
+      error: "ID do Dispositivo e Chave de Autenticação são obrigatórios.",
+    });
   }
 
   const client = await db.connect();
@@ -382,7 +398,9 @@ app.post("/pair", async (req, res) => {
       result.rows[0].authentication_key !== authentication_key
     ) {
       await client.query("ROLLBACK");
-      return res.render("pair", { error: "Credenciais inválidas." });
+      return res.render("pair", {
+        error: "ID do Dispositivo ou Chave de Autenticação inválidos.",
+      });
     }
 
     const device = result.rows[0];
@@ -433,22 +451,81 @@ app.post(
   isAdmin,
   async (req, res) => {
     const { identifier } = req.params;
+    const client = await db.connect();
     try {
-      const result = await db.query(
-        "SELECT * FROM devices WHERE device_identifier = $1",
+      await client.query("BEGIN");
+
+      const result = await client.query(
+        "SELECT id FROM devices WHERE device_identifier = $1",
         [identifier]
       );
+
       if (result.rows.length === 0) {
+        await client.query("ROLLBACK");
         return res.status(404).json({ message: "Dispositivo não encontrado." });
       }
-      const device = result.rows[0];
-      await db.query(
+
+      const deviceId = result.rows[0].id;
+
+      await client.query(
         "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
-        [device.id]
+        [deviceId]
       );
-      res.status(200).json({ message: "Token revogado com sucesso." });
+
+      await client.query("UPDATE devices SET is_active = FALSE WHERE id = $1", [
+        deviceId,
+      ]);
+
+      await client.query("COMMIT");
+
+      sendUpdateToDevice(deviceId, {
+        type: "DEVICE_REVOKED",
+        payload: { identifier: identifier },
+      });
+
+      res.status(200).json({
+        message:
+          "Acesso do dispositivo revogado e status atualizado com sucesso.",
+      });
     } catch (err) {
-      res.status(500).json({ message: "Erro ao revogar token." });
+      await client.query("ROLLBACK");
+      console.error(
+        "Erro ao revogar token e atualizar status do dispositivo:",
+        err
+      );
+      res
+        .status(500)
+        .json({ message: "Erro ao revogar acesso do dispositivo." });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+app.post(
+  "/devices/:identifier/reactivate",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { identifier } = req.params;
+
+    try {
+      const result = await db.query(
+        "UPDATE devices SET is_active = TRUE WHERE device_identifier = $1",
+        [identifier]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ message: "Dispositivo não encontrado." });
+      }
+
+      res.status(200).json({
+        message:
+          "Dispositivo reativado com sucesso. Ele já pode parear novamente.",
+      });
+    } catch (err) {
+      console.error("Erro ao reativar o dispositivo:", err);
+      res.status(500).json({ message: "Erro ao reativar o dispositivo." });
     }
   }
 );
@@ -501,8 +578,8 @@ app.get(
 
       const activeCampaignsResult = await db.query(
         `SELECT c.name FROM campaigns c
-       JOIN campaign_device cd ON c.id = cd.campaign_id
-       WHERE cd.device_id = $1 AND NOW() BETWEEN c.start_date AND c.end_date`,
+         JOIN campaign_device cd ON c.id = cd.campaign_id
+         WHERE cd.device_id = $1 AND NOW() BETWEEN c.start_date AND c.end_date`,
         [id]
       );
       const activeCampaigns = activeCampaignsResult.rows.map((c) => c.name);
@@ -555,11 +632,11 @@ app.get("/api/device/playlist", deviceAuth, async (req, res) => {
     const now = new Date();
     const result = await db.query(
       `SELECT c.*, cd.execution_order
-             FROM campaigns c
-             JOIN campaign_device cd ON c.id = cd.campaign_id
-             WHERE cd.device_id = $1
-               AND c.start_date <= $2
-               AND c.end_date >= $2`,
+               FROM campaigns c
+               JOIN campaign_device cd ON c.id = cd.campaign_id
+               WHERE cd.device_id = $1
+                 AND c.start_date <= $2
+                 AND c.end_date >= $2`,
       [req.device.id, now]
     );
     res.json(result.rows);

@@ -3,6 +3,26 @@ document.addEventListener("DOMContentLoaded", () => {
   let playlist = [];
   let currentCampaignIndex = -1;
 
+  let eventSource = null;
+  let heartbeatIntervalId = null;
+
+  const disconnectDevice = () => {
+    if (heartbeatIntervalId) {
+      clearInterval(heartbeatIntervalId);
+      heartbeatIntervalId = null;
+    }
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    campaignContainer.innerHTML =
+      '<div id="waiting-message" style="text-align: center;"><h1>Acesso Revogado</h1><p>Este dispositivo será redirecionado para a tela de pareamento.</p></div>';
+
+    setTimeout(() => {
+      window.location.href = "/pair";
+    }, 5000);
+  };
+
   const clearDisplay = () => {
     campaignContainer.innerHTML =
       '<p id="waiting-message">Aguardando campanha...</p>';
@@ -33,6 +53,8 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const playNext = () => {
+    if (!eventSource) return;
+
     if (playlist.length === 0) {
       clearDisplay();
       return;
@@ -44,7 +66,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const fetchInitialPlaylist = async () => {
     try {
       const response = await fetch("/api/device/playlist");
-      if (!response.ok) return;
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          disconnectDevice();
+        }
+        return;
+      }
       playlist = await response.json();
       playlist.sort((a, b) => a.execution_order - b.execution_order);
       playNext();
@@ -64,6 +91,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const initialLength = playlist.length;
       playlist = playlist.filter((c) => c.id !== Number(payload.campaignId));
       if (playlist.length < initialLength) playlistChanged = true;
+    } else if (type === "DEVICE_REVOKED") {
+      disconnectDevice();
+      return;
     }
 
     if (playlistChanged) {
@@ -74,7 +104,11 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const connectToStream = () => {
-    const eventSource = new EventSource("/stream");
+    if (eventSource) {
+      eventSource.close();
+    }
+
+    eventSource = new EventSource("/stream");
 
     eventSource.onmessage = (event) => {
       try {
@@ -97,39 +131,55 @@ document.addEventListener("DOMContentLoaded", () => {
       pc.createDataChannel("");
       pc.createOffer().then(pc.setLocalDescription.bind(pc));
 
+      let foundLocalAddress = null;
+      let timeoutId;
+
       pc.onicecandidate = (ice) => {
         if (!ice || !ice.candidate || !ice.candidate.candidate) {
-          resolve(null);
           return;
         }
 
-        if (ice.candidate.candidate.includes("typ host")) {
-          const ipRegex =
-            /(192\.168(?:\.\d{1,3}){2}|10(?:\.\d{1,3}){3}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})/;
-          const foundIp = ice.candidate.candidate.match(ipRegex);
+        const candidateStr = ice.candidate.candidate;
 
-          if (foundIp) {
-            resolve(foundIp[0]);
-            pc.onicecandidate = () => {};
-            pc.close();
+        if (candidateStr.includes("typ host")) {
+          const parts = candidateStr.split(" ");
+          if (parts.length >= 5) {
+            const address = parts[4];
+            const numericalIpRegex = /(?:[0-9]{1,3}\.){3}[0-9]{1,3}/;
+
+            if (numericalIpRegex.test(address)) {
+              foundLocalAddress = address;
+              clearTimeout(timeoutId);
+              pc.close();
+              resolve(foundLocalAddress);
+            } else if (address.endsWith(".local")) {
+              foundLocalAddress = address;
+            }
           }
         }
       };
 
-      setTimeout(() => resolve(null), 1000);
+      pc.onicegatheringstatechange = () => {
+        if (pc.iceGatheringState === "complete") {
+          pc.close();
+          clearTimeout(timeoutId);
+          resolve(foundLocalAddress);
+        }
+      };
+
+      timeoutId = setTimeout(() => {
+        pc.close();
+        resolve(foundLocalAddress);
+      }, 2000);
     });
   };
 
   const sendDeviceHeartbeat = async () => {
     try {
-      const ipResponse = await fetch("https://api.ipify.org?format=json");
-      const ipData = await ipResponse.json();
-
       const connection = navigator.connection || {};
       const localIp = await getLocalIpAddress();
 
       const payload = {
-        ip: ipData.ip || "N/A",
         localIp: localIp || "N/A",
         effectiveType: connection.effectiveType || "unknown",
         downlink: connection.downlink || 0,
@@ -140,8 +190,6 @@ document.addEventListener("DOMContentLoaded", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
-      console.log("Heartbeat enviado:", payload);
     } catch (error) {
       console.error("Falha ao enviar heartbeat:", error);
     }
@@ -150,5 +198,5 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchInitialPlaylist();
   connectToStream();
   sendDeviceHeartbeat();
-  setInterval(sendDeviceHeartbeat, 60000);
+  heartbeatIntervalId = setInterval(sendDeviceHeartbeat, 60000);
 });

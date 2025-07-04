@@ -526,6 +526,11 @@
 }
 
 .status-inativo {
+  background-color: #f3f4f6;
+  color: #4b5563;
+}
+
+.status-revogado {
   background-color: rgba(239, 68, 68, 0.12);
   color: var(--color-error);
 }
@@ -981,7 +986,6 @@
   color: #374151;
 }
 
-/* ESTILOS A SEREM AJUSTADOS/REMOVIDOS */
 .campaign-list ul {
   list-style-type: none;
   padding-left: 0;

@@ -36,7 +36,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.querySelectorAll(".show-connection").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
       inputId.value = btn.dataset.identifier;
       inputKey.value = btn.dataset.key;
       connectionModal.style.display = "flex";
@@ -195,9 +196,11 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("modalDeviceIdentifier").textContent =
       data.device_identifier;
     document.getElementById("modalDeviceIp").textContent =
-      data.last_known_ip || "N/A";
-    document.getElementById("modalNetworkType").textContent =
-      data.network_effective_type || "N/A";
+      data.local_ip || "N/A";
+    document.getElementById("modalDownlink").textContent =
+      data.network_downlink !== undefined && data.network_downlink !== null
+        ? `${data.network_downlink} Mbps`
+        : "N/A";
 
     const campaignsDiv = document.getElementById("modalActiveCampaigns");
     if (data.active_campaigns && data.active_campaigns.length > 0) {
@@ -205,7 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
       data.active_campaigns.forEach((campaignName) => {
         campaignsHtml += `
           <p>
-            <span class="details-label">Campanha</span>
+            <span class="details-label">Campanha:</span>
             <span>${campaignName}</span>
           </p>
         `;
@@ -225,11 +228,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const revokeBtn = document.getElementById("modalRevokeButton");
+    const reactivateBtn = document.getElementById("modalReactivateButton");
+
     revokeBtn.dataset.identifier = data.device_identifier;
+    reactivateBtn.dataset.identifier = data.device_identifier;
+
+    if (data.is_active) {
+      revokeBtn.style.display = "inline-flex";
+      reactivateBtn.style.display = "none";
+    } else {
+      revokeBtn.style.display = "none";
+      reactivateBtn.style.display = "inline-flex";
+    }
   };
 
   document.querySelectorAll(".open-details-modal").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
       const deviceId = btn.dataset.deviceId;
       detailsModal.style.display = "flex";
       detailsContent.style.display = "none";
@@ -268,7 +283,28 @@ document.addEventListener("DOMContentLoaded", () => {
           const msg = await handleFetchError(res);
           return notyf.error(msg);
         }
-        notyf.success("Token revogado com sucesso.");
+        notyf.success("Dispositivo revogado com sucesso.");
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        notyf.error("Falha na comunicação com o servidor.");
+      }
+    });
+
+  document
+    .getElementById("modalReactivateButton")
+    ?.addEventListener("click", async function () {
+      const identifier = this.dataset.identifier;
+      try {
+        const res = await fetch(`/devices/${identifier}/reactivate`, {
+          method: "POST",
+        });
+
+        if (!res.ok) {
+          const msg = await handleFetchError(res);
+          return notyf.error(msg);
+        }
+        const json = await res.json();
+        notyf.success(json.message);
         setTimeout(() => location.reload(), 1200);
       } catch (err) {
         notyf.error("Falha na comunicação com o servidor.");
@@ -294,6 +330,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === detailsModal) {
       detailsModal.style.display = "none";
     }
+  });
+
+  document.querySelectorAll(".device-table tbody tr").forEach((row) => {
+    row.addEventListener("click", function (event) {
+      if (event.target.closest(".action-icon, .details-icon-button")) {
+        return;
+      }
+      this.querySelector(".open-details-modal")?.click();
+    });
   });
 
   const fileUploadInput = document.getElementById("file-upload");

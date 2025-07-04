@@ -48,7 +48,6 @@ default: 'bi-question-circle' }; %>
               <th>Nome</th>
               <th>Status Dispositivo</th>
               <th>Tipo</th>
-              <th>Status</th>
               <th>Setor</th>
               <th>Dados de Acesso</th>
             </tr>
@@ -56,7 +55,7 @@ default: 'bi-question-circle' }; %>
           <tbody>
             <% if (devices.length === 0) { %>
             <tr>
-              <td colspan="6" style="text-align: center">
+              <td colspan="5" style="text-align: center">
                 Nenhum dispositivo cadastrado.
               </td>
             </tr>
@@ -64,15 +63,11 @@ default: 'bi-question-circle' }; %>
             <tr>
               <td class="break-word"><%= device.name %></td>
               <td>
-                <% if (device.is_online) { %>
-                <span class="online-status online">
-                  <span class="online-dot"></span> Online
+                <span class="<%= device.status.class %>">
+                  <% if (device.status.class.includes('online-status')) { %>
+                  <span class="online-dot"></span>
+                  <% } %> <%= device.status.text %>
                 </span>
-                <% } else { %>
-                <span class="online-status offline">
-                  <span class="online-dot"></span> Offline
-                </span>
-                <% } %>
               </td>
               <td class="icon-cell">
                 <button
@@ -83,13 +78,6 @@ default: 'bi-question-circle' }; %>
                     class="bi <%= deviceIcons[device.device_type] || deviceIcons.default %>"
                   ></i>
                 </button>
-              </td>
-              <td>
-                <span
-                  class="status <%= device.is_active ? 'status-ativo' : 'status-inativo' %>"
-                >
-                  <%= device.is_active ? 'Ativo' : 'Inativo' %>
-                </span>
               </td>
               <td class="break-word"><%= device.sector %></td>
               <td>
@@ -107,6 +95,8 @@ default: 'bi-question-circle' }; %>
                     fill="none"
                     stroke="currentColor"
                     stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
                   >
                     <path
                       d="M17 11V7a5 5 0 0 0-10 0v4m12 0H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2Z"
@@ -150,8 +140,8 @@ default: 'bi-question-circle' }; %>
                 <span id="modalDeviceIp"></span>
               </p>
               <p>
-                <span class="details-label">Qualidade da Rede</span>
-                <span id="modalNetworkType"></span>
+                <span class="details-label">Velocidade Download</span>
+                <span id="modalDownlink"></span>
               </p>
             </div>
             <div class="details-section">
@@ -180,6 +170,13 @@ default: 'bi-question-circle' }; %>
               id="modalRevokeButton"
             >
               Revogar Acesso
+            </button>
+            <button
+              class="device-button"
+              id="modalReactivateButton"
+              style="display: none"
+            >
+              Reativar Dispositivo
             </button>
           </div>
         </div>
