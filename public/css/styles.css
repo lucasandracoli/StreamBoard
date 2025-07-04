@@ -798,3 +798,37 @@
   font-size: 1.2rem;
   display: block;
 }
+
+.online-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  gap: 6px;
+}
+
+.online-status .online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.online-status.online {
+  color: var(--color-primary);
+  background-color: rgba(0, 200, 111, 0.12);
+}
+
+.online-status.online .online-dot {
+  background-color: var(--color-primary);
+}
+
+.online-status.offline {
+  color: #6b7280;
+  background-color: #f3f4f6;
+}
+
+.online-status.offline .online-dot {
+  background-color: #6b7280;
+}

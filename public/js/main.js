@@ -1,7 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
   const notyf = new Notyf();
 
-  // Função auxiliar para tratar erros de fetch
   const handleFetchError = async (response) => {
     try {
       const errorJson = await response.json();
@@ -11,7 +10,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // --- MODAIS E EVENTOS DE UI ---
   const deviceModal = document.getElementById("deviceModal");
   const openDeviceModalBtn = document.getElementById("openDeviceModal");
   const cancelDeviceModalBtn = document.getElementById("cancelDeviceModal");
@@ -86,8 +84,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target === confirmationModal)
       confirmationModal.style.display = "none";
   });
-
-  // --- LÓGICA DE FORMULÁRIOS ---
 
   const loginForm = document.getElementById("loginForm");
   if (loginForm) {
@@ -207,7 +203,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // --- INICIALIZAÇÃO DE PLUGINS E UPLOAD ---
   const fileUploadInput = document.getElementById("file-upload");
   const filePreviewWrapper = document.getElementById("file-preview-wrapper");
   const fileUploadLabel = document.querySelector('label[for="file-upload"]');
@@ -248,7 +243,7 @@ document.addEventListener("DOMContentLoaded", () => {
       defaultDate: new Date(),
       altInput: true,
       altFormat: "d/m/Y H:i",
-      dateFormat: "Y-m-d H:i",
+      dateFormat: "Z",
       locale: "pt",
     });
   }
@@ -261,7 +256,7 @@ document.addEventListener("DOMContentLoaded", () => {
       defaultDate: tomorrow,
       altInput: true,
       altFormat: "d/m/Y H:i",
-      dateFormat: "Y-m-d H:i",
+      dateFormat: "Z",
       locale: "pt",
     });
   }

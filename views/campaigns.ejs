@@ -1,7 +1,3 @@
-<% const now = new Date(); const tomorrow = new Date(now.getTime() + 86400000);
-const pad = n => n.toString().padStart(2, '0'); const fmt = d =>
-`${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}
-${pad(d.getHours())}:${pad(d.getMinutes())}`; %>
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
@@ -65,12 +61,8 @@ ${pad(d.getHours())}:${pad(d.getMinutes())}`; %>
             <% } else { %> <% campaigns.forEach(campaign => { %>
             <tr>
               <td class="break-word"><%= campaign.name %></td>
-              <td class="break-word">
-                <%= new Date(campaign.start_date).toLocaleString('pt-BR') %>
-              </td>
-              <td class="break-word">
-                <%= new Date(campaign.end_date).toLocaleString('pt-BR') %>
-              </td>
+              <td class="break-word"><%= campaign.start_date_formatted %></td>
+              <td class="break-word"><%= campaign.end_date_formatted %></td>
               <td>
                 <button
                   class="action-icon-excluir"

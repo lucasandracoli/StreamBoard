@@ -42,6 +42,7 @@
           <thead>
             <tr>
               <th>Nome</th>
+              <th>Status Online</th>
               <th>Tipo</th>
               <th>Status</th>
               <th>Último Acesso</th>
@@ -52,13 +53,24 @@
           <tbody>
             <% if (devices.length === 0) { %>
             <tr>
-              <td colspan="6" style="text-align: center">
+              <td colspan="7" style="text-align: center">
                 Nenhum dispositivo cadastrado.
               </td>
             </tr>
             <% } else { %> <% devices.forEach(device => { %>
             <tr>
               <td class="break-word"><%= device.name %></td>
+              <td>
+                <% if (device.is_online) { %>
+                <span class="online-status online">
+                  <span class="online-dot"></span> Online
+                </span>
+                <% } else { %>
+                <span class="online-status offline">
+                  <span class="online-dot"></span> Offline
+                </span>
+                <% } %>
+              </td>
               <td class="icon-cell">
                 <% if (device.device_type === 'tv') { %>
                 <i

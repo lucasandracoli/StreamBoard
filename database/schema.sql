@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     user_role VARCHAR(20) DEFAULT 'user',
     display_name VARCHAR(100),
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS devices (
@@ -16,11 +16,11 @@ CREATE TABLE IF NOT EXISTS devices (
     device_identifier VARCHAR(100) UNIQUE NOT NULL,
     authentication_key TEXT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
-    last_seen TIMESTAMP,
-    registered_at TIMESTAMP DEFAULT NOW(),
+    last_seen TIMESTAMPTZ,
+    registered_at TIMESTAMPTZ DEFAULT NOW(),
     device_type VARCHAR(30) DEFAULT 'unknown',
     sector VARCHAR(50),
-    created_at TIMESTAMP DEFAULT NOW() 
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS tokens (
@@ -29,16 +29,16 @@ CREATE TABLE IF NOT EXISTS tokens (
     token TEXT NOT NULL,
     refresh_token TEXT NOT NULL,
     is_revoked BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS campaigns (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    start_date TIMESTAMP,
-    end_date TIMESTAMP,
+    start_date TIMESTAMPTZ,
+    end_date TIMESTAMPTZ,
     midia TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS campaign_device (
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS campaign_uploads (
     file_name VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
     file_type VARCHAR(50) NOT NULL,
-    uploaded_at TIMESTAMP DEFAULT NOW()
+    uploaded_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_tokens_refresh_token ON tokens (refresh_token);

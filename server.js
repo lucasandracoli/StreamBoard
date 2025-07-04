@@ -266,16 +266,26 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
     const devicesResult = await db.query(
       "SELECT * FROM devices ORDER BY registered_at DESC"
     );
-    const devices = devicesResult.rows.map((d) => ({
-      ...d,
-      last_seen_formatted: d.last_seen
-        ? DateTime.fromISO(d.last_seen.toISOString())
+
+    const devices = devicesResult.rows.map((device) => {
+      const lastSeenFormatted = device.last_seen
+        ? DateTime.fromJSDate(device.last_seen)
             .setZone("America/Sao_Paulo")
             .toFormat("dd/MM/yyyy HH:mm:ss")
-        : "Nunca",
-    }));
+        : "Nunca";
+
+      const isOnline = clients.hasOwnProperty(device.id);
+
+      return {
+        ...device,
+        last_seen_formatted: lastSeenFormatted,
+        is_online: isOnline,
+      };
+    });
+
     res.render("devices", { devices });
   } catch (err) {
+    console.error("Erro ao carregar dispositivos:", err);
     res.status(500).send("Erro ao carregar dispositivos.");
   }
 });
@@ -366,6 +376,7 @@ app.post("/pair", async (req, res) => {
     await client.query("UPDATE devices SET last_seen = NOW() WHERE id = $1", [
       device.id,
     ]);
+
     await client.query("COMMIT");
 
     res.cookie("access_token", accessToken, {
@@ -481,13 +492,40 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
     const campaignsResult = await db.query(
       "SELECT * FROM campaigns ORDER BY created_at DESC"
     );
-    const campaigns = campaignsResult.rows;
+
+    const campaigns = campaignsResult.rows.map((campaign) => {
+      const formatOptions = {
+        zone: "America/Sao_Paulo",
+        locale: "pt-BR",
+      };
+
+      const start_date_formatted = campaign.start_date
+        ? DateTime.fromJSDate(campaign.start_date, formatOptions).toFormat(
+            "dd/MM/yyyy, HH:mm:ss"
+          )
+        : "N/A";
+
+      const end_date_formatted = campaign.end_date
+        ? DateTime.fromJSDate(campaign.end_date, formatOptions).toFormat(
+            "dd/MM/yyyy, HH:mm:ss"
+          )
+        : "N/A";
+
+      return {
+        ...campaign,
+        start_date_formatted,
+        end_date_formatted,
+      };
+    });
+
     const devicesResult = await db.query(
       "SELECT * FROM devices WHERE is_active = TRUE"
     );
     const devices = devicesResult.rows;
+
     res.render("campaigns", { campaigns, devices });
   } catch (err) {
+    console.error("Erro ao carregar campanhas:", err);
     res.status(500).send("Erro ao carregar campanhas.");
   }
 });
