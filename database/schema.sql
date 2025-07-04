@@ -20,7 +20,11 @@ CREATE TABLE IF NOT EXISTS devices (
     registered_at TIMESTAMPTZ DEFAULT NOW(),
     device_type VARCHAR(30) DEFAULT 'unknown',
     sector VARCHAR(50),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    last_known_ip VARCHAR(45),
+    network_effective_type VARCHAR(20),
+    network_downlink REAL,
+    local_ip VARCHAR(45)
 );
 
 CREATE TABLE IF NOT EXISTS tokens (

@@ -86,14 +86,69 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     eventSource.onerror = () => {
-      console.error(
-        "Conexão com o stream perdida. Tentando reconectar em 5 segundos..."
-      );
       eventSource.close();
       setTimeout(connectToStream, 5000);
     };
   };
 
+  const getLocalIpAddress = () => {
+    return new Promise((resolve) => {
+      const pc = new RTCPeerConnection({ iceServers: [] });
+      pc.createDataChannel("");
+      pc.createOffer().then(pc.setLocalDescription.bind(pc));
+
+      pc.onicecandidate = (ice) => {
+        if (!ice || !ice.candidate || !ice.candidate.candidate) {
+          resolve(null);
+          return;
+        }
+
+        if (ice.candidate.candidate.includes("typ host")) {
+          const ipRegex =
+            /(192\.168(?:\.\d{1,3}){2}|10(?:\.\d{1,3}){3}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})/;
+          const foundIp = ice.candidate.candidate.match(ipRegex);
+
+          if (foundIp) {
+            resolve(foundIp[0]);
+            pc.onicecandidate = () => {};
+            pc.close();
+          }
+        }
+      };
+
+      setTimeout(() => resolve(null), 1000);
+    });
+  };
+
+  const sendDeviceHeartbeat = async () => {
+    try {
+      const ipResponse = await fetch("https://api.ipify.org?format=json");
+      const ipData = await ipResponse.json();
+
+      const connection = navigator.connection || {};
+      const localIp = await getLocalIpAddress();
+
+      const payload = {
+        ip: ipData.ip || "N/A",
+        localIp: localIp || "N/A",
+        effectiveType: connection.effectiveType || "unknown",
+        downlink: connection.downlink || 0,
+      };
+
+      await fetch("/api/deviceHeartbeat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      console.log("Heartbeat enviado:", payload);
+    } catch (error) {
+      console.error("Falha ao enviar heartbeat:", error);
+    }
+  };
+
   fetchInitialPlaylist();
   connectToStream();
+  sendDeviceHeartbeat();
+  setInterval(sendDeviceHeartbeat, 60000);
 });

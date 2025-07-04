@@ -18,7 +18,9 @@ error.log
 Thumbs.db               
 *.swp                 
 .idea/                 
-.vscode/                
+.vscode/          
+.mp4
+      
 
 # Sistema operacional
 *.bak                  

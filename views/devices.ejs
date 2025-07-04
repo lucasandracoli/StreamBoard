@@ -1,3 +1,7 @@
+<% const deviceIcons = { tv: 'bi-tv', windows: 'bi-windows', linux:
+'bi-terminal', android: 'bi-android2', ios: 'bi-apple', web: 'bi-globe2',
+default: 'bi-question-circle' }; %>
+
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
@@ -42,10 +46,9 @@
           <thead>
             <tr>
               <th>Nome</th>
-              <th>Status Online</th>
+              <th>Status Dispositivo</th>
               <th>Tipo</th>
               <th>Status</th>
-              <th>Último Acesso</th>
               <th>Setor</th>
               <th>Dados de Acesso</th>
             </tr>
@@ -53,7 +56,7 @@
           <tbody>
             <% if (devices.length === 0) { %>
             <tr>
-              <td colspan="7" style="text-align: center">
+              <td colspan="6" style="text-align: center">
                 Nenhum dispositivo cadastrado.
               </td>
             </tr>
@@ -72,42 +75,14 @@
                 <% } %>
               </td>
               <td class="icon-cell">
-                <% if (device.device_type === 'tv') { %>
-                <i
-                  class="bi bi-tv"
-                  style="color: var(--color-primary); font-size: 1rem"
-                ></i>
-                <% } else if (device.device_type === 'windows') { %>
-                <i
-                  class="bi bi-windows"
-                  style="color: var(--color-primary); font-size: 1rem"
-                ></i>
-                <% } else if (device.device_type === 'linux') { %>
-                <i
-                  class="bi bi-terminal"
-                  style="color: var(--color-primary); font-size: 1rem"
-                ></i>
-                <% } else if (device.device_type === 'android') { %>
-                <i
-                  class="bi bi-android2"
-                  style="color: var(--color-primary); font-size: 1rem"
-                ></i>
-                <% } else if (device.device_type === 'ios') { %>
-                <i
-                  class="bi bi-apple"
-                  style="color: var(--color-primary); font-size: 1rem"
-                ></i>
-                <% } else if (device.device_type === 'web') { %>
-                <i
-                  class="bi bi-globe2"
-                  style="color: var(--color-primary); font-size: 1rem"
-                ></i>
-                <% } else { %>
-                <i
-                  class="bi bi-question-circle"
-                  style="color: #999; font-size: 1rem"
-                ></i>
-                <% } %>
+                <button
+                  class="details-icon-button open-details-modal"
+                  data-device-id="<%= device.id %>"
+                >
+                  <i
+                    class="bi <%= deviceIcons[device.device_type] || deviceIcons.default %>"
+                  ></i>
+                </button>
               </td>
               <td>
                 <span
@@ -116,7 +91,6 @@
                   <%= device.is_active ? 'Ativo' : 'Inativo' %>
                 </span>
               </td>
-              <td class="break-word"><%= device.last_seen_formatted %></td>
               <td class="break-word"><%= device.sector %></td>
               <td>
                 <button
@@ -150,35 +124,115 @@
       </div>
     </main>
 
+    <div id="deviceDetailsModal" class="modal-overlay">
+      <div class="modal-card details-modal">
+        <div class="details-modal-loader"><div class="spinner"></div></div>
+        <div class="details-modal-content">
+          <div class="details-modal-header">
+            <div id="modalDeviceIcon"></div>
+            <div>
+              <h3 id="modalDeviceName"></h3>
+              <span id="modalDeviceType" class="details-subtitle"></span>
+            </div>
+            <button class="modal-close-button" id="closeDetailsModal">
+              &times;
+            </button>
+          </div>
+          <div class="details-modal-body">
+            <div class="details-section">
+              <h4>Status da Conexão</h4>
+              <p>
+                <span class="details-label">Último Acesso</span>
+                <span id="modalLastSeen"></span>
+              </p>
+              <p>
+                <span class="details-label">IP Recente</span>
+                <span id="modalDeviceIp"></span>
+              </p>
+              <p>
+                <span class="details-label">Qualidade da Rede</span>
+                <span id="modalNetworkType"></span>
+              </p>
+            </div>
+            <div class="details-section">
+              <h4>Atividade Atual</h4>
+              <div id="modalActiveCampaigns"></div>
+            </div>
+            <div class="details-section">
+              <h4>Informações do Dispositivo</h4>
+              <p>
+                <span class="details-label">Setor</span>
+                <span id="modalDeviceSector"></span>
+              </p>
+              <p>
+                <span class="details-label">Cadastrado em</span>
+                <span id="modalRegisteredAt"></span>
+              </p>
+              <p>
+                <span class="details-label">Identificador</span>
+                <code id="modalDeviceIdentifier"></code>
+              </p>
+            </div>
+          </div>
+          <div class="details-modal-footer">
+            <button
+              class="device-button device-button-revoke"
+              id="modalRevokeButton"
+            >
+              Revogar Acesso
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="deviceModal" class="modal-overlay">
       <div class="modal-card">
         <div class="modal-header centered">
           <h2 class="modal-title centered">Cadastrar Novo Dispositivo</h2>
         </div>
         <form action="/devices" method="POST" class="modal-form">
-          <input
-            type="text"
-            name="name"
-            placeholder="Nome do Dispositivo"
-            required
-            class="modal-input"
-          />
-          <select name="device_type" class="modal-input" required>
-            <option value="tv">TV</option>
-            <option value="windows">Windows</option>
-            <option value="linux">Linux</option>
-            <option value="android">Android</option>
-            <option value="ios">iOS</option>
-            <option value="web">Web</option>
-            <option value="unknown" selected>Outro</option>
-          </select>
-          <input
-            type="text"
-            name="sector"
-            placeholder="Setor do Dispositivo"
-            required
-            class="modal-input"
-          />
+          <div class="form-group">
+            <label for="newDeviceName" class="form-label"
+              >Nome do Dispositivo</label
+            >
+            <input
+              id="newDeviceName"
+              type="text"
+              name="name"
+              required
+              class="modal-input"
+            />
+          </div>
+          <div class="form-group">
+            <label for="newDeviceType" class="form-label"
+              >Tipo de Dispositivo</label
+            >
+            <select
+              id="newDeviceType"
+              name="device_type"
+              class="modal-input"
+              required
+            >
+              <option value="tv">TV</option>
+              <option value="windows">Windows</option>
+              <option value="linux">Linux</option>
+              <option value="android">Android</option>
+              <option value="ios">iOS</option>
+              <option value="web">Web</option>
+              <option value="unknown" selected>Outro</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="newDeviceSector" class="form-label">Setor</label>
+            <input
+              id="newDeviceSector"
+              type="text"
+              name="sector"
+              required
+              class="modal-input"
+            />
+          </div>
           <div class="modal-actions">
             <button type="submit" class="device-button">Adicionar</button>
             <button
@@ -198,14 +252,24 @@
         <div class="modal-header centered">
           <h3 class="modal-title centered">Dados de Acesso</h3>
         </div>
-        <div class="modal-form connection-modal-form">
-          <div class="connection-input-group">
-            <i class="bi bi-cpu"></i>
-            <input type="text" id="modalDeviceId" readonly />
+        <form class="modal-form">
+          <div class="form-group">
+            <label for="modalDeviceId" class="form-label"
+              >Identificador do Dispositivo (ID)</label
+            >
+            <div class="connection-input-group">
+              <i class="bi bi-cpu"></i>
+              <input type="text" id="modalDeviceId" readonly />
+            </div>
           </div>
-          <div class="connection-input-group">
-            <i class="bi bi-key"></i>
-            <input type="text" id="modalDeviceKey" readonly />
+          <div class="form-group">
+            <label for="modalDeviceKey" class="form-label"
+              >Chave de Autenticação</label
+            >
+            <div class="connection-input-group">
+              <i class="bi bi-key-fill"></i>
+              <input type="text" id="modalDeviceKey" readonly />
+            </div>
           </div>
           <div class="modal-actions centered">
             <button
@@ -216,7 +280,7 @@
               Fechar
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
 

@@ -70,21 +70,6 @@ document.addEventListener("DOMContentLoaded", () => {
     confirmationModal.style.display = "none";
   });
 
-  window.addEventListener("click", (e) => {
-    if (e.target === deviceModal) {
-      deviceModal.classList.remove("active");
-      setTimeout(() => (deviceModal.style.display = "none"), 220);
-    }
-    if (e.target === connectionModal) connectionModal.style.display = "none";
-    if (e.target === campaignModal) {
-      campaignModal.classList.remove("active");
-      setTimeout(() => (campaignModal.style.display = "none"), 220);
-      resetFileInput();
-    }
-    if (e.target === confirmationModal)
-      confirmationModal.style.display = "none";
-  });
-
   const loginForm = document.getElementById("loginForm");
   if (loginForm) {
     loginForm.addEventListener("submit", async (e) => {
@@ -99,7 +84,9 @@ document.addEventListener("DOMContentLoaded", () => {
           }),
         });
         const json = await res.json();
-        if (!res.ok) return notyf.error(json.message || `Erro ${res.status}`);
+        if (!res.ok) {
+          return notyf.error(json.message || `Erro ${res.status}`);
+        }
 
         notyf.success(json.message);
         setTimeout(() => (location.href = "/dashboard"), 1200);
@@ -185,10 +172,96 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  document.querySelectorAll(".revoke-token").forEach((btn) => {
+  const detailsModal = document.getElementById("deviceDetailsModal");
+  const closeDetailsModalBtn = document.getElementById("closeDetailsModal");
+  const detailsLoader = detailsModal?.querySelector(".details-modal-loader");
+  const detailsContent = detailsModal?.querySelector(".details-modal-content");
+
+  const populateDetailsModal = (data) => {
+    document.getElementById("modalDeviceName").textContent = data.name;
+
+    const deviceType = data.device_type || "desconhecido";
+    const capitalizedDeviceType =
+      deviceType.charAt(0).toUpperCase() + deviceType.slice(1);
+    document.getElementById(
+      "modalDeviceType"
+    ).textContent = `Dispositivo ${capitalizedDeviceType}`;
+
+    document.getElementById("modalDeviceSector").textContent = data.sector;
+    document.getElementById("modalRegisteredAt").textContent =
+      data.registered_at_formatted;
+    document.getElementById("modalLastSeen").textContent =
+      data.last_seen_formatted;
+    document.getElementById("modalDeviceIdentifier").textContent =
+      data.device_identifier;
+    document.getElementById("modalDeviceIp").textContent =
+      data.last_known_ip || "N/A";
+    document.getElementById("modalNetworkType").textContent =
+      data.network_effective_type || "N/A";
+
+    const campaignsDiv = document.getElementById("modalActiveCampaigns");
+    if (data.active_campaigns && data.active_campaigns.length > 0) {
+      let campaignsHtml = "";
+      data.active_campaigns.forEach((campaignName) => {
+        campaignsHtml += `
+          <p>
+            <span class="details-label">Campanha</span>
+            <span>${campaignName}</span>
+          </p>
+        `;
+      });
+      campaignsDiv.innerHTML = campaignsHtml;
+    } else {
+      campaignsDiv.innerHTML =
+        '<p class="details-subtitle">Nenhuma campanha ativa no momento.</p>';
+    }
+
+    const iconContainer = document.getElementById("modalDeviceIcon");
+    const icon = document.querySelector(
+      `.open-details-modal[data-device-id="${data.id}"] i`
+    );
+    if (icon) {
+      iconContainer.innerHTML = icon.outerHTML;
+    }
+
+    const revokeBtn = document.getElementById("modalRevokeButton");
+    revokeBtn.dataset.identifier = data.device_identifier;
+  };
+
+  document.querySelectorAll(".open-details-modal").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      const deviceId = btn.dataset.deviceId;
+      detailsModal.style.display = "flex";
+      detailsContent.style.display = "none";
+      detailsLoader.style.display = "flex";
+
       try {
-        const res = await fetch(`/devices/${btn.dataset.identifier}/revoke`, {
+        const res = await fetch(`/api/deviceDetails/${deviceId}`);
+        if (!res.ok) {
+          throw new Error("Falha ao carregar dados do dispositivo.");
+        }
+        const data = await res.json();
+        populateDetailsModal(data);
+
+        detailsLoader.style.display = "none";
+        detailsContent.style.display = "block";
+      } catch (err) {
+        notyf.error(err.message);
+        detailsModal.style.display = "none";
+      }
+    });
+  });
+
+  closeDetailsModalBtn?.addEventListener("click", () => {
+    detailsModal.style.display = "none";
+  });
+
+  document
+    .getElementById("modalRevokeButton")
+    ?.addEventListener("click", async function () {
+      const identifier = this.dataset.identifier;
+      try {
+        const res = await fetch(`/devices/${identifier}/revoke`, {
           method: "POST",
         });
         if (!res.ok) {
@@ -201,6 +274,26 @@ document.addEventListener("DOMContentLoaded", () => {
         notyf.error("Falha na comunicação com o servidor.");
       }
     });
+
+  window.addEventListener("click", (e) => {
+    if (e.target === deviceModal) {
+      deviceModal.classList.remove("active");
+      setTimeout(() => (deviceModal.style.display = "none"), 220);
+    }
+    if (e.target === connectionModal) {
+      connectionModal.style.display = "none";
+    }
+    if (e.target === campaignModal) {
+      campaignModal.classList.remove("active");
+      setTimeout(() => (campaignModal.style.display = "none"), 220);
+      resetFileInput();
+    }
+    if (e.target === confirmationModal) {
+      confirmationModal.style.display = "none";
+    }
+    if (e.target === detailsModal) {
+      detailsModal.style.display = "none";
+    }
   });
 
   const fileUploadInput = document.getElementById("file-upload");
@@ -211,6 +304,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (filePreviewWrapper) filePreviewWrapper.innerHTML = "";
     if (fileUploadLabel) fileUploadLabel.style.display = "inline-flex";
   };
+
   fileUploadInput?.addEventListener("change", function () {
     const file = this.files[0];
     if (!file) return;
@@ -234,30 +328,17 @@ document.addEventListener("DOMContentLoaded", () => {
       .addEventListener("click", resetFileInput);
   });
 
-  const startInput = document.getElementById("start_date");
-  const endInput = document.getElementById("end_date");
-  if (startInput) {
-    flatpickr(startInput, {
-      enableTime: true,
-      time_24hr: true,
-      defaultDate: new Date(),
-      altInput: true,
-      altFormat: "d/m/Y H:i",
-      dateFormat: "Z",
-      locale: "pt",
-    });
-  }
-  if (endInput) {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    flatpickr(endInput, {
-      enableTime: true,
-      time_24hr: true,
-      defaultDate: tomorrow,
-      altInput: true,
-      altFormat: "d/m/Y H:i",
-      dateFormat: "Z",
-      locale: "pt",
-    });
-  }
+  flatpickr("#start_date", {
+    enableTime: true,
+    dateFormat: "d/m/Y H:i",
+    locale: "pt",
+    time_24hr: true,
+  });
+
+  flatpickr("#end_date", {
+    enableTime: true,
+    dateFormat: "d/m/Y H:i",
+    locale: "pt",
+    time_24hr: true,
+  });
 });

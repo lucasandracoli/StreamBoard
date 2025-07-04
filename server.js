@@ -261,6 +261,33 @@ app.get("/dashboard", isAuthenticated, isAdmin, (req, res) => {
   res.render("dashboard", { user: req.user });
 });
 
+app.post("/api/deviceHeartbeat", deviceAuth, async (req, res) => {
+  const deviceId = req.device.id;
+  const { ip, effectiveType, downlink, localIp } = req.body;
+
+  if (!deviceId) {
+    return res.status(401).json({ message: "Dispositivo não autenticado." });
+  }
+
+  try {
+    await db.query(
+      `UPDATE devices SET 
+        last_known_ip = $1, 
+        network_effective_type = $2, 
+        network_downlink = $3,
+        local_ip = $4,
+        last_seen = NOW()
+       WHERE id = $5`,
+      [ip, effectiveType, downlink, localIp, deviceId]
+    );
+
+    res.status(200).json({ message: "Heartbeat recebido com sucesso." });
+  } catch (err) {
+    console.error("Erro ao processar heartbeat do dispositivo:", err);
+    res.status(500).json({ message: "Erro interno no servidor." });
+  }
+});
+
 app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
   try {
     const devicesResult = await db.query(
@@ -454,6 +481,61 @@ app.get("/logout", (req, res) => {
   });
 });
 
+app.get(
+  "/api/deviceDetails/:id",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      const deviceResult = await db.query(
+        "SELECT * FROM devices WHERE id = $1",
+        [id]
+      );
+
+      if (deviceResult.rows.length === 0) {
+        return res.status(404).json({ message: "Dispositivo não encontrado." });
+      }
+      const device = deviceResult.rows[0];
+
+      const activeCampaignsResult = await db.query(
+        `SELECT c.name FROM campaigns c
+       JOIN campaign_device cd ON c.id = cd.campaign_id
+       WHERE cd.device_id = $1 AND NOW() BETWEEN c.start_date AND c.end_date`,
+        [id]
+      );
+      const activeCampaigns = activeCampaignsResult.rows.map((c) => c.name);
+
+      const isOnline = clients.hasOwnProperty(device.id);
+
+      const formatOptions = { zone: "America/Sao_Paulo", locale: "pt-BR" };
+      const registeredAtFormatted = DateTime.fromJSDate(
+        device.registered_at,
+        formatOptions
+      ).toFormat("dd/MM/yyyy HH:mm:ss");
+      const lastSeenFormatted = device.last_seen
+        ? DateTime.fromJSDate(device.last_seen, formatOptions).toFormat(
+            "dd/MM/yyyy HH:mm:ss"
+          )
+        : "Nunca";
+
+      const details = {
+        ...device,
+        is_online: isOnline,
+        registered_at_formatted: registeredAtFormatted,
+        last_seen_formatted: lastSeenFormatted,
+        active_campaigns: activeCampaigns,
+      };
+
+      res.json(details);
+    } catch (err) {
+      console.error("Erro ao buscar detalhes do dispositivo:", err);
+      res.status(500).json({ message: "Erro interno do servidor." });
+    }
+  }
+);
+
 app.get("/stream", deviceAuth, (req, res) => {
   const deviceId = req.device.id;
   res.setHeader("Content-Type", "text/event-stream");
@@ -537,31 +619,61 @@ app.post(
   upload.single("media"),
   async (req, res) => {
     const { name, start_date, end_date, device_id } = req.body;
+
     if (!name || !start_date || !end_date || !device_id) {
       return res
         .status(400)
         .json({ message: "Todos os campos são obrigatórios." });
     }
+
+    let parsedStartDate;
+    let parsedEndDate;
+
+    try {
+      parsedStartDate = DateTime.fromFormat(start_date, "dd/MM/yyyy HH:mm", {
+        zone: "America/Sao_Paulo",
+      }).toJSDate();
+
+      parsedEndDate = DateTime.fromFormat(end_date, "dd/MM/yyyy HH:mm", {
+        zone: "America/Sao_Paulo",
+      }).toJSDate();
+
+      if (parsedEndDate < parsedStartDate) {
+        return res.status(400).json({
+          message: "A data de término não pode ser anterior à data de início.",
+        });
+      }
+    } catch (dateError) {
+      console.error("Erro ao parsear datas:", dateError);
+      return res.status(400).json({
+        message: "Formato de data ou hora inválido. Use DD/MM/AAAA HH:MM.",
+      });
+    }
+
     let file_path = null;
     if (req.file) {
       file_path = `/uploads/${req.file.filename}`;
     }
+
     const client = await db.connect();
     try {
       await client.query("BEGIN");
+
       const campaignResult = await client.query(
         `INSERT INTO campaigns (name, start_date, end_date, midia)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
-        [name, start_date, end_date, file_path]
+           VALUES ($1, $2, $3, $4) RETURNING *`,
+        [name, parsedStartDate, parsedEndDate, file_path]
       );
       const newCampaign = campaignResult.rows[0];
+
       if (req.file) {
         await client.query(
           `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type)
-           VALUES ($1, $2, $3, $4)`,
+             VALUES ($1, $2, $3, $4)`,
           [newCampaign.id, req.file.filename, file_path, req.file.mimetype]
         );
       }
+
       const resultOrder = await client.query(
         `SELECT MAX(execution_order) AS max_execution_order FROM campaign_device WHERE device_id = $1`,
         [device_id]
@@ -569,17 +681,21 @@ app.post(
       const execution_order = resultOrder.rows[0].max_execution_order
         ? resultOrder.rows[0].max_execution_order + 1
         : 1;
+
       await client.query(
         `INSERT INTO campaign_device (campaign_id, device_id, execution_order)
-         VALUES ($1, $2, $3)`,
+           VALUES ($1, $2, $3)`,
         [newCampaign.id, device_id, execution_order]
       );
+
       await client.query("COMMIT");
+
       const payload = { ...newCampaign, execution_order };
       sendUpdateToDevice(device_id, {
         type: "NEW_CAMPAIGN",
         payload: payload,
       });
+
       res.status(200).json({
         code: 200,
         message: "Campanha criada e notificação enviada.",
