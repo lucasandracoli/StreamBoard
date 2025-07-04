@@ -56,3 +56,6 @@ CREATE TABLE IF NOT EXISTS campaign_uploads (
     file_type VARCHAR(50) NOT NULL,
     uploaded_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_tokens_refresh_token ON tokens (refresh_token);
+CREATE INDEX IF NOT EXISTS idx_campaign_device_device_id ON campaign_device (device_id);

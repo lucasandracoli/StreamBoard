@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS campaign_uploads (
     file_type VARCHAR(50) NOT NULL,
     uploaded_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_tokens_refresh_token ON tokens (refresh_token);
+CREATE INDEX IF NOT EXISTS idx_campaign_device_device_id ON campaign_device (device_id);
 `;
 
 const main = async () => {
@@ -78,8 +81,14 @@ const main = async () => {
 
   try {
     await client.connect();
-    await client.query(`DROP DATABASE IF EXISTS ${DB_NAME}`);
+
+    console.log(`Deletando banco de dados "${DB_NAME}" se existir...`);
+    await client.query(`DROP DATABASE IF EXISTS ${DB_NAME} WITH (FORCE)`);
+
+    console.log(`Criando banco de dados "${DB_NAME}"...`);
     await client.query(`CREATE DATABASE ${DB_NAME}`);
+
+    console.log(`Banco de dados "${DB_NAME}" recriado com sucesso.`);
     await client.end();
 
     const dbClient = new Client({
@@ -91,16 +100,19 @@ const main = async () => {
     });
 
     await dbClient.connect();
+    console.log(
+      `Conectado ao banco de dados "${DB_NAME}". Aplicando schema...`
+    );
+
     fs.mkdirSync(path.dirname(schemaPath), { recursive: true });
     fs.writeFileSync(schemaPath, schemaSqlContent.trim());
 
-    const schemaSql = fs.readFileSync(schemaPath, "utf8");
-    await dbClient.query(schemaSql);
+    await dbClient.query(schemaSqlContent);
     await dbClient.end();
 
-    console.log("✅ Database successfully initialized!");
+    console.log("✅ Database e tabelas configurados com sucesso!");
   } catch (err) {
-    console.error("❌ Setup error:", err.message);
+    console.error("❌ Erro no script de setup:", err.message);
   }
 };
 
