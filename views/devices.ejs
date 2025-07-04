@@ -124,9 +124,6 @@ default: 'bi-question-circle' }; %>
               <h3 id="modalDeviceName"></h3>
               <span id="modalDeviceType" class="details-subtitle"></span>
             </div>
-            <button class="modal-close-button" id="closeDetailsModal">
-              &times;
-            </button>
           </div>
           <div class="details-modal-body">
             <div class="details-section">
@@ -177,6 +174,13 @@ default: 'bi-question-circle' }; %>
               style="display: none"
             >
               Reativar Dispositivo
+            </button>
+            <button
+              type="button"
+              class="device-button device-button-cancel"
+              id="closeDetailsModal"
+            >
+              Cancelar
             </button>
           </div>
         </div>
@@ -268,13 +272,13 @@ default: 'bi-question-circle' }; %>
               <input type="text" id="modalDeviceKey" readonly />
             </div>
           </div>
-          <div class="modal-actions centered">
+          <div class="modal-actions">
             <button
               type="button"
               class="device-button device-button-cancel"
               id="closeConnectionModal"
             >
-              Fechar
+              Cancelar
             </button>
           </div>
         </form>

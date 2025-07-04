@@ -1,35 +1,25 @@
 document.addEventListener("DOMContentLoaded", () => {
   const campaignContainer = document.getElementById("campaign-container");
+  const DEVICE_NAME = document.title.split("•")[0].trim();
+
   let playlist = [];
   let currentCampaignIndex = -1;
-
   let eventSource = null;
   let heartbeatIntervalId = null;
 
-  const disconnectDevice = () => {
-    if (heartbeatIntervalId) {
-      clearInterval(heartbeatIntervalId);
-      heartbeatIntervalId = null;
-    }
-    if (eventSource) {
-      eventSource.close();
-      eventSource = null;
-    }
-    campaignContainer.innerHTML =
-      '<div id="waiting-message" style="text-align: center;"><h1>Acesso Revogado</h1><p>Este dispositivo será redirecionado para a tela de pareamento.</p></div>';
-
-    setTimeout(() => {
-      window.location.href = "/pair";
-    }, 5000);
+  const showWaitingScreen = () => {
+    campaignContainer.style.backgroundColor = "var(--color-background)";
+    campaignContainer.innerHTML = `
+      <div class="player-placeholder">
+        <div class="spinner"></div>
+        <p>Aguardando Campanha...</p>
+      </div>
+    `;
   };
 
-  const clearDisplay = () => {
-    campaignContainer.innerHTML =
-      '<p id="waiting-message">Aguardando campanha...</p>';
-  };
-
-  const displayCampaign = (campaign) => {
+  const displayMedia = (campaign) => {
     campaignContainer.innerHTML = "";
+    campaignContainer.style.backgroundColor = "#000";
     const fileExtension = campaign.midia?.split(".").pop().toLowerCase() || "";
 
     if (["jpg", "jpeg", "png", "gif", "webp"].includes(fileExtension)) {
@@ -48,19 +38,71 @@ document.addEventListener("DOMContentLoaded", () => {
       video.onerror = () => playNext();
       campaignContainer.appendChild(video);
     } else {
+      console.warn("Formato de mídia não suportado:", fileExtension);
       playNext();
     }
   };
 
   const playNext = () => {
-    if (!eventSource) return;
-
     if (playlist.length === 0) {
-      clearDisplay();
+      showWaitingScreen();
       return;
     }
     currentCampaignIndex = (currentCampaignIndex + 1) % playlist.length;
-    displayCampaign(playlist[currentCampaignIndex]);
+    displayMedia(playlist[currentCampaignIndex]);
+  };
+
+  const resetAndPlay = () => {
+    playlist.sort((a, b) => a.execution_order - b.execution_order);
+    currentCampaignIndex = -1;
+    playNext();
+  };
+
+  const handleUpdate = (data) => {
+    const { type, payload } = data;
+
+    switch (type) {
+      case "NEW_CAMPAIGN":
+        playlist.push(payload);
+        resetAndPlay();
+        break;
+
+      case "DELETE_CAMPAIGN":
+        const initialLength = playlist.length;
+        playlist = playlist.filter((c) => c.id !== Number(payload.campaignId));
+        if (playlist.length < initialLength) {
+          resetAndPlay();
+        }
+        break;
+
+      case "DEVICE_REVOKED":
+        disconnectDevice();
+        break;
+    }
+  };
+
+  const disconnectDevice = () => {
+    if (eventSource) eventSource.close();
+    if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
+    window.location.href = "/pair";
+  };
+
+  const connectToStream = () => {
+    if (eventSource) eventSource.close();
+
+    eventSource = new EventSource("/stream");
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        handleUpdate(data);
+      } catch (e) {}
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+      setTimeout(connectToStream, 5000);
+    };
   };
 
   const fetchInitialPlaylist = async () => {
@@ -73,56 +115,11 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       playlist = await response.json();
-      playlist.sort((a, b) => a.execution_order - b.execution_order);
-      playNext();
+      resetAndPlay();
     } catch (error) {
       console.error("Erro ao buscar playlist inicial:", error);
+      setTimeout(fetchInitialPlaylist, 10000);
     }
-  };
-
-  const handleUpdate = (data) => {
-    const { type, payload } = data;
-    let playlistChanged = false;
-
-    if (type === "NEW_CAMPAIGN") {
-      playlist.push(payload);
-      playlistChanged = true;
-    } else if (type === "DELETE_CAMPAIGN") {
-      const initialLength = playlist.length;
-      playlist = playlist.filter((c) => c.id !== Number(payload.campaignId));
-      if (playlist.length < initialLength) playlistChanged = true;
-    } else if (type === "DEVICE_REVOKED") {
-      disconnectDevice();
-      return;
-    }
-
-    if (playlistChanged) {
-      playlist.sort((a, b) => a.execution_order - b.execution_order);
-      currentCampaignIndex = -1;
-      playNext();
-    }
-  };
-
-  const connectToStream = () => {
-    if (eventSource) {
-      eventSource.close();
-    }
-
-    eventSource = new EventSource("/stream");
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        handleUpdate(data);
-      } catch (e) {
-        console.log("Mensagem informativa do servidor:", event.data);
-      }
-    };
-
-    eventSource.onerror = () => {
-      eventSource.close();
-      setTimeout(connectToStream, 5000);
-    };
   };
 
   const getLocalIpAddress = () => {
@@ -130,23 +127,18 @@ document.addEventListener("DOMContentLoaded", () => {
       const pc = new RTCPeerConnection({ iceServers: [] });
       pc.createDataChannel("");
       pc.createOffer().then(pc.setLocalDescription.bind(pc));
-
       let foundLocalAddress = null;
       let timeoutId;
-
       pc.onicecandidate = (ice) => {
         if (!ice || !ice.candidate || !ice.candidate.candidate) {
           return;
         }
-
         const candidateStr = ice.candidate.candidate;
-
         if (candidateStr.includes("typ host")) {
           const parts = candidateStr.split(" ");
           if (parts.length >= 5) {
             const address = parts[4];
             const numericalIpRegex = /(?:[0-9]{1,3}\.){3}[0-9]{1,3}/;
-
             if (numericalIpRegex.test(address)) {
               foundLocalAddress = address;
               clearTimeout(timeoutId);
@@ -158,7 +150,6 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         }
       };
-
       pc.onicegatheringstatechange = () => {
         if (pc.iceGatheringState === "complete") {
           pc.close();
@@ -166,7 +157,6 @@ document.addEventListener("DOMContentLoaded", () => {
           resolve(foundLocalAddress);
         }
       };
-
       timeoutId = setTimeout(() => {
         pc.close();
         resolve(foundLocalAddress);
@@ -178,13 +168,11 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const connection = navigator.connection || {};
       const localIp = await getLocalIpAddress();
-
       const payload = {
         localIp: localIp || "N/A",
         effectiveType: connection.effectiveType || "unknown",
         downlink: connection.downlink || 0,
       };
-
       await fetch("/api/deviceHeartbeat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

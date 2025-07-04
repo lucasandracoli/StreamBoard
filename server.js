@@ -9,10 +9,10 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { DateTime } = require("luxon");
 const cookieParser = require("cookie-parser");
-const axios = require("axios");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const fsPromises = require("fs").promises;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -80,6 +80,7 @@ async function deviceAuth(req, res, next) {
 
   const client = await db.connect();
   try {
+    await client.query("BEGIN");
     const tokenResult = await client.query(
       "SELECT * FROM tokens WHERE refresh_token = $1 AND is_revoked = false",
       [refreshToken]
@@ -239,7 +240,7 @@ app.post("/login", async (req, res) => {
         return res.status(200).json({
           code: 200,
           status: "success",
-          message: "Login bem-sucedido.",
+          message: "Logado com Sucesso.",
         });
       }
     }
@@ -520,8 +521,7 @@ app.post(
       }
 
       res.status(200).json({
-        message:
-          "Dispositivo reativado com sucesso. Ele já pode parear novamente.",
+        message: "Dispositivo reativado com sucesso.",
       });
     } catch (err) {
       console.error("Erro ao reativar o dispositivo:", err);
@@ -798,8 +798,17 @@ app.post(
   async (req, res) => {
     const { id } = req.params;
     const client = await db.connect();
+
     try {
       await client.query("BEGIN");
+
+      const campaignResult = await client.query(
+        "SELECT midia FROM campaigns WHERE id = $1",
+        [id]
+      );
+      const mediaPath =
+        campaignResult.rows.length > 0 ? campaignResult.rows[0].midia : null;
+
       const affectedDevicesResult = await client.query(
         "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
         [id]
@@ -807,6 +816,7 @@ app.post(
       const affectedDeviceIds = affectedDevicesResult.rows.map(
         (row) => row.device_id
       );
+
       await client.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
         id,
       ]);
@@ -814,20 +824,43 @@ app.post(
         "DELETE FROM campaign_uploads WHERE campaign_id = $1",
         [id]
       );
-      const result = await client.query("DELETE FROM campaigns WHERE id = $1", [
-        id,
-      ]);
+      const deleteResult = await client.query(
+        "DELETE FROM campaigns WHERE id = $1",
+        [id]
+      );
+
       await client.query("COMMIT");
-      if (result.rowCount === 0) {
+
+      if (mediaPath) {
+        const fileName = path.basename(mediaPath);
+        const fullPath = path.join(__dirname, "uploads", fileName);
+
+        try {
+          await fsPromises.unlink(fullPath);
+        } catch (fileError) {
+          if (fileError.code !== "ENOENT") {
+            console.warn(
+              `Aviso: Arquivo de mídia ${fullPath} não pôde ser excluído:`,
+              fileError
+            );
+          }
+        }
+      }
+
+      if (deleteResult.rowCount === 0) {
         return res.status(404).json({ message: "Campanha não encontrada." });
       }
+
       affectedDeviceIds.forEach((deviceId) => {
         sendUpdateToDevice(deviceId, {
           type: "DELETE_CAMPAIGN",
           payload: { campaignId: Number(id) },
         });
       });
-      res.status(200).json({ message: "Campanha excluída com sucesso." });
+
+      res.status(200).json({
+        message: "Campanha e mídia associada foram excluídas com sucesso.",
+      });
     } catch (err) {
       await client.query("ROLLBACK");
       console.error("ERRO AO EXCLUIR CAMPANHA:", err);

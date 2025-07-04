@@ -3,39 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <title><%= deviceName %> • Player</title>
-    <style>
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-        background-color: #000;
-        color: #fff;
-        font-family: sans-serif;
-      }
-      #campaign-container {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-      }
-      #campaign-container img,
-      #campaign-container video {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-      }
-      #waiting-message {
-        font-size: 2rem;
-      }
-    </style>
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+    />
   </head>
-  <body>
+  <body class="player-body">
     <div id="campaign-container">
-      <p id="waiting-message">Aguardando campanha...</p>
+      <div class="player-placeholder">
+        <div class="spinner"></div>
+      </div>
     </div>
     <script src="/js/player.js"></script>
   </body>
