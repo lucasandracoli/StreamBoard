@@ -374,6 +374,35 @@ app.post("/devices/:id", isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
+app.post("/devices/:id/edit", isAuthenticated, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { name, device_type, sector } = req.body;
+
+  if (!name || !device_type || !sector) {
+    return res.status(400).json({
+      code: 400,
+      message: "Todos os campos (Nome, Tipo e Setor) são obrigatórios.",
+    });
+  }
+
+  try {
+    await db.query(
+      "UPDATE devices SET name = $1, device_type = $2, sector = $3 WHERE id = $4",
+      [name, device_type, sector, id]
+    );
+    res.json({
+      code: 200,
+      message: "Dispositivo atualizado com sucesso.",
+    });
+  } catch (err) {
+    console.error("Erro ao atualizar dispositivo:", err);
+    res.status(500).json({
+      code: 500,
+      message: "Erro ao atualizar dispositivo. Tente novamente.",
+    });
+  }
+});
+
 app.get("/pair", (req, res) => {
   res.render("pair");
 });
@@ -865,6 +894,170 @@ app.post(
       await client.query("ROLLBACK");
       console.error("ERRO AO EXCLUIR CAMPANHA:", err);
       res.status(500).json({ message: "Erro ao excluir campanha." });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const campaignResult = await db.query(
+      "SELECT * FROM campaigns WHERE id = $1",
+      [id]
+    );
+
+    if (campaignResult.rows.length === 0) {
+      return res.status(404).json({ message: "Campanha não encontrada." });
+    }
+    const campaign = campaignResult.rows[0];
+
+    const devicesResult = await db.query(
+      "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
+      [id]
+    );
+    const devices = devicesResult.rows;
+
+    res.json({ campaign, devices });
+  } catch (err) {
+    console.error("Erro ao buscar detalhes da campanha:", err);
+    res.status(500).json({ message: "Erro interno do servidor." });
+  }
+});
+
+app.post(
+  "/campaigns/:id/edit",
+  isAuthenticated,
+  isAdmin,
+  upload.single("media"),
+  async (req, res) => {
+    const { id } = req.params;
+    const { name, start_date, end_date, device_id, remove_media } = req.body;
+
+    if (!name || !start_date || !end_date || !device_id) {
+      return res
+        .status(400)
+        .json({ message: "Todos os campos são obrigatórios." });
+    }
+
+    let parsedStartDate, parsedEndDate;
+    try {
+      parsedStartDate = DateTime.fromFormat(start_date, "dd/MM/yyyy HH:mm", {
+        zone: "America/Sao_Paulo",
+      }).toJSDate();
+      parsedEndDate = DateTime.fromFormat(end_date, "dd/MM/yyyy HH:mm", {
+        zone: "America/Sao_Paulo",
+      }).toJSDate();
+      if (parsedEndDate < parsedStartDate) {
+        return res.status(400).json({
+          message: "A data de término não pode ser anterior à data de início.",
+        });
+      }
+    } catch (dateError) {
+      return res.status(400).json({
+        message: "Formato de data ou hora inválido. Use DD/MM/AAAA HH:MM.",
+      });
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+
+      const oldDevicesResult = await client.query(
+        "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
+        [id]
+      );
+      const oldDeviceIds = oldDevicesResult.rows.map((row) => row.device_id);
+
+      const campaignQuery = await client.query(
+        "SELECT midia FROM campaigns WHERE id = $1",
+        [id]
+      );
+      let mediaPath = campaignQuery.rows[0]?.midia;
+      const oldMediaPath = mediaPath;
+
+      if (req.file) {
+        mediaPath = `/uploads/${req.file.filename}`;
+      } else if (remove_media === "true") {
+        mediaPath = null;
+      }
+
+      if (oldMediaPath && oldMediaPath !== mediaPath) {
+        const oldFullPath = path.join(
+          __dirname,
+          "uploads",
+          path.basename(oldMediaPath)
+        );
+        await client.query(
+          "DELETE FROM campaign_uploads WHERE campaign_id = $1",
+          [id]
+        );
+        try {
+          await fsPromises.unlink(oldFullPath);
+        } catch (fileError) {
+          if (fileError.code !== "ENOENT")
+            console.warn(
+              `Aviso: Arquivo de mídia antigo não foi excluído:`,
+              fileError
+            );
+        }
+      }
+
+      if (req.file) {
+        await client.query(
+          `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type) VALUES ($1, $2, $3, $4)`,
+          [id, req.file.filename, mediaPath, req.file.mimetype]
+        );
+      }
+
+      const updatedCampaignResult = await client.query(
+        `UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, midia = $4 WHERE id = $5 RETURNING *`,
+        [name, parsedStartDate, parsedEndDate, mediaPath, id]
+      );
+      const updatedCampaign = updatedCampaignResult.rows[0];
+
+      await client.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
+        id,
+      ]);
+      const orderResult = await client.query(
+        `SELECT MAX(execution_order) AS max_order FROM campaign_device WHERE device_id = $1`,
+        [device_id]
+      );
+      const execution_order = (orderResult.rows[0].max_order || 0) + 1;
+      await client.query(
+        `INSERT INTO campaign_device (campaign_id, device_id, execution_order) VALUES ($1, $2, $3)`,
+        [id, device_id, execution_order]
+      );
+
+      await client.query("COMMIT");
+
+      oldDeviceIds.forEach((oldDeviceId) => {
+        if (String(oldDeviceId) !== String(device_id)) {
+          sendUpdateToDevice(oldDeviceId, {
+            type: "DELETE_CAMPAIGN",
+            payload: { campaignId: Number(id) },
+          });
+        }
+      });
+
+      sendUpdateToDevice(device_id, {
+        type: "NEW_CAMPAIGN", // <-- CORREÇÃO: Usar NEW_CAMPAIGN em vez de UPDATE_CAMPAIGN
+        payload: { ...updatedCampaign, execution_order },
+      });
+
+      res.status(200).json({
+        code: 200,
+        message: "Campanha atualizada com sucesso.",
+        campaign: updatedCampaign,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("ERRO AO ATUALIZAR CAMPANHA:", err);
+      res.status(500).json({
+        message: "Erro interno ao atualizar campanha.",
+        error: err.message,
+      });
     } finally {
       client.release();
     }

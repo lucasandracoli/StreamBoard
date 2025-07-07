@@ -332,6 +332,14 @@
   white-space: nowrap;
 }
 
+.device-table tbody tr {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.device-table tbody tr:last-child {
+  border-bottom: none;
+}
+
 .device-table tbody td {
   padding: 16px 20px;
   text-align: left;
@@ -340,10 +348,6 @@
   font-size: var(--text-sm);
   color: var(--color-text);
   font-weight: 500;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.device-table tbody tr:last-child td {
   border-bottom: none;
 }
 
@@ -570,6 +574,34 @@
   font-size: var(--text-base);
   font-weight: 500;
   color: var(--color-text);
+}
+
+.actions-cell {
+  display: flex;
+  gap: 8px;
+}
+
+.action-icon-editar {
+  background-color: rgba(0, 200, 111, 0.12);
+  border-radius: var(--radius);
+  padding: 8px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform var(--transition), background-color var(--transition);
+}
+
+.action-icon-editar svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--color-primary);
+}
+
+.action-icon-editar:hover {
+  transform: scale(1.05);
+  background-color: rgba(0, 200, 111, 0.2);
 }
 
 .action-icon-excluir {

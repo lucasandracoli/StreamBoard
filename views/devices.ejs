@@ -46,10 +46,10 @@ default: 'bi-question-circle' }; %>
           <thead>
             <tr>
               <th>Nome</th>
-              <th>Status Dispositivo</th>
+              <th>Status</th>
               <th>Tipo</th>
               <th>Setor</th>
-              <th>Dados de Acesso</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -73,6 +73,7 @@ default: 'bi-question-circle' }; %>
                 <button
                   class="details-icon-button open-details-modal"
                   data-device-id="<%= device.id %>"
+                  title="Ver Detalhes"
                 >
                   <i
                     class="bi <%= deviceIcons[device.device_type] || deviceIcons.default %>"
@@ -80,11 +81,36 @@ default: 'bi-question-circle' }; %>
                 </button>
               </td>
               <td class="break-word"><%= device.sector %></td>
-              <td>
+              <td class="actions-cell">
+                <button
+                  class="action-icon action-icon-editar"
+                  data-id="<%= device.id %>"
+                  title="Editar Dispositivo"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                    ></path>
+                    <path
+                      d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                    ></path>
+                  </svg>
+                </button>
                 <button
                   class="action-icon show-connection"
                   data-identifier="<%= device.device_identifier %>"
                   data-key="<%= device.authentication_key %>"
+                  title="Ver Dados de Acesso"
                   style="color: var(--color-primary)"
                 >
                   <svg
@@ -100,8 +126,6 @@ default: 'bi-question-circle' }; %>
                   >
                     <path
                       d="M17 11V7a5 5 0 0 0-10 0v4m12 0H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2Z"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
                     />
                     <circle cx="12" cy="16" r="1" />
                   </svg>
@@ -180,7 +204,7 @@ default: 'bi-question-circle' }; %>
               class="device-button device-button-cancel"
               id="closeDetailsModal"
             >
-              Cancelar
+              Fechar
             </button>
           </div>
         </div>
@@ -190,9 +214,11 @@ default: 'bi-question-circle' }; %>
     <div id="deviceModal" class="modal-overlay">
       <div class="modal-card">
         <div class="modal-header centered">
-          <h2 class="modal-title centered">Cadastrar Novo Dispositivo</h2>
+          <h2 id="deviceModalTitle" class="modal-title centered">
+            Cadastrar Novo Dispositivo
+          </h2>
         </div>
-        <form action="/devices" method="POST" class="modal-form">
+        <form id="deviceForm" method="POST" class="modal-form">
           <div class="form-group">
             <label for="newDeviceName" class="form-label"
               >Nome do Dispositivo</label
@@ -235,7 +261,9 @@ default: 'bi-question-circle' }; %>
             />
           </div>
           <div class="modal-actions">
-            <button type="submit" class="device-button">Adicionar</button>
+            <button id="deviceSubmitButton" type="submit" class="device-button">
+              Adicionar
+            </button>
             <button
               type="button"
               id="cancelDeviceModal"
@@ -278,7 +306,7 @@ default: 'bi-question-circle' }; %>
               class="device-button device-button-cancel"
               id="closeConnectionModal"
             >
-              Cancelar
+              Fechar
             </button>
           </div>
         </form>

@@ -17,7 +17,7 @@
       href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
     />
   </head>
-  <body class="dashboard">
+  <body id="campaigns-page" class="dashboard">
     <%- include('partials/navbar') %>
 
     <main class="container">
@@ -63,10 +63,35 @@
               <td class="break-word"><%= campaign.name %></td>
               <td class="break-word"><%= campaign.start_date_formatted %></td>
               <td class="break-word"><%= campaign.end_date_formatted %></td>
-              <td>
+              <td class="actions-cell">
+                <button
+                  class="action-icon action-icon-editar"
+                  data-id="<%= campaign.id %>"
+                  title="Editar Campanha"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                    ></path>
+                    <path
+                      d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                    ></path>
+                  </svg>
+                </button>
                 <button
                   class="action-icon-excluir"
                   data-id="<%= campaign.id %>"
+                  title="Excluir Campanha"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -117,7 +142,6 @@
           <h2 class="modal-title centered">Cadastrar Nova Campanha</h2>
         </div>
         <form
-          action="/campaigns"
           method="POST"
           class="modal-form"
           novalidate
