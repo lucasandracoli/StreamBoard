@@ -76,6 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
         break;
 
       case "DEVICE_REVOKED":
+        7;
         disconnectDevice();
         break;
     }
