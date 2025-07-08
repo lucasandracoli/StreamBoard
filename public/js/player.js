@@ -10,10 +10,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const showWaitingScreen = () => {
     campaignContainer.style.backgroundColor = "var(--color-background)";
     campaignContainer.innerHTML = `
-      <div class="player-placeholder">
-        <p>Aguardando Campanha...</p>
-      </div>
-    `;
+      <div class="player-placeholder">
+        <p>Aguardando Campanha...</p>
+      </div>
+    `;
   };
 
   const displayMedia = (campaign) => {

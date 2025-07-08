@@ -1038,20 +1038,10 @@ app.post(
         }
       });
 
-      const now = new Date();
-      const isCampaignActive = now >= parsedStartDate && now <= parsedEndDate;
-
-      if (isCampaignActive) {
-        sendUpdateToDevice(device_id, {
-          type: "UPDATE_CAMPAIGN",
-          payload: { ...updatedCampaign, execution_order },
-        });
-      } else {
-        sendUpdateToDevice(device_id, {
-          type: "DELETE_CAMPAIGN",
-          payload: { campaignId: Number(id) },
-        });
-      }
+      sendUpdateToDevice(device_id, {
+        type: "UPDATE_CAMPAIGN",
+        payload: { ...updatedCampaign, execution_order },
+      });
 
       res.status(200).json({
         code: 200,
