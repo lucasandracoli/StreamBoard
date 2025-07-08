@@ -11,7 +11,6 @@ document.addEventListener("DOMContentLoaded", () => {
     campaignContainer.style.backgroundColor = "var(--color-background)";
     campaignContainer.innerHTML = `
       <div class="player-placeholder">
-        <div class="spinner"></div>
         <p>Aguardando Campanha...</p>
       </div>
     `;
@@ -67,6 +66,16 @@ document.addEventListener("DOMContentLoaded", () => {
         resetAndPlay();
         break;
 
+      case "UPDATE_CAMPAIGN":
+        const indexToUpdate = playlist.findIndex((c) => c.id === payload.id);
+        if (indexToUpdate > -1) {
+          playlist[indexToUpdate] = payload;
+        } else {
+          playlist.push(payload);
+        }
+        resetAndPlay();
+        break;
+
       case "DELETE_CAMPAIGN":
         const initialLength = playlist.length;
         playlist = playlist.filter((c) => c.id !== Number(payload.campaignId));
@@ -76,7 +85,6 @@ document.addEventListener("DOMContentLoaded", () => {
         break;
 
       case "DEVICE_REVOKED":
-        7;
         disconnectDevice();
         break;
     }
@@ -123,54 +131,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  const getLocalIpAddress = () => {
-    return new Promise((resolve) => {
-      const pc = new RTCPeerConnection({ iceServers: [] });
-      pc.createDataChannel("");
-      pc.createOffer().then(pc.setLocalDescription.bind(pc));
-      let foundLocalAddress = null;
-      let timeoutId;
-      pc.onicecandidate = (ice) => {
-        if (!ice || !ice.candidate || !ice.candidate.candidate) {
-          return;
-        }
-        const candidateStr = ice.candidate.candidate;
-        if (candidateStr.includes("typ host")) {
-          const parts = candidateStr.split(" ");
-          if (parts.length >= 5) {
-            const address = parts[4];
-            const numericalIpRegex = /(?:[0-9]{1,3}\.){3}[0-9]{1,3}/;
-            if (numericalIpRegex.test(address)) {
-              foundLocalAddress = address;
-              clearTimeout(timeoutId);
-              pc.close();
-              resolve(foundLocalAddress);
-            } else if (address.endsWith(".local")) {
-              foundLocalAddress = address;
-            }
-          }
-        }
-      };
-      pc.onicegatheringstatechange = () => {
-        if (pc.iceGatheringState === "complete") {
-          pc.close();
-          clearTimeout(timeoutId);
-          resolve(foundLocalAddress);
-        }
-      };
-      timeoutId = setTimeout(() => {
-        pc.close();
-        resolve(foundLocalAddress);
-      }, 2000);
-    });
-  };
-
   const sendDeviceHeartbeat = async () => {
     try {
       const connection = navigator.connection || {};
-      const localIp = await getLocalIpAddress();
       const payload = {
-        localIp: localIp || "N/A",
         effectiveType: connection.effectiveType || "unknown",
         downlink: connection.downlink || 0,
       };

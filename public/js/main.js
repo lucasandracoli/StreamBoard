@@ -331,8 +331,6 @@ document.addEventListener("DOMContentLoaded", () => {
       data.last_seen_formatted;
     document.getElementById("modalDeviceIdentifier").textContent =
       data.device_identifier;
-    document.getElementById("modalDeviceIp").textContent =
-      data.local_ip || "N/A";
     document.getElementById("modalDownlink").textContent =
       data.network_downlink !== undefined && data.network_downlink !== null
         ? `${data.network_downlink} Mbps`

@@ -264,7 +264,7 @@ app.get("/dashboard", isAuthenticated, isAdmin, (req, res) => {
 
 app.post("/api/deviceHeartbeat", deviceAuth, async (req, res) => {
   const deviceId = req.device.id;
-  const { localIp, effectiveType, downlink } = req.body;
+  const { effectiveType, downlink } = req.body;
 
   if (!deviceId) {
     return res.status(401).json({ message: "Dispositivo não autenticado." });
@@ -275,10 +275,9 @@ app.post("/api/deviceHeartbeat", deviceAuth, async (req, res) => {
       `UPDATE devices SET
         network_effective_type = $1,
         network_downlink = $2,
-        local_ip = $3,
         last_seen = NOW()
-        WHERE id = $4`,
-      [effectiveType, downlink, localIp, deviceId]
+        WHERE id = $3`,
+      [effectiveType, downlink, deviceId]
     );
 
     res.status(200).json({ message: "Heartbeat recebido com sucesso." });
@@ -649,10 +648,8 @@ app.get("/stream", deviceAuth, (req, res) => {
   res.setHeader("Cache-Control", "no-cache");
   res.flushHeaders();
   clients[deviceId] = { res };
-  console.log(`Dispositivo ${deviceId} conectado para receber atualizações.`);
   req.on("close", () => {
     delete clients[deviceId];
-    console.log(`Dispositivo ${deviceId} desconectado.`);
   });
 });
 
@@ -1041,10 +1038,20 @@ app.post(
         }
       });
 
-      sendUpdateToDevice(device_id, {
-        type: "NEW_CAMPAIGN", // <-- CORREÇÃO: Usar NEW_CAMPAIGN em vez de UPDATE_CAMPAIGN
-        payload: { ...updatedCampaign, execution_order },
-      });
+      const now = new Date();
+      const isCampaignActive = now >= parsedStartDate && now <= parsedEndDate;
+
+      if (isCampaignActive) {
+        sendUpdateToDevice(device_id, {
+          type: "UPDATE_CAMPAIGN",
+          payload: { ...updatedCampaign, execution_order },
+        });
+      } else {
+        sendUpdateToDevice(device_id, {
+          type: "DELETE_CAMPAIGN",
+          payload: { campaignId: Number(id) },
+        });
+      }
 
       res.status(200).json({
         code: 200,
