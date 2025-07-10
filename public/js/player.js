@@ -81,27 +81,31 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await fetch("/api/device/playlist", {
         cache: "no-cache",
       });
+
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          wsManager.disconnect();
+          wsManager.disconnect(false);
           if (playlistInterval) clearInterval(playlistInterval);
           window.location.href = "/pair?error=session_expired";
         }
         return;
       }
-      const newPlaylist = await response.json();
-      const isPlaylistDifferent =
-        JSON.stringify(playlist.map((p) => p.id)) !==
-        JSON.stringify(newPlaylist.map((p) => p.id));
 
-      if (isPlaylistDifferent) {
-        playlist = newPlaylist;
+      playlist = await response.json();
+
+      if (playlist.length > 0) {
         currentCampaignIndex = -1;
         playNext();
-      } else if (playlist.length === 0) {
+      } else {
         showWaitingScreen();
       }
-    } catch (error) {}
+    } catch (error) {
+      console.error(
+        "Falha ao buscar playlist. Tentando novamente em 10s.",
+        error
+      );
+      setTimeout(fetchAndResetPlaylist, 10000);
+    }
   };
 
   const handleServerMessage = (data) => {
@@ -112,12 +116,12 @@ document.addEventListener("DOMContentLoaded", () => {
         fetchAndResetPlaylist();
         break;
       case "DEVICE_REVOKED":
-        wsManager.disconnect();
+        wsManager.disconnect(false);
         if (playlistInterval) clearInterval(playlistInterval);
         window.location.href = "/pair?error=revoked";
         break;
       case "FORCE_REFRESH":
-        wsManager.disconnect();
+        wsManager.disconnect(false);
         window.location.reload(true);
         break;
     }
@@ -126,91 +130,95 @@ document.addEventListener("DOMContentLoaded", () => {
   class WebSocketManager {
     constructor() {
       this.ws = null;
-      this.reconnectAttempts = 0;
-      this.maxReconnectDelay = 30000;
+      this.probeTimer = null;
+      this.probeInterval = 5000;
       this.shouldReconnect = true;
     }
 
-    async getToken() {
+    async probeAndConnect() {
       try {
         const response = await fetch("/api/wsToken");
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) {
-            this.disconnect();
-            showWaitingScreen(
-              "Sessão Inválida",
-              "É necessário autenticar o dispositivo novamente. Redirecionando...",
-              "error"
-            );
-            setTimeout(() => {
-              window.location.href = "/pair?error=token_fetch_failed";
-            }, 4000);
-          }
-          return null;
+        if (response.status === 401 || response.status === 403) {
+          this.disconnect(false);
+          showWaitingScreen(
+            "Sessão Inválida",
+            "Redirecionando para autenticação...",
+            "error"
+          );
+          setTimeout(() => {
+            window.location.href = "/pair?error=session_expired";
+          }, 4000);
+          return;
         }
+
+        if (!response.ok) {
+          throw new Error("Servidor não está pronto.");
+        }
+
         const data = await response.json();
-        return data.accessToken;
+        if (data && data.accessToken) {
+          this.stopProbing();
+          this.establishConnection(data.accessToken);
+        }
       } catch (error) {
-        return null;
+        // Erro de rede. O timer continua e tentará novamente.
       }
     }
 
-    async connect() {
+    startProbing() {
+      if (this.probeTimer || !this.shouldReconnect) return;
+      showWaitingScreen(
+        "Conexão Perdida",
+        "Tentando reconectar ao servidor...",
+        "reconnecting"
+      );
+      this.probeAndConnect();
+      this.probeTimer = setInterval(
+        () => this.probeAndConnect(),
+        this.probeInterval
+      );
+    }
+
+    stopProbing() {
+      clearInterval(this.probeTimer);
+      this.probeTimer = null;
+    }
+
+    establishConnection(token) {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
-
-      this.shouldReconnect = true;
-      const token = await this.getToken();
-
-      if (!token) {
-        if (this.shouldReconnect) {
-          const delay = Math.min(
-            1000 * Math.pow(2, this.reconnectAttempts),
-            this.maxReconnectDelay
-          );
-          this.reconnectAttempts++;
-          setTimeout(() => this.connect(), delay);
-        }
-        return;
-      }
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${protocol}//${window.location.host}?token=${token}`;
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        this.reconnectAttempts = 0;
         fetchAndResetPlaylist();
       };
 
       this.ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          handleServerMessage(data);
+          handleServerMessage(JSON.parse(event.data));
         } catch (e) {}
       };
 
-      this.ws.onclose = (event) => {
-        if (!this.shouldReconnect) return;
-        showWaitingScreen(
-          "Conexão Perdida",
-          "Tentando reconectar ao servidor...",
-          "reconnecting"
-        );
-        const delay = Math.min(
-          1000 * Math.pow(2, this.reconnectAttempts),
-          this.maxReconnectDelay
-        );
-        this.reconnectAttempts++;
-        setTimeout(() => this.connect(), delay);
+      this.ws.onclose = () => {
+        if (this.shouldReconnect) {
+          this.startProbing();
+        }
       };
 
-      this.ws.onerror = (error) => {
+      this.ws.onerror = (err) => {
         this.ws.close();
       };
     }
 
-    disconnect() {
-      this.shouldReconnect = false;
+    connect() {
+      this.startProbing();
+    }
+
+    disconnect(shouldReconnect = true) {
+      this.shouldReconnect = shouldReconnect;
+      this.stopProbing();
       if (this.ws) {
         this.ws.close(1000, "Desconexão intencional.");
       }
@@ -221,5 +229,5 @@ document.addEventListener("DOMContentLoaded", () => {
   wsManager.connect();
 
   if (playlistInterval) clearInterval(playlistInterval);
-  playlistInterval = setInterval(fetchAndResetPlaylist, 60000);
+  playlistInterval = setInterval(fetchAndResetPlaylist, 45000);
 });
