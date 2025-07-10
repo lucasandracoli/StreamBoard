@@ -11,8 +11,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const truncateString = (str, startChars, endChars) => {
+    if (!str || str.length <= startChars + endChars) {
+      return str;
+    }
+    return (
+      str.substring(0, startChars) +
+      "..." +
+      str.substring(str.length - endChars)
+    );
+  };
+
   const deviceModal = document.getElementById("deviceModal");
-  const connectionModal = document.getElementById("connectionModal");
   const confirmationModal = document.getElementById("confirmationModal");
   const campaignModal = document.getElementById("campaignModal");
   const detailsModal = document.getElementById("deviceDetailsModal");
@@ -269,18 +279,33 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.addEventListener("click", () => {
       confirmationModal.style.display = "flex";
       const confirmDeletionBtn = document.getElementById("confirmDeletion");
+
       const newConfirmBtn = confirmDeletionBtn.cloneNode(true);
       confirmDeletionBtn.parentNode.replaceChild(
         newConfirmBtn,
         confirmDeletionBtn
       );
+
       newConfirmBtn.addEventListener("click", async () => {
+        const id = btn.dataset.id;
+        let url = "";
+
+        if (document.body.id === "campaigns-page") {
+          url = `/campaigns/${id}/delete`;
+        } else {
+          url = `/devices/${id}/delete`;
+        }
+
+        if (!url) return;
+
         try {
-          const res = await fetch(`/campaigns/${btn.dataset.id}/delete`, {
-            method: "POST",
-          });
+          const res = await fetch(url, { method: "POST" });
           const json = await res.json();
-          if (!res.ok) return notyf.error(json.message || `Erro ${res.status}`);
+
+          if (!res.ok) {
+            return notyf.error(json.message || `Erro ${res.status}`);
+          }
+
           confirmationModal.style.display = "none";
           notyf.success(json.message);
           setTimeout(() => location.reload(), 1200);
@@ -294,22 +319,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const cancelConfirmationBtn = document.getElementById("cancelConfirmation");
   cancelConfirmationBtn?.addEventListener("click", () => {
     confirmationModal.style.display = "none";
-  });
-
-  document.querySelectorAll(".show-connection").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const inputId = document.getElementById("modalDeviceId");
-      const inputKey = document.getElementById("modalDeviceKey");
-      inputId.value = btn.dataset.identifier;
-      inputKey.value = btn.dataset.key;
-      connectionModal.style.display = "flex";
-    });
-  });
-
-  const closeConnectionBtn = document.getElementById("closeConnectionModal");
-  closeConnectionBtn?.addEventListener("click", () => {
-    connectionModal.style.display = "none";
   });
 
   const closeDetailsModalBtn = document.getElementById("closeDetailsModal");
@@ -329,12 +338,25 @@ document.addEventListener("DOMContentLoaded", () => {
       data.registered_at_formatted;
     document.getElementById("modalLastSeen").textContent =
       data.last_seen_formatted;
-    document.getElementById("modalDeviceIdentifier").textContent =
-      data.device_identifier;
+
+    const identifierEl = document.getElementById("modalDeviceIdentifier");
+    const authKeyEl = document.getElementById("modalAuthKey");
+
+    if (identifierEl) {
+      identifierEl.textContent = truncateString(data.device_identifier, 8, 8);
+      identifierEl.dataset.fullValue = data.device_identifier;
+    }
+
+    if (authKeyEl) {
+      authKeyEl.textContent = truncateString(data.authentication_key, 8, 8);
+      authKeyEl.dataset.fullValue = data.authentication_key;
+    }
+
     document.getElementById("modalDownlink").textContent =
       data.network_downlink !== undefined && data.network_downlink !== null
         ? `${data.network_downlink} Mbps`
         : "N/A";
+
     const campaignsDiv = document.getElementById("modalActiveCampaigns");
     if (data.active_campaigns && data.active_campaigns.length > 0) {
       let campaignsHtml = "";
@@ -346,6 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
       campaignsDiv.innerHTML =
         '<p class="details-subtitle">Nenhuma campanha ativa no momento.</p>';
     }
+
     const iconContainer = document.getElementById("modalDeviceIcon");
     const icon = document.querySelector(
       `.open-details-modal[data-device-id="${data.id}"] i`
@@ -353,10 +376,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (icon) {
       iconContainer.innerHTML = icon.outerHTML;
     }
+
     const revokeBtn = document.getElementById("modalRevokeButton");
     const reactivateBtn = document.getElementById("modalReactivateButton");
     revokeBtn.dataset.identifier = data.device_identifier;
     reactivateBtn.dataset.identifier = data.device_identifier;
+
     if (data.is_active) {
       revokeBtn.style.display = "inline-flex";
       reactivateBtn.style.display = "none";
@@ -389,6 +414,23 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     });
+  });
+
+  detailsModal?.addEventListener("click", function (e) {
+    const copyElement = e.target.closest(".copyable-code");
+    if (copyElement) {
+      const fullValue = copyElement.dataset.fullValue;
+      if (fullValue) {
+        navigator.clipboard
+          .writeText(fullValue)
+          .then(() => {
+            notyf.success("Copiado para a área de transferência!");
+          })
+          .catch((err) => {
+            notyf.error("Falha ao copiar.");
+          });
+      }
+    }
   });
 
   closeDetailsModalBtn?.addEventListener("click", () => {
@@ -439,7 +481,6 @@ document.addEventListener("DOMContentLoaded", () => {
       deviceModal.classList.remove("active");
       setTimeout(() => (deviceModal.style.display = "none"), MODAL_CLOSE_DELAY);
     }
-    if (e.target === connectionModal) connectionModal.style.display = "none";
     if (e.target === campaignModal) {
       campaignModal.classList.remove("active");
       setTimeout(() => {
@@ -459,7 +500,7 @@ document.addEventListener("DOMContentLoaded", () => {
     row.addEventListener("click", function (event) {
       if (
         event.target.closest(
-          ".action-icon, .action-icon-excluir, .action-icon-editar, .details-icon-button, .show-connection"
+          ".action-icon, .action-icon-excluir, .action-icon-editar, .details-icon-button"
         )
       ) {
         return;

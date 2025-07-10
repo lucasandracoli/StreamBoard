@@ -291,7 +291,7 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
   try {
     const devicesResult = await db.query(
       `SELECT d.*,
-         (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id) > 0 as has_tokens
+        (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id) > 0 as has_tokens
        FROM devices d
        ORDER BY d.registered_at DESC`
     );
@@ -307,13 +307,13 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
 
       let status;
       if (!device.is_active) {
-        status = { text: "Revogado", class: "status status-revogado" };
+        status = { text: "Revogado", class: "online-status revoked" };
       } else if (isOnline) {
         status = { text: "Online", class: "online-status online" };
       } else if (device.has_tokens) {
         status = { text: "Offline", class: "online-status offline" };
       } else {
-        status = { text: "Inativo", class: "status status-inativo" };
+        status = { text: "Inativo", class: "online-status inactive" };
       }
 
       return {
@@ -530,6 +530,41 @@ app.post(
     }
   }
 );
+
+app.post("/devices/:id/delete", isAuthenticated, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  const client = await db.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    await client.query("DELETE FROM campaign_device WHERE device_id = $1", [
+      id,
+    ]);
+    await client.query("DELETE FROM tokens WHERE device_id = $1", [id]);
+    const deleteResult = await client.query(
+      "DELETE FROM devices WHERE id = $1",
+      [id]
+    );
+
+    if (deleteResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Dispositivo não encontrado." });
+    }
+
+    await client.query("COMMIT");
+
+    res.status(200).json({
+      message: "Dispositivo excluído com sucesso.",
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("ERRO AO EXCLUIR DISPOSITIVO:", err);
+    res.status(500).json({ message: "Erro ao excluir o dispositivo." });
+  } finally {
+    client.release();
+  }
+});
 
 app.post(
   "/devices/:identifier/reactivate",

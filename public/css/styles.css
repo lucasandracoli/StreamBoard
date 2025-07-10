@@ -356,7 +356,7 @@
 }
 
 .device-table tbody tr:hover {
-  background-color: #f1f1f1;
+  background-color: #f8f8f8;
   cursor: pointer;
 }
 
@@ -532,11 +532,6 @@
 .status-inativo {
   background-color: #f3f4f6;
   color: #4b5563;
-}
-
-.status-revogado {
-  background-color: rgba(239, 68, 68, 0.12);
-  color: var(--color-error);
 }
 
 .icon-cell i {
@@ -802,7 +797,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 0.85rem;
+  font-size: 0.7rem;
 }
 
 .file-preview-extension {
@@ -984,12 +979,12 @@
 }
 
 .details-section h4 {
-  font-weight: 100;
-  font-size: 11px;
+  font-weight: 400;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 20px;
-  color: var(--color-muted);
+  color: #000;
 }
 
 .details-section p {
@@ -1006,7 +1001,7 @@
 
 .details-label {
   font-size: 12px;
-  font-weight: 100;
+  font-weight: 400;
   color: var(--color-muted);
 }
 
@@ -1106,4 +1101,31 @@ html,
   object-fit: contain;
   width: auto;
   height: auto;
+}
+
+.copyable-code {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.copyable-code:hover {
+  background-color: #d1d5db;
+}
+
+.online-status.inactive {
+  color: #d97706;
+  background-color: #fef3c7;
+}
+
+.online-status.inactive .online-dot {
+  background-color: #d97706;
+}
+
+.online-status.revoked {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: var(--color-error);
+}
+
+.online-status.revoked .online-dot {
+  background-color: var(--color-error);
 }
