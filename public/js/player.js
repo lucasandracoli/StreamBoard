@@ -134,19 +134,23 @@ document.addEventListener("DOMContentLoaded", () => {
     async getToken() {
       try {
         const response = await fetch("/api/wsToken");
-        if (!response.ok)
-          throw new Error("Falha ao obter token de autenticação.");
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            this.disconnect();
+            showWaitingScreen(
+              "Sessão Inválida",
+              "É necessário autenticar o dispositivo novamente. Redirecionando...",
+              "error"
+            );
+            setTimeout(() => {
+              window.location.href = "/pair?error=token_fetch_failed";
+            }, 4000);
+          }
+          return null;
+        }
         const data = await response.json();
         return data.accessToken;
       } catch (error) {
-        showWaitingScreen(
-          "Falha de Autenticação",
-          "Não foi possível validar o dispositivo. Redirecionando...",
-          "error"
-        );
-        setTimeout(() => {
-          window.location.href = "/pair?error=token_fetch_failed";
-        }, 4000);
         return null;
       }
     }
@@ -157,7 +161,17 @@ document.addEventListener("DOMContentLoaded", () => {
       this.shouldReconnect = true;
       const token = await this.getToken();
 
-      if (!token) return;
+      if (!token) {
+        if (this.shouldReconnect) {
+          const delay = Math.min(
+            1000 * Math.pow(2, this.reconnectAttempts),
+            this.maxReconnectDelay
+          );
+          this.reconnectAttempts++;
+          setTimeout(() => this.connect(), delay);
+        }
+        return;
+      }
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${protocol}//${window.location.host}?token=${token}`;
