@@ -1129,3 +1129,12 @@ html,
 .online-status.revoked .online-dot {
   background-color: var(--color-error);
 }
+
+.online-status.scheduled {
+  color: #2563eb;
+  background-color: #dbeafe;
+}
+
+.online-status.scheduled .online-dot {
+  background-color: #2563eb;
+}

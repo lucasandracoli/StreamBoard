@@ -46,6 +46,7 @@
           <thead>
             <tr>
               <th>Nome</th>
+              <th>Status</th>
               <th>Data de Início</th>
               <th>Data de Término</th>
               <th>Ações</th>
@@ -54,13 +55,19 @@
           <tbody>
             <% if (campaigns.length === 0) { %>
             <tr>
-              <td colspan="4" style="text-align: center">
+              <td colspan="5" style="text-align: center">
                 Nenhuma campanha cadastrada.
               </td>
             </tr>
             <% } else { %> <% campaigns.forEach(campaign => { %>
             <tr>
               <td class="break-word"><%= campaign.name %></td>
+              <td>
+                <span class="<%= campaign.status.class %>">
+                  <span class="online-dot"></span>
+                  <%= campaign.status.text %>
+                </span>
+              </td>
               <td class="break-word"><%= campaign.start_date_formatted %></td>
               <td class="break-word"><%= campaign.end_date_formatted %></td>
               <td class="actions-cell">

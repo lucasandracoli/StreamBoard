@@ -713,28 +713,34 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
       "SELECT * FROM campaigns ORDER BY created_at DESC"
     );
 
+    const now = DateTime.now().setZone("America/Sao_Paulo");
+
     const campaigns = campaignsResult.rows.map((campaign) => {
       const formatOptions = {
         zone: "America/Sao_Paulo",
         locale: "pt-BR",
       };
 
-      const start_date_formatted = campaign.start_date
-        ? DateTime.fromJSDate(campaign.start_date, formatOptions).toFormat(
-            "dd/MM/yyyy, HH:mm:ss"
-          )
-        : "N/A";
+      const startDate = DateTime.fromJSDate(campaign.start_date, formatOptions);
+      const endDate = DateTime.fromJSDate(campaign.end_date, formatOptions);
 
-      const end_date_formatted = campaign.end_date
-        ? DateTime.fromJSDate(campaign.end_date, formatOptions).toFormat(
-            "dd/MM/yyyy, HH:mm:ss"
-          )
-        : "N/A";
+      const start_date_formatted = startDate.toFormat("dd/MM/yyyy, HH:mm:ss");
+      const end_date_formatted = endDate.toFormat("dd/MM/yyyy, HH:mm:ss");
+
+      let status;
+      if (now < startDate) {
+        status = { text: "Agendada", class: "online-status scheduled" };
+      } else if (now > endDate) {
+        status = { text: "Finalizada", class: "online-status offline" };
+      } else {
+        status = { text: "Ativa", class: "online-status online" };
+      }
 
       return {
         ...campaign,
         start_date_formatted,
         end_date_formatted,
+        status,
       };
     });
 
