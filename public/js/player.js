@@ -1,43 +1,68 @@
 document.addEventListener("DOMContentLoaded", () => {
   const campaignContainer = document.getElementById("campaign-container");
-  const DEVICE_NAME = document.title.split("•")[0].trim();
-
   let playlist = [];
   let currentCampaignIndex = -1;
-  let eventSource = null;
-  let heartbeatIntervalId = null;
+  let mediaTimer = null;
+  let playlistInterval = null;
 
-  const showWaitingScreen = () => {
+  const showWaitingScreen = (
+    title = "Aguardando Campanha",
+    subtitle = "O player está online e pronto para receber conteúdo.",
+    state = "info"
+  ) => {
+    if (mediaTimer) clearTimeout(mediaTimer);
     campaignContainer.style.backgroundColor = "var(--color-background)";
+
+    const icons = {
+      info: "bi-clock-history",
+      reconnecting: "bi-wifi-off",
+      error: "bi-shield-lock-fill",
+    };
+    const iconClass = icons[state] || "bi-info-circle-fill";
+    const spinnerHtml =
+      state === "reconnecting" ? '<div class="spinner"></div>' : "";
+
     campaignContainer.innerHTML = `
-      <div class="player-placeholder">
-        <p>Aguardando Campanha...</p>
-      </div>
-    `;
+      <div class="player-message-card ${state}">
+        <i class="icon bi ${iconClass}"></i>
+        <div class="message-content">
+          <p class="message-title">${title}</p>
+          <p class="message-subtitle">${subtitle}</p>
+        </div>
+        ${spinnerHtml}
+      </div>
+    `;
   };
 
   const displayMedia = (campaign) => {
+    if (mediaTimer) clearTimeout(mediaTimer);
     campaignContainer.innerHTML = "";
     campaignContainer.style.backgroundColor = "#000";
-    const fileExtension = campaign.midia?.split(".").pop().toLowerCase() || "";
+
+    if (!campaign || !campaign.midia) {
+      playNext();
+      return;
+    }
+
+    const fileExtension = campaign.midia.split(".").pop().toLowerCase();
+    const mediaUrl = campaign.midia;
 
     if (["jpg", "jpeg", "png", "gif", "webp"].includes(fileExtension)) {
       const img = document.createElement("img");
-      img.src = campaign.midia;
+      img.src = mediaUrl;
       img.onerror = () => playNext();
       campaignContainer.appendChild(img);
-      setTimeout(playNext, 10000);
+      mediaTimer = setTimeout(playNext, 10000);
     } else if (["mp4", "webm", "mov"].includes(fileExtension)) {
       const video = document.createElement("video");
-      video.src = campaign.midia;
+      video.src = mediaUrl;
       video.autoplay = true;
       video.muted = true;
       video.playsInline = true;
-      video.onended = () => playNext();
+      video.onended = playNext;
       video.onerror = () => playNext();
       campaignContainer.appendChild(video);
     } else {
-      console.warn("Formato de mídia não suportado:", fileExtension);
       playNext();
     }
   };
@@ -51,105 +76,136 @@ document.addEventListener("DOMContentLoaded", () => {
     displayMedia(playlist[currentCampaignIndex]);
   };
 
-  const resetAndPlay = () => {
-    playlist.sort((a, b) => a.execution_order - b.execution_order);
-    currentCampaignIndex = -1;
-    playNext();
-  };
-
-  const handleUpdate = (data) => {
-    const { type, payload } = data;
-
-    switch (type) {
-      case "NEW_CAMPAIGN":
-        playlist.push(payload);
-        resetAndPlay();
-        break;
-
-      case "UPDATE_CAMPAIGN":
-        const indexToUpdate = playlist.findIndex((c) => c.id === payload.id);
-        if (indexToUpdate > -1) {
-          playlist[indexToUpdate] = payload;
-        } else {
-          playlist.push(payload);
-        }
-        resetAndPlay();
-        break;
-
-      case "DELETE_CAMPAIGN":
-        const initialLength = playlist.length;
-        playlist = playlist.filter((c) => c.id !== Number(payload.campaignId));
-        if (playlist.length < initialLength) {
-          resetAndPlay();
-        }
-        break;
-
-      case "DEVICE_REVOKED":
-        disconnectDevice();
-        break;
-    }
-  };
-
-  const disconnectDevice = () => {
-    if (eventSource) eventSource.close();
-    if (heartbeatIntervalId) clearInterval(heartbeatIntervalId);
-    window.location.href = "/pair";
-  };
-
-  const connectToStream = () => {
-    if (eventSource) eventSource.close();
-
-    eventSource = new EventSource("/stream");
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        handleUpdate(data);
-      } catch (e) {}
-    };
-
-    eventSource.onerror = () => {
-      eventSource.close();
-      setTimeout(connectToStream, 5000);
-    };
-  };
-
-  const fetchInitialPlaylist = async () => {
+  const fetchAndResetPlaylist = async () => {
     try {
-      const response = await fetch("/api/device/playlist");
+      const response = await fetch("/api/device/playlist", {
+        cache: "no-cache",
+      });
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          disconnectDevice();
+          wsManager.disconnect();
+          if (playlistInterval) clearInterval(playlistInterval);
+          window.location.href = "/pair?error=session_expired";
         }
         return;
       }
-      playlist = await response.json();
-      resetAndPlay();
-    } catch (error) {
-      console.error("Erro ao buscar playlist inicial:", error);
-      setTimeout(fetchInitialPlaylist, 10000);
+      const newPlaylist = await response.json();
+      const isPlaylistDifferent =
+        JSON.stringify(playlist.map((p) => p.id)) !==
+        JSON.stringify(newPlaylist.map((p) => p.id));
+
+      if (isPlaylistDifferent) {
+        playlist = newPlaylist;
+        currentCampaignIndex = -1;
+        playNext();
+      } else if (playlist.length === 0) {
+        showWaitingScreen();
+      }
+    } catch (error) {}
+  };
+
+  const handleServerMessage = (data) => {
+    switch (data.type) {
+      case "NEW_CAMPAIGN":
+      case "UPDATE_CAMPAIGN":
+      case "DELETE_CAMPAIGN":
+        fetchAndResetPlaylist();
+        break;
+      case "DEVICE_REVOKED":
+        wsManager.disconnect();
+        if (playlistInterval) clearInterval(playlistInterval);
+        window.location.href = "/pair?error=revoked";
+        break;
+      case "FORCE_REFRESH":
+        wsManager.disconnect();
+        window.location.reload(true);
+        break;
     }
   };
 
-  const sendDeviceHeartbeat = async () => {
-    try {
-      const connection = navigator.connection || {};
-      const payload = {
-        effectiveType: connection.effectiveType || "unknown",
-        downlink: connection.downlink || 0,
+  class WebSocketManager {
+    constructor() {
+      this.ws = null;
+      this.reconnectAttempts = 0;
+      this.maxReconnectDelay = 30000;
+      this.shouldReconnect = true;
+    }
+
+    async getToken() {
+      try {
+        const response = await fetch("/api/wsToken");
+        if (!response.ok)
+          throw new Error("Falha ao obter token de autenticação.");
+        const data = await response.json();
+        return data.accessToken;
+      } catch (error) {
+        showWaitingScreen(
+          "Falha de Autenticação",
+          "Não foi possível validar o dispositivo. Redirecionando...",
+          "error"
+        );
+        setTimeout(() => {
+          window.location.href = "/pair?error=token_fetch_failed";
+        }, 4000);
+        return null;
+      }
+    }
+
+    async connect() {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
+
+      this.shouldReconnect = true;
+      const token = await this.getToken();
+
+      if (!token) return;
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}?token=${token}`;
+      this.ws = new WebSocket(wsUrl);
+
+      this.ws.onopen = () => {
+        this.reconnectAttempts = 0;
+        fetchAndResetPlaylist();
       };
-      await fetch("/api/deviceHeartbeat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch (error) {
-      console.error("Falha ao enviar heartbeat:", error);
-    }
-  };
 
-  fetchInitialPlaylist();
-  connectToStream();
-  sendDeviceHeartbeat();
-  heartbeatIntervalId = setInterval(sendDeviceHeartbeat, 60000);
+      this.ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleServerMessage(data);
+        } catch (e) {}
+      };
+
+      this.ws.onclose = (event) => {
+        if (!this.shouldReconnect) return;
+        showWaitingScreen(
+          "Conexão Perdida",
+          "Tentando reconectar ao servidor...",
+          "reconnecting"
+        );
+        const delay = Math.min(
+          1000 * Math.pow(2, this.reconnectAttempts),
+          this.maxReconnectDelay
+        );
+        this.reconnectAttempts++;
+        setTimeout(() => this.connect(), delay);
+      };
+
+      this.ws.onerror = (error) => {
+        this.ws.close();
+      };
+    }
+
+    disconnect() {
+      this.shouldReconnect = false;
+      if (this.ws) {
+        this.ws.close(1000, "Desconexão intencional.");
+      }
+    }
+  }
+
+  const wsManager = new WebSocketManager();
+  wsManager.connect();
+
+  if (playlistInterval) clearInterval(playlistInterval);
+  playlistInterval = setInterval(fetchAndResetPlaylist, 60000);
 });

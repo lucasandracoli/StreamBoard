@@ -16,6 +16,10 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
     />
+    <link
+      href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.css"
+      rel="stylesheet"
+    />
   </head>
   <body id="campaigns-page" class="dashboard">
     <%- include('partials/navbar') %>
@@ -49,27 +53,40 @@
               <th>Status</th>
               <th>Data de Início</th>
               <th>Data de Término</th>
+              <th>Dispositivos</th>
+              <th>Setor(es)</th>
               <th>Ações</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="campaigns-table-body">
             <% if (campaigns.length === 0) { %>
-            <tr>
-              <td colspan="5" style="text-align: center">
+            <tr id="no-campaigns-row">
+              <td colspan="7" style="text-align: center">
                 Nenhuma campanha cadastrada.
               </td>
             </tr>
             <% } else { %> <% campaigns.forEach(campaign => { %>
-            <tr>
+            <tr data-campaign-id="<%= campaign.id %>">
               <td class="break-word"><%= campaign.name %></td>
-              <td>
+              <td data-status-cell>
                 <span class="<%= campaign.status.class %>">
                   <span class="online-dot"></span>
-                  <%= campaign.status.text %>
+                  <span data-status-text><%= campaign.status.text %></span>
                 </span>
               </td>
-              <td class="break-word"><%= campaign.start_date_formatted %></td>
-              <td class="break-word"><%= campaign.end_date_formatted %></td>
+              <td><%= campaign.start_date_formatted %></td>
+              <td><%= campaign.end_date_formatted %></td>
+              <td class="device-badges-cell">
+                <% if (campaign.devices && campaign.devices.length > 0) { %> <%
+                campaign.devices.forEach(device => { %>
+                <span class="device-badge-default"> <%= device.name %> </span>
+                <% }) %> <% } else { %> Nenhum <% } %>
+              </td>
+              <td class="break-word">
+                <% const uniqueSectors = [...new Set(campaign.devices.map(d =>
+                d.sector).filter(Boolean))]; %> <%= uniqueSectors.length > 0 ?
+                uniqueSectors.join(', ') : 'N/A' %>
+              </td>
               <td class="actions-cell">
                 <button
                   class="action-icon action-icon-editar"
@@ -146,7 +163,9 @@
     <div id="campaignModal" class="modal-overlay campaign-modal">
       <div class="modal-card">
         <div class="modal-header centered">
-          <h2 class="modal-title centered">Cadastrar Nova Campanha</h2>
+          <h2 id="campaignModalTitle" class="modal-title centered">
+            Cadastrar Nova Campanha
+          </h2>
         </div>
         <form
           method="POST"
@@ -194,20 +213,27 @@
           </div>
 
           <div class="form-group">
-            <label for="device_id" class="form-label"
-              >Selecione o Dispositivo</label
+            <label for="sectorFilter" class="form-label"
+              >Filtrar por Setor</label
             >
-            <select
-              id="device_id"
-              name="device_id"
-              class="modal-input"
-              required
-            >
-              <option value="">Selecione o Dispositivo</option>
-              <% devices.forEach(device => { %>
-              <option value="<%= device.id %>"><%= device.name %></option>
+            <select id="sectorFilter" class="modal-input">
+              <option value="all">Todos os Setores</option>
+              <% sectors.forEach(sector => { %>
+              <option value="<%= sector %>"><%= sector %></option>
               <% }) %>
             </select>
+          </div>
+
+          <div class="form-group">
+            <label for="device_ids" class="form-label"
+              >Selecione o(s) Dispositivo(s)</label
+            >
+            <select
+              id="device_ids"
+              name="device_ids"
+              required
+              multiple
+            ></select>
           </div>
 
           <div class="file-upload-wrapper">
@@ -240,9 +266,15 @@
     </div>
 
     <%- include('partials/footer') %>
+
+    <script>
+      const allDevices = <%- JSON.stringify(devices.map(d => ({id: d.id, name: d.name, sector: d.sector}))) %>;
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/pt.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script src="/js/main.js"></script>
   </body>
 </html>

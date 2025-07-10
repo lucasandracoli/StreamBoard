@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title><%= deviceName %> • Player</title>
-    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/css/styles.css?v=<%= appVersion %>" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
@@ -11,10 +11,17 @@
   </head>
   <body class="player-body">
     <div id="campaign-container">
-      <div class="player-placeholder">
+      <div class="player-message-card info">
+        <i class="icon bi bi-hdd-stack-fill"></i>
+        <div class="message-content">
+          <p class="message-title">Inicializando Player</p>
+          <p class="message-subtitle">
+            Conectando ao servidor e buscando campanhas...
+          </p>
+        </div>
         <div class="spinner"></div>
       </div>
     </div>
-    <script src="/js/player.js"></script>
+    <script src="/js/player.js?v=<%= appVersion %>"></script>
   </body>
 </html>

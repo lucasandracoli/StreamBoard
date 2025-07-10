@@ -87,10 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     openDeviceModalBtn?.addEventListener("click", openCreateDeviceModal);
 
-    if (
-      document.body.id !== "campaigns-page" &&
-      document.body.id !== "dashboard-page"
-    ) {
+    if (document.body.id === "devices-page") {
       document.querySelectorAll(".action-icon-editar").forEach((btn) => {
         btn.addEventListener("click", (e) =>
           openEditDeviceModal(e.currentTarget.dataset.id)
@@ -129,6 +126,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (campaignModal) {
+    let tomSelect;
+    const placeholderText = "Selecione um ou mais dispositivos";
+
     const openCampaignModalBtn = document.getElementById("openCampaignModal");
     const cancelCampaignModalBtn = document.getElementById(
       "cancelCampaignModal"
@@ -139,6 +139,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const fileUploadInput = document.getElementById("file-upload");
     const filePreviewWrapper = document.getElementById("file-preview-wrapper");
     const fileUploadLabel = document.querySelector('label[for="file-upload"]');
+    const sectorFilter = document.getElementById("sectorFilter");
+
     const startDatePicker = flatpickr("#start_date", {
       enableTime: true,
       dateFormat: "d/m/Y H:i",
@@ -162,11 +164,43 @@ document.addEventListener("DOMContentLoaded", () => {
       if (existingHiddenInput) existingHiddenInput.remove();
     };
 
+    const setPlaceholderVisibility = () => {
+      if (!tomSelect) return;
+      if (tomSelect.items.length > 0) {
+        tomSelect.wrapper.classList.add("has-items");
+      } else {
+        tomSelect.wrapper.classList.remove("has-items");
+      }
+    };
+
+    const updateDeviceOptions = () => {
+      const selectedSector = sectorFilter.value;
+      const currentValues = tomSelect.getValue();
+
+      let filteredDevices = allDevices;
+      if (selectedSector !== "all") {
+        filteredDevices = allDevices.filter((d) => d.sector === selectedSector);
+      }
+
+      tomSelect.clear();
+      tomSelect.clearOptions();
+      tomSelect.addOptions(
+        filteredDevices.map((d) => ({ value: d.id, text: d.name }))
+      );
+
+      const validValues = currentValues.filter((val) =>
+        filteredDevices.some((d) => d.id == val)
+      );
+      tomSelect.setValue(validValues, true);
+      setPlaceholderVisibility();
+    };
+
     cancelCampaignModalBtn?.addEventListener("click", () => {
       campaignModal.classList.remove("active");
       setTimeout(() => {
         campaignModal.style.display = "none";
         resetFileInput();
+        if (tomSelect) tomSelect.clear();
       }, MODAL_CLOSE_DELAY);
     });
 
@@ -176,6 +210,13 @@ document.addEventListener("DOMContentLoaded", () => {
       modalTitle.textContent = "Cadastrar Nova Campanha";
       submitButton.textContent = "Adicionar";
       campaignForm.action = "/campaigns";
+
+      if (tomSelect) {
+        sectorFilter.value = "all";
+        updateDeviceOptions();
+        tomSelect.clear();
+      }
+
       campaignModal.style.display = "flex";
       campaignModal.classList.add("active");
     };
@@ -184,18 +225,37 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const response = await fetch(`/api/campaigns/${campaignId}`);
         if (!response.ok) throw new Error(await handleFetchError(response));
-        const { campaign, devices } = await response.json();
+
+        const { campaign, associatedDevices } = await response.json();
+
         campaignForm.reset();
         resetFileInput();
+
         modalTitle.textContent = "Editar Campanha";
         submitButton.textContent = "Salvar Alterações";
         campaignForm.action = `/campaigns/${campaign.id}/edit`;
         document.getElementById("campaignName").value = campaign.name;
         startDatePicker.setDate(campaign.start_date, true);
         endDatePicker.setDate(campaign.end_date, true);
-        if (devices.length > 0) {
-          document.getElementById("device_id").value = devices[0].device_id;
+
+        if (tomSelect) {
+          const uniqueSectors = [
+            ...new Set(associatedDevices.map((d) => d.sector).filter(Boolean)),
+          ];
+
+          if (uniqueSectors.length === 1) {
+            sectorFilter.value = uniqueSectors[0];
+          } else {
+            sectorFilter.value = "all";
+          }
+
+          updateDeviceOptions();
+
+          const associatedDeviceIds = associatedDevices.map((d) => d.id);
+          tomSelect.setValue(associatedDeviceIds);
+          setPlaceholderVisibility();
         }
+
         if (campaign.midia) {
           const fileName = campaign.midia.split("/").pop();
           const isVideo = ["mp4", "webm", "mov"].some((ext) =>
@@ -238,17 +298,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
     campaignForm.addEventListener("submit", async function (e) {
       e.preventDefault();
+
+      const formData = new FormData(this);
+      const selectedDevices = tomSelect.getValue();
+
+      formData.delete("device_ids");
+      selectedDevices.forEach((deviceId) => {
+        formData.append("device_ids", deviceId);
+      });
+
       if (
-        [...this.querySelectorAll("[required]")].some(
-          (el) => el.value.trim() === ""
-        )
+        !formData.get("name") ||
+        !formData.get("start_date") ||
+        !formData.get("end_date") ||
+        selectedDevices.length === 0
       ) {
-        return notyf.error("Preencha todos os campos obrigatórios.");
+        return notyf.error(
+          "Preencha todos os campos obrigatórios, incluindo ao menos um dispositivo."
+        );
       }
+
       try {
         const res = await fetch(this.action, {
           method: "POST",
-          body: new FormData(this),
+          body: formData,
         });
         const json = await res.json();
         if (!res.ok) return notyf.error(json.message || `Erro ${res.status}`);
@@ -273,6 +346,18 @@ document.addEventListener("DOMContentLoaded", () => {
         .getElementById("remove-file-btn")
         .addEventListener("click", resetFileInput);
     });
+
+    if (document.getElementById("device_ids")) {
+      tomSelect = new TomSelect("#device_ids", {
+        plugins: ["remove_button"],
+        create: false,
+        placeholder: placeholderText,
+        onChange: setPlaceholderVisibility,
+      });
+
+      sectorFilter.addEventListener("change", updateDeviceOptions);
+      updateDeviceOptions();
+    }
   }
 
   document.querySelectorAll(".action-icon-excluir").forEach((btn) => {
@@ -489,6 +574,7 @@ document.addEventListener("DOMContentLoaded", () => {
         campaignModal.querySelector("#file-preview-wrapper").innerHTML = "";
         campaignModal.querySelector('label[for="file-upload"]').style.display =
           "inline-flex";
+        if (tomSelect) tomSelect.clear();
       }, MODAL_CLOSE_DELAY);
     }
     if (e.target === confirmationModal)
@@ -508,4 +594,67 @@ document.addEventListener("DOMContentLoaded", () => {
       this.querySelector(".open-details-modal")?.click();
     });
   });
+
+  const connectAdminWs = () => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/admin-ws`;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "DEVICE_STATUS_UPDATE") {
+          const { deviceId, status } = data.payload;
+          const statusCell = document.querySelector(
+            `tr[data-device-id="${deviceId}"] [data-status-cell]`
+          );
+          if (statusCell) {
+            const statusSpan = statusCell.querySelector("span:first-child");
+            const statusText = statusCell.querySelector("[data-status-text]");
+            if (statusSpan && statusText) {
+              statusSpan.className = status.class;
+              statusText.textContent = status.text;
+            }
+          }
+        } else if (data.type === "CAMPAIGN_STATUS_UPDATE") {
+          const { campaignId, status } = data.payload;
+          const campaignRow = document.querySelector(
+            `tr[data-campaign-id="${campaignId}"]`
+          );
+          if (campaignRow) {
+            const statusCell = campaignRow.querySelector("[data-status-cell]");
+            const statusSpan = statusCell.querySelector("span:first-child");
+            const statusText = statusCell.querySelector("[data-status-text]");
+
+            if (
+              statusSpan &&
+              statusText &&
+              statusSpan.className !== status.class
+            ) {
+              statusSpan.className = `online-status ${status.class}`;
+              statusText.textContent = status.text;
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao processar mensagem WebSocket do admin:", e);
+      }
+    };
+
+    ws.onclose = () => {
+      setTimeout(connectAdminWs, 5000);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  };
+
+  if (
+    document.body.id === "devices-page" ||
+    document.body.id === "campaigns-page"
+  ) {
+    connectAdminWs();
+  }
 });

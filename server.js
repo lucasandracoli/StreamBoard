@@ -1,5 +1,7 @@
 require("dotenv").config();
 const express = require("express");
+const http = require("http");
+const WebSocket = require("ws");
 const session = require("express-session");
 const bodyParser = require("body-parser");
 const bcrypt = require("bcrypt");
@@ -7,16 +9,21 @@ const db = require("./config/streamboard");
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
-const { DateTime } = require("luxon");
+const { DateTime, Settings } = require("luxon");
 const cookieParser = require("cookie-parser");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const fsPromises = require("fs").promises;
+const url = require("url");
+
+Settings.defaultZone = "America/Sao_Paulo";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
+const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRATION = "15m";
 const JWT_REFRESH_EXPIRATION = "90d";
@@ -55,7 +62,11 @@ function generateRefreshToken(device) {
 }
 
 function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    return null;
+  }
 }
 
 async function deviceAuth(req, res, next) {
@@ -63,14 +74,10 @@ async function deviceAuth(req, res, next) {
   const refreshToken = req.cookies.refresh_token;
 
   if (accessToken) {
-    try {
-      const payload = verifyToken(accessToken);
+    const payload = verifyToken(accessToken);
+    if (payload) {
       req.device = payload;
       return next();
-    } catch (err) {
-      if (err.name !== "TokenExpiredError") {
-        return res.status(403).redirect("/pair?error=invalid_token");
-      }
     }
   }
 
@@ -87,17 +94,18 @@ async function deviceAuth(req, res, next) {
     );
 
     if (tokenResult.rows.length === 0) {
-      const oldToken = verifyToken(refreshToken);
-      await client.query(
-        "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
-        [oldToken.id]
-      );
+      const oldTokenPayload = verifyToken(refreshToken);
+      if (oldTokenPayload) {
+        await client.query(
+          "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
+          [oldTokenPayload.id]
+        );
+      }
       await client.query("COMMIT");
       return res.status(403).redirect("/pair?error=compromised_session");
     }
 
     const storedToken = tokenResult.rows[0];
-
     await client.query("UPDATE tokens SET is_revoked = TRUE WHERE id = $1", [
       storedToken.id,
     ]);
@@ -115,7 +123,6 @@ async function deviceAuth(req, res, next) {
       "INSERT INTO tokens (device_id, token, refresh_token) VALUES ($1, $2, $3)",
       [device.id, newAccessToken, newRefreshToken]
     );
-
     await client.query("COMMIT");
 
     res.cookie("access_token", newAccessToken, {
@@ -141,7 +148,6 @@ async function deviceAuth(req, res, next) {
 }
 
 app.use(cookieParser());
-
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
@@ -156,7 +162,6 @@ app.use(
 );
 
 const packageJson = require("./package.json");
-
 app.use((req, res, next) => {
   res.locals.appVersion = packageJson.version;
   res.locals.currentRoute = req.path;
@@ -194,21 +199,134 @@ const isAdmin = (req, res, next) => {
 };
 
 let clients = {};
+let adminClients = new Set();
+
+const broadcastToAdmins = (data) => {
+  adminClients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(data));
+    }
+  });
+};
+
 const sendUpdateToDevice = (deviceId, data) => {
-  const client = clients[deviceId];
-  if (client) {
-    client.res.write(`data: ${JSON.stringify(data)}\n\n`);
+  const ws = clients[deviceId];
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
   }
 };
+
+wss.on("connection", async (ws, req) => {
+  const { pathname, query } = url.parse(req.url, true);
+
+  if (pathname === "/admin-ws") {
+    adminClients.add(ws);
+    ws.on("close", () => {
+      adminClients.delete(ws);
+    });
+    return;
+  }
+
+  const token = query.token;
+  if (!token) return ws.close(1008, "Token não fornecido");
+
+  try {
+    const payload = verifyToken(token);
+    if (!payload) return ws.close(1008, "Token inválido");
+
+    const deviceId = payload.id;
+    clients[deviceId] = ws;
+
+    broadcastToAdmins({
+      type: "DEVICE_STATUS_UPDATE",
+      payload: {
+        deviceId,
+        status: { text: "Online", class: "online-status online" },
+      },
+    });
+
+    ws.isAlive = true;
+    ws.on("pong", () => {
+      ws.isAlive = true;
+    });
+
+    ws.on("close", async () => {
+      delete clients[deviceId];
+      try {
+        const deviceResult = await db.query(
+          "SELECT COUNT(*) as token_count FROM tokens WHERE device_id = $1 AND is_revoked = false",
+          [deviceId]
+        );
+        const hasTokens = deviceResult.rows[0].token_count > 0;
+        const status = {
+          text: hasTokens ? "Offline" : "Inativo",
+          class: `online-status ${hasTokens ? "offline" : "inactive"}`,
+        };
+        broadcastToAdmins({
+          type: "DEVICE_STATUS_UPDATE",
+          payload: { deviceId, status },
+        });
+      } catch (err) {
+        console.error("Erro ao verificar tokens no logout do WS:", err);
+      }
+    });
+  } catch (err) {
+    ws.close(1008, "Token inválido ou expirado");
+  }
+});
+
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) return ws.terminate();
+    ws.isAlive = false;
+    ws.ping(() => {});
+  });
+}, 30000);
+
+wss.on("close", () => {
+  clearInterval(heartbeatInterval);
+});
+
+setInterval(async () => {
+  try {
+    const result = await db.query(
+      "SELECT id, start_date, end_date FROM campaigns"
+    );
+    const now = DateTime.now();
+
+    result.rows.forEach((campaign) => {
+      const startDate = DateTime.fromJSDate(campaign.start_date);
+      const endDate = DateTime.fromJSDate(campaign.end_date);
+
+      let newStatus = null;
+
+      if (now < startDate) {
+        newStatus = { text: "Agendada", class: "online-status scheduled" };
+      } else if (now > endDate) {
+        newStatus = { text: "Finalizada", class: "online-status offline" };
+      } else {
+        newStatus = { text: "Ativa", class: "online-status online" };
+      }
+
+      broadcastToAdmins({
+        type: "CAMPAIGN_STATUS_UPDATE",
+        payload: {
+          campaignId: campaign.id,
+          status: newStatus,
+        },
+      });
+    });
+  } catch (err) {
+    console.error("Erro ao verificar status das campanhas:", err);
+  }
+}, 60000);
 
 app.get("/", (req, res) => {
   const token = req.cookies.access_token;
   if (token) {
-    deviceAuth(req, res, () => {
-      return res.redirect("/player");
-    });
+    deviceAuth(req, res, () => res.redirect("/player"));
   } else {
-    return res.redirect("/login");
+    res.redirect("/login");
   }
 });
 
@@ -262,36 +380,11 @@ app.get("/dashboard", isAuthenticated, isAdmin, (req, res) => {
   res.render("dashboard", { user: req.user });
 });
 
-app.post("/api/deviceHeartbeat", deviceAuth, async (req, res) => {
-  const deviceId = req.device.id;
-  const { effectiveType, downlink } = req.body;
-
-  if (!deviceId) {
-    return res.status(401).json({ message: "Dispositivo não autenticado." });
-  }
-
-  try {
-    await db.query(
-      `UPDATE devices SET
-        network_effective_type = $1,
-        network_downlink = $2,
-        last_seen = NOW()
-        WHERE id = $3`,
-      [effectiveType, downlink, deviceId]
-    );
-
-    res.status(200).json({ message: "Heartbeat recebido com sucesso." });
-  } catch (err) {
-    console.error("Erro ao processar heartbeat do dispositivo:", err);
-    res.status(500).json({ message: "Erro interno no servidor." });
-  }
-});
-
 app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
   try {
     const devicesResult = await db.query(
       `SELECT d.*,
-        (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id) > 0 as has_tokens
+        (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id AND t.is_revoked = false) > 0 as has_tokens
        FROM devices d
        ORDER BY d.registered_at DESC`
     );
@@ -360,19 +453,6 @@ app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-app.post("/devices/:id", isAuthenticated, isAdmin, async (req, res) => {
-  const { sector } = req.body;
-  try {
-    await db.query("UPDATE devices SET sector = $1 WHERE id = $2", [
-      sector,
-      req.params.id,
-    ]);
-    res.redirect("/devices");
-  } catch (err) {
-    res.status(500).send("Erro ao atualizar dispositivo.");
-  }
-});
-
 app.post("/devices/:id/edit", isAuthenticated, isAdmin, async (req, res) => {
   const { id } = req.params;
   const { name, device_type, sector } = req.body;
@@ -401,6 +481,125 @@ app.post("/devices/:id/edit", isAuthenticated, isAdmin, async (req, res) => {
     });
   }
 });
+
+app.post("/devices/:id/delete", isAuthenticated, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  const client = await db.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    await client.query("DELETE FROM campaign_device WHERE device_id = $1", [
+      id,
+    ]);
+    await client.query("DELETE FROM tokens WHERE device_id = $1", [id]);
+    const deleteResult = await client.query(
+      "DELETE FROM devices WHERE id = $1",
+      [id]
+    );
+
+    if (deleteResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Dispositivo não encontrado." });
+    }
+
+    await client.query("COMMIT");
+
+    res.status(200).json({
+      message: "Dispositivo excluído com sucesso.",
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("ERRO AO EXCLUIR DISPOSITIVO:", err);
+    res.status(500).json({ message: "Erro ao excluir o dispositivo." });
+  } finally {
+    client.release();
+  }
+});
+
+app.post(
+  "/devices/:identifier/revoke",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { identifier } = req.params;
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+
+      const result = await client.query(
+        "SELECT id FROM devices WHERE device_identifier = $1",
+        [identifier]
+      );
+
+      if (result.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ message: "Dispositivo não encontrado." });
+      }
+
+      const deviceId = result.rows[0].id;
+
+      await client.query(
+        "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
+        [deviceId]
+      );
+
+      await client.query("UPDATE devices SET is_active = FALSE WHERE id = $1", [
+        deviceId,
+      ]);
+
+      await client.query("COMMIT");
+
+      sendUpdateToDevice(deviceId, {
+        type: "DEVICE_REVOKED",
+        payload: { identifier: identifier },
+      });
+
+      res.status(200).json({
+        message:
+          "Acesso do dispositivo revogado e status atualizado com sucesso.",
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error(
+        "Erro ao revogar token e atualizar status do dispositivo:",
+        err
+      );
+      res
+        .status(500)
+        .json({ message: "Erro ao revogar acesso do dispositivo." });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+app.post(
+  "/devices/:identifier/reactivate",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { identifier } = req.params;
+
+    try {
+      const result = await db.query(
+        "UPDATE devices SET is_active = TRUE WHERE device_identifier = $1",
+        [identifier]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ message: "Dispositivo não encontrado." });
+      }
+
+      res.status(200).json({
+        message: "Dispositivo reativado com sucesso.",
+      });
+    } catch (err) {
+      console.error("Erro ao reativar o dispositivo:", err);
+      res.status(500).json({ message: "Erro ao reativar o dispositivo." });
+    }
+  }
+);
 
 app.get("/pair", (req, res) => {
   res.render("pair");
@@ -474,135 +673,16 @@ app.post("/pair", async (req, res) => {
   }
 });
 
-app.post(
-  "/devices/:identifier/revoke",
-  isAuthenticated,
-  isAdmin,
-  async (req, res) => {
-    const { identifier } = req.params;
-    const client = await db.connect();
-    try {
-      await client.query("BEGIN");
-
-      const result = await client.query(
-        "SELECT id FROM devices WHERE device_identifier = $1",
-        [identifier]
-      );
-
-      if (result.rows.length === 0) {
-        await client.query("ROLLBACK");
-        return res.status(404).json({ message: "Dispositivo não encontrado." });
-      }
-
-      const deviceId = result.rows[0].id;
-
-      await client.query(
-        "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
-        [deviceId]
-      );
-
-      await client.query("UPDATE devices SET is_active = FALSE WHERE id = $1", [
-        deviceId,
-      ]);
-
-      await client.query("COMMIT");
-
-      sendUpdateToDevice(deviceId, {
-        type: "DEVICE_REVOKED",
-        payload: { identifier: identifier },
-      });
-
-      res.status(200).json({
-        message:
-          "Acesso do dispositivo revogado e status atualizado com sucesso.",
-      });
-    } catch (err) {
-      await client.query("ROLLBACK");
-      console.error(
-        "Erro ao revogar token e atualizar status do dispositivo:",
-        err
-      );
-      res
-        .status(500)
-        .json({ message: "Erro ao revogar acesso do dispositivo." });
-    } finally {
-      client.release();
-    }
-  }
-);
-
-app.post("/devices/:id/delete", isAuthenticated, isAdmin, async (req, res) => {
-  const { id } = req.params;
-  const client = await db.connect();
-
-  try {
-    await client.query("BEGIN");
-
-    await client.query("DELETE FROM campaign_device WHERE device_id = $1", [
-      id,
-    ]);
-    await client.query("DELETE FROM tokens WHERE device_id = $1", [id]);
-    const deleteResult = await client.query(
-      "DELETE FROM devices WHERE id = $1",
-      [id]
-    );
-
-    if (deleteResult.rowCount === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ message: "Dispositivo não encontrado." });
-    }
-
-    await client.query("COMMIT");
-
-    res.status(200).json({
-      message: "Dispositivo excluído com sucesso.",
-    });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("ERRO AO EXCLUIR DISPOSITIVO:", err);
-    res.status(500).json({ message: "Erro ao excluir o dispositivo." });
-  } finally {
-    client.release();
-  }
-});
-
-app.post(
-  "/devices/:identifier/reactivate",
-  isAuthenticated,
-  isAdmin,
-  async (req, res) => {
-    const { identifier } = req.params;
-
-    try {
-      const result = await db.query(
-        "UPDATE devices SET is_active = TRUE WHERE device_identifier = $1",
-        [identifier]
-      );
-
-      if (result.rowCount === 0) {
-        return res.status(404).json({ message: "Dispositivo não encontrado." });
-      }
-
-      res.status(200).json({
-        message: "Dispositivo reativado com sucesso.",
-      });
-    } catch (err) {
-      console.error("Erro ao reativar o dispositivo:", err);
-      res.status(500).json({ message: "Erro ao reativar o dispositivo." });
-    }
-  }
-);
-
 app.get("/player", deviceAuth, async (req, res) => {
   try {
-    const result = await db.query(
-      "SELECT name FROM devices WHERE device_identifier = $1",
-      [req.device.device_identifier]
+    const deviceResult = await db.query(
+      "SELECT name FROM devices WHERE id = $1",
+      [req.device.id]
     );
-    if (result.rows.length === 0) {
+    if (deviceResult.rows.length === 0) {
       return res.status(404).send("Dispositivo não encontrado.");
     }
-    const deviceName = result.rows[0].name;
+    const deviceName = deviceResult.rows[0].name;
     res.render("player", { deviceName });
   } catch (err) {
     res.status(500).send("Erro ao carregar dispositivo.");
@@ -676,30 +756,24 @@ app.get(
   }
 );
 
-app.get("/stream", deviceAuth, (req, res) => {
-  const deviceId = req.device.id;
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("Cache-Control", "no-cache");
-  res.flushHeaders();
-  clients[deviceId] = { res };
-  req.on("close", () => {
-    delete clients[deviceId];
-  });
-});
-
 app.get("/api/device/playlist", deviceAuth, async (req, res) => {
   try {
-    const now = new Date();
     const result = await db.query(
-      `SELECT c.*, cd.execution_order
-               FROM campaigns c
-               JOIN campaign_device cd ON c.id = cd.campaign_id
-               WHERE cd.device_id = $1
-                 AND c.start_date <= $2
-                 AND c.end_date >= $2`,
-      [req.device.id, now]
+      `SELECT c.* FROM campaigns c
+       JOIN campaign_device cd ON c.id = cd.campaign_id
+       WHERE cd.device_id = $1
+         AND c.start_date <= NOW() 
+         AND c.end_date >= NOW()`,
+      [req.device.id]
     );
+
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, private"
+    );
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
     res.json(result.rows);
   } catch (err) {
     console.error("Erro ao buscar playlist:", err);
@@ -709,9 +783,22 @@ app.get("/api/device/playlist", deviceAuth, async (req, res) => {
 
 app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const campaignsResult = await db.query(
-      "SELECT * FROM campaigns ORDER BY created_at DESC"
-    );
+    const campaignsResult = await db.query(`
+      SELECT 
+        c.*,
+        (
+          SELECT JSON_AGG(
+            json_build_object('id', d.id, 'name', d.name, 'sector', d.sector)
+          )
+          FROM campaign_device cd
+          JOIN devices d ON cd.device_id = d.id
+          WHERE cd.campaign_id = c.id
+        ) as devices
+      FROM 
+        campaigns c
+      ORDER BY 
+        c.created_at DESC
+    `);
 
     const now = DateTime.now().setZone("America/Sao_Paulo");
 
@@ -720,10 +807,8 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
         zone: "America/Sao_Paulo",
         locale: "pt-BR",
       };
-
       const startDate = DateTime.fromJSDate(campaign.start_date, formatOptions);
       const endDate = DateTime.fromJSDate(campaign.end_date, formatOptions);
-
       const start_date_formatted = startDate.toFormat("dd/MM/yyyy, HH:mm:ss");
       const end_date_formatted = endDate.toFormat("dd/MM/yyyy, HH:mm:ss");
 
@@ -741,15 +826,21 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
         start_date_formatted,
         end_date_formatted,
         status,
+        devices: campaign.devices || [],
       };
     });
 
     const devicesResult = await db.query(
-      "SELECT * FROM devices WHERE is_active = TRUE"
+      "SELECT * FROM devices WHERE is_active = TRUE ORDER BY name"
     );
     const devices = devicesResult.rows;
 
-    res.render("campaigns", { campaigns, devices });
+    const sectorsResult = await db.query(
+      "SELECT DISTINCT sector FROM devices WHERE sector IS NOT NULL AND sector <> '' ORDER BY sector"
+    );
+    const sectors = sectorsResult.rows.map((r) => r.sector);
+
+    res.render("campaigns", { campaigns, devices, sectors });
   } catch (err) {
     console.error("Erro ao carregar campanhas:", err);
     res.status(500).send("Erro ao carregar campanhas.");
@@ -762,33 +853,34 @@ app.post(
   isAdmin,
   upload.single("media"),
   async (req, res) => {
-    const { name, start_date, end_date, device_id } = req.body;
+    let { name, start_date, end_date, device_ids } = req.body;
 
-    if (!name || !start_date || !end_date || !device_id) {
+    if (!name || !start_date || !end_date || !device_ids) {
       return res
         .status(400)
         .json({ message: "Todos os campos são obrigatórios." });
     }
 
-    let parsedStartDate;
-    let parsedEndDate;
+    if (!Array.isArray(device_ids)) {
+      device_ids = [device_ids];
+    }
 
+    let parsedStartDate, parsedEndDate;
     try {
-      parsedStartDate = DateTime.fromFormat(start_date, "dd/MM/yyyy HH:mm", {
-        zone: "America/Sao_Paulo",
-      }).toJSDate();
-
-      parsedEndDate = DateTime.fromFormat(end_date, "dd/MM/yyyy HH:mm", {
-        zone: "America/Sao_Paulo",
-      }).toJSDate();
-
+      parsedStartDate = DateTime.fromFormat(
+        start_date,
+        "dd/MM/yyyy HH:mm"
+      ).toJSDate();
+      parsedEndDate = DateTime.fromFormat(
+        end_date,
+        "dd/MM/yyyy HH:mm"
+      ).toJSDate();
       if (parsedEndDate < parsedStartDate) {
         return res.status(400).json({
           message: "A data de término não pode ser anterior à data de início.",
         });
       }
     } catch (dateError) {
-      console.error("Erro ao parsear datas:", dateError);
       return res.status(400).json({
         message: "Formato de data ou hora inválido. Use DD/MM/AAAA HH:MM.",
       });
@@ -805,7 +897,7 @@ app.post(
 
       const campaignResult = await client.query(
         `INSERT INTO campaigns (name, start_date, end_date, midia)
-           VALUES ($1, $2, $3, $4) RETURNING *`,
+         VALUES ($1, $2, $3, $4) RETURNING *`,
         [name, parsedStartDate, parsedEndDate, file_path]
       );
       const newCampaign = campaignResult.rows[0];
@@ -813,36 +905,31 @@ app.post(
       if (req.file) {
         await client.query(
           `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type)
-             VALUES ($1, $2, $3, $4)`,
+           VALUES ($1, $2, $3, $4)`,
           [newCampaign.id, req.file.filename, file_path, req.file.mimetype]
         );
       }
 
-      const resultOrder = await client.query(
-        `SELECT MAX(execution_order) AS max_execution_order FROM campaign_device WHERE device_id = $1`,
-        [device_id]
-      );
-      const execution_order = resultOrder.rows[0].max_execution_order
-        ? resultOrder.rows[0].max_execution_order + 1
-        : 1;
-
-      await client.query(
-        `INSERT INTO campaign_device (campaign_id, device_id, execution_order)
-           VALUES ($1, $2, $3)`,
-        [newCampaign.id, device_id, execution_order]
-      );
+      for (const device_id of device_ids) {
+        await client.query(
+          `INSERT INTO campaign_device (campaign_id, device_id)
+           VALUES ($1, $2)`,
+          [newCampaign.id, device_id]
+        );
+      }
 
       await client.query("COMMIT");
 
-      const payload = { ...newCampaign, execution_order };
-      sendUpdateToDevice(device_id, {
-        type: "NEW_CAMPAIGN",
-        payload: payload,
+      device_ids.forEach((device_id) => {
+        sendUpdateToDevice(device_id, {
+          type: "NEW_CAMPAIGN",
+          payload: newCampaign,
+        });
       });
 
       res.status(200).json({
         code: 200,
-        message: "Campanha criada e notificação enviada.",
+        message: "Campanha criada e associada aos dispositivos.",
         campaign: newCampaign,
       });
     } catch (err) {
@@ -945,19 +1032,26 @@ app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
       "SELECT * FROM campaigns WHERE id = $1",
       [id]
     );
-
     if (campaignResult.rows.length === 0) {
       return res.status(404).json({ message: "Campanha não encontrada." });
     }
     const campaign = campaignResult.rows[0];
 
-    const devicesResult = await db.query(
-      "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
+    const associatedDevicesResult = await db.query(
+      `SELECT d.id, d.sector 
+             FROM devices d 
+             JOIN campaign_device cd ON d.id = cd.device_id 
+             WHERE cd.campaign_id = $1`,
       [id]
     );
-    const devices = devicesResult.rows;
+    const associatedDevices = associatedDevicesResult.rows;
 
-    res.json({ campaign, devices });
+    const allDevicesResult = await db.query(
+      "SELECT id, name FROM devices WHERE is_active = TRUE"
+    );
+    const allDevices = allDevicesResult.rows;
+
+    res.json({ campaign, associatedDevices, allDevices });
   } catch (err) {
     console.error("Erro ao buscar detalhes da campanha:", err);
     res.status(500).json({ message: "Erro interno do servidor." });
@@ -971,22 +1065,28 @@ app.post(
   upload.single("media"),
   async (req, res) => {
     const { id } = req.params;
-    const { name, start_date, end_date, device_id, remove_media } = req.body;
+    let { name, start_date, end_date, device_ids, remove_media } = req.body;
 
-    if (!name || !start_date || !end_date || !device_id) {
+    if (!name || !start_date || !end_date || !device_ids) {
       return res
         .status(400)
         .json({ message: "Todos os campos são obrigatórios." });
     }
 
+    if (!Array.isArray(device_ids)) {
+      device_ids = [device_ids];
+    }
+
     let parsedStartDate, parsedEndDate;
     try {
-      parsedStartDate = DateTime.fromFormat(start_date, "dd/MM/yyyy HH:mm", {
-        zone: "America/Sao_Paulo",
-      }).toJSDate();
-      parsedEndDate = DateTime.fromFormat(end_date, "dd/MM/yyyy HH:mm", {
-        zone: "America/Sao_Paulo",
-      }).toJSDate();
+      parsedStartDate = DateTime.fromFormat(
+        start_date,
+        "dd/MM/yyyy HH:mm"
+      ).toJSDate();
+      parsedEndDate = DateTime.fromFormat(
+        end_date,
+        "dd/MM/yyyy HH:mm"
+      ).toJSDate();
       if (parsedEndDate < parsedStartDate) {
         return res.status(400).json({
           message: "A data de término não pode ser anterior à data de início.",
@@ -1006,7 +1106,9 @@ app.post(
         "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
         [id]
       );
-      const oldDeviceIds = oldDevicesResult.rows.map((row) => row.device_id);
+      const oldDeviceIds = oldDevicesResult.rows.map((row) =>
+        row.device_id.toString()
+      );
 
       const campaignQuery = await client.query(
         "SELECT midia FROM campaigns WHERE id = $1",
@@ -1044,7 +1146,7 @@ app.post(
 
       if (req.file) {
         await client.query(
-          `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type) VALUES ($1, $2, $3, $4)`,
+          `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type) VALUES ($1, $2, $3, $4) ON CONFLICT (campaign_id) DO UPDATE SET file_name = EXCLUDED.file_name, file_path = EXCLUDED.file_path, file_type = EXCLUDED.file_type`,
           [id, req.file.filename, mediaPath, req.file.mimetype]
         );
       }
@@ -1058,30 +1160,45 @@ app.post(
       await client.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
         id,
       ]);
-      const orderResult = await client.query(
-        `SELECT MAX(execution_order) AS max_order FROM campaign_device WHERE device_id = $1`,
-        [device_id]
-      );
-      const execution_order = (orderResult.rows[0].max_order || 0) + 1;
-      await client.query(
-        `INSERT INTO campaign_device (campaign_id, device_id, execution_order) VALUES ($1, $2, $3)`,
-        [id, device_id, execution_order]
-      );
+
+      for (const device_id of device_ids) {
+        await client.query(
+          `INSERT INTO campaign_device (campaign_id, device_id) VALUES ($1, $2)`,
+          [id, device_id]
+        );
+      }
 
       await client.query("COMMIT");
 
-      oldDeviceIds.forEach((oldDeviceId) => {
-        if (String(oldDeviceId) !== String(device_id)) {
-          sendUpdateToDevice(oldDeviceId, {
-            type: "DELETE_CAMPAIGN",
-            payload: { campaignId: Number(id) },
-          });
-        }
+      const devicesToRemove = oldDeviceIds.filter(
+        (oldId) => !device_ids.includes(oldId)
+      );
+      const devicesToAdd = device_ids.filter(
+        (newId) => !oldDeviceIds.includes(newId)
+      );
+      const devicesToUpdate = device_ids.filter((id) =>
+        oldDeviceIds.includes(id)
+      );
+
+      devicesToRemove.forEach((deviceId) => {
+        sendUpdateToDevice(deviceId, {
+          type: "DELETE_CAMPAIGN",
+          payload: { campaignId: Number(id) },
+        });
       });
 
-      sendUpdateToDevice(device_id, {
-        type: "UPDATE_CAMPAIGN",
-        payload: { ...updatedCampaign, execution_order },
+      devicesToAdd.forEach((deviceId) => {
+        sendUpdateToDevice(deviceId, {
+          type: "NEW_CAMPAIGN",
+          payload: updatedCampaign,
+        });
+      });
+
+      devicesToUpdate.forEach((deviceId) => {
+        sendUpdateToDevice(deviceId, {
+          type: "UPDATE_CAMPAIGN",
+          payload: updatedCampaign,
+        });
       });
 
       res.status(200).json({
@@ -1113,6 +1230,29 @@ async function revokeToken(refreshToken) {
   }
 }
 
-app.listen(PORT, () => {
+app.get("/api/wsToken", deviceAuth, (req, res) => {
+  try {
+    const accessToken = generateAccessToken(req.device);
+    res.json({ accessToken });
+  } catch (error) {
+    res.status(500).json({ message: "Erro ao gerar token para WebSocket." });
+  }
+});
+
+app.post("/api/broadcastRefresh", isAuthenticated, isAdmin, (req, res) => {
+  const message = JSON.stringify({ type: "FORCE_REFRESH" });
+
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive) {
+      ws.send(message);
+    }
+  });
+
+  res
+    .status(200)
+    .json({ message: "Comando de atualização enviado a todos os players." });
+});
+
+server.listen(PORT, () => {
   console.log(`🔥 Server Running in http://127.0.0.1:${PORT}`);
 });

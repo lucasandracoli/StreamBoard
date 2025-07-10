@@ -17,7 +17,7 @@ default: 'bi-question-circle' }; %>
       rel="stylesheet"
     />
   </head>
-  <body class="dashboard">
+  <body id="devices-page" class="dashboard">
     <%- include("partials/navbar") %>
 
     <main class="container">
@@ -54,19 +54,18 @@ default: 'bi-question-circle' }; %>
           </thead>
           <tbody>
             <% if (devices.length === 0) { %>
-            <tr>
+            <tr id="no-devices-row">
               <td colspan="5" style="text-align: center">
                 Nenhum dispositivo cadastrado.
               </td>
             </tr>
             <% } else { %> <% devices.forEach(device => { %>
-            <tr>
+            <tr data-device-id="<%= device.id %>">
               <td class="break-word"><%= device.name %></td>
-              <td>
+              <td data-status-cell>
                 <span class="<%= device.status.class %>">
-                  <% if (device.status.class.includes('online-status')) { %>
                   <span class="online-dot"></span>
-                  <% } %> <%= device.status.text %>
+                  <span data-status-text><%= device.status.text %></span>
                 </span>
               </td>
               <td class="icon-cell">
