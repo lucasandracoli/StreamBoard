@@ -17,6 +17,7 @@ const path = require("path");
 const fs = require("fs");
 const fsPromises = require("fs").promises;
 const url = require("url");
+const axios = require("axios");
 
 Settings.defaultZone = "America/Sao_Paulo";
 
@@ -45,6 +46,9 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+
+let campeaoToken = null;
+let campeaoTokenExp = 0;
 
 function generateAccessToken(device) {
   return jwt.sign(
@@ -1219,9 +1223,9 @@ app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
     const campaign = campaignResult.rows[0];
     const associatedDevicesResult = await db.query(
       `SELECT d.id, d.sector 
-                      FROM devices d 
-                      JOIN campaign_device cd ON d.id = cd.device_id 
-                      WHERE cd.campaign_id = $1`,
+                        FROM devices d 
+                        JOIN campaign_device cd ON d.id = cd.device_id 
+                        WHERE cd.campaign_id = $1`,
       [id]
     );
     const associatedDevices = associatedDevicesResult.rows;
@@ -1390,16 +1394,76 @@ app.post("/api/broadcastRefresh", isAuthenticated, isAdmin, (req, res) => {
     .json({ message: "Comando de atualização enviado a todos os players." });
 });
 
+const GQL_URL = "https://api.campeao.com.br/graphql";
+const GQL_HEADERS = {
+  "content-type": "application/json",
+  accept: "application/json",
+  origin: "https://campeao.com.br",
+  referer: "https://campeao.com.br/",
+  "user-agent": "StreamBoard/1.0 (+node)",
+};
+
+async function authenticateCampeao() {
+  try {
+    const r = await axios.post(
+      GQL_URL,
+      {
+        operationName: "authenticateUser",
+        variables: {
+          email: process.env.CAMPEAO_API_EMAIL,
+          password: process.env.CAMPEAO_API_PASSWORD,
+        },
+        query: `mutation authenticateUser($email: String!, $password: String!) {
+          authenticateUser(email: $email, password: $password) { token }
+        }`,
+      },
+      { headers: GQL_HEADERS, timeout: 10000 }
+    );
+    campeaoToken = r.data?.data?.authenticateUser?.token || null;
+    if (!campeaoToken) throw new Error("Token não retornado pela API Campeão");
+    campeaoTokenExp = Date.now() + 14 * 60 * 1000;
+  } catch (err) {
+    campeaoToken = null;
+    throw err;
+  }
+}
+
+async function ensureToken() {
+  if (!campeaoToken || Date.now() >= campeaoTokenExp) {
+    await authenticateCampeao();
+  }
+}
+
+async function gqlRequest(body) {
+  await ensureToken();
+  try {
+    return await axios.post(GQL_URL, body, {
+      headers: { ...GQL_HEADERS, Authorization: `Bearer ${campeaoToken}` },
+      timeout: 10000,
+    });
+  } catch (err) {
+    if (err.response && err.response.status === 401) {
+      campeaoToken = null;
+      await ensureToken();
+      return axios.post(GQL_URL, body, {
+        headers: { ...GQL_HEADERS, Authorization: `Bearer ${campeaoToken}` },
+        timeout: 10000,
+      });
+    }
+    throw err;
+  }
+}
+
 app.get("/api/product/:barcode", async (req, res) => {
   const { barcode } = req.params;
   try {
     const result = await sysmo.query(
       `
       SELECT
-        pro.cod   AS cod,
-        bar.bar   AS bar,
-        pro.dsc   AS dsc,
-        pre.pv2   AS pv2
+        pro.cod AS cod,
+        bar.bar AS bar,
+        pro.dsc AS dsc,
+        pre.pv2 AS pv2
       FROM gcepro02 pro
       JOIN gcebar01 bar ON pro.cod = bar.pro
       JOIN gcepro04 pre ON pre.cod = bar.pro AND pre.emp = 1
@@ -1407,16 +1471,80 @@ app.get("/api/product/:barcode", async (req, res) => {
     `,
       [barcode]
     );
-    console.log("DB return:", result.rows);
-    if (result.rows.length === 0)
-      return res.status(404).json({ message: "Produto não encontrado." });
-    res.json(result.rows[0]);
+
+    if (result.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Produto não encontrado no banco." });
+    }
+
+    const product = result.rows[0];
+    const iid = String(product.cod).split(".")[0].trim();
+
+    let gqlResp;
+    try {
+      gqlResp = await gqlRequest({
+        operationName: "ProductsListQuery",
+        variables: {
+          storeId: "5",
+          args: {
+            limit: 1,
+            offset: 0,
+            storeId: "5",
+            sort: { field: "id", order: "desc" },
+            iid,
+          },
+        },
+        query: `
+          fragment ProductListFragment on Product {
+            id iid name gtin
+            image { url thumborized(width:210,height:210) }
+            configuration(storeId: $storeId) { price promotionalPrice qtyInStock }
+          }
+          query ProductsListQuery($args: ProductStoreSearchInput!, $storeId: ID!) {
+            productsByStore(args: $args) {
+              rows { ...ProductListFragment }
+              count
+            }
+          }
+        `,
+      });
+    } catch (err) {
+      return res
+        .status(500)
+        .json({ message: "Erro ao consultar API externa." });
+    }
+
+    const rows = gqlResp.data?.data?.productsByStore?.rows || [];
+
+    let image = null;
+    if (rows.length > 0) {
+      const campeaoProduct = rows[0];
+      image =
+        campeaoProduct.image?.thumborized || campeaoProduct.image?.url || null;
+    }
+
+    return res.json({
+      cod: product.cod,
+      bar: product.bar,
+      dsc: product.dsc,
+      pv2: product.pv2,
+      image,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Erro ao buscar produto." });
+    return res.status(500).json({ message: "Erro ao buscar produto." });
+  }
+});
+
+app.get("/api/debug/campeao-auth", async (req, res) => {
+  try {
+    await ensureToken();
+    res.json({ ok: true, expiraEmMs: campeaoTokenExp - Date.now() });
+  } catch (e) {
+    res.status(500).json({ ok: false, erro: e.message });
   }
 });
 
 server.listen(PORT, () => {
-  console.log(`🔥 Server Running in http://127.0.0.1:${PORT}`);
+  console.log(`Servidor rodando em http://127.0.0.1:${PORT}`);
 });

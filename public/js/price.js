@@ -62,8 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const speakPrice = (price, onComplete) => {
     if (!("speechSynthesis" in window)) return onComplete();
     speechSynthesis.cancel();
-    const text = `O preço é R$ ${price}`;
-    const u = new SpeechSynthesisUtterance(text);
+    const u = new SpeechSynthesisUtterance(`O preço é R$ ${price}`);
     u.lang = "pt-BR";
     if (selectedVoice) u.voice = selectedVoice;
     u.pitch = 1.0;
@@ -107,9 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
       vid.onended = playNextMedia;
       vid.onerror = playNextMedia;
       offerContainer.appendChild(vid);
-    } else {
-      playNextMedia();
-    }
+    } else playNextMedia();
   };
 
   const playNextMedia = () => {
@@ -174,10 +171,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const fetchProduct = async (barcode) => {
+    console.log(`Buscando produto para barcode: ${barcode}`);
     const res = await fetch(`/api/product/${barcode}`);
     if (!res.ok) throw new Error();
-    return res.json();
+    const json = await res.json();
+    console.log("Resposta completa do produto:", json);
+    return json;
   };
+
+  const productSvg = priceContent.querySelector("svg");
+  const productImage = document.createElement("img");
+  productImage.style.display = "none";
+  productImage.style.maxWidth = "100%";
+  productImage.style.height = "auto";
+  productSvg.parentNode.insertBefore(productImage, productSvg);
 
   async function displayProduct(barcode) {
     showPriceCard();
@@ -185,10 +192,20 @@ document.addEventListener("DOMContentLoaded", () => {
     priceContent.style.display = "none";
     clearTimeout(priceViewTimeout);
     try {
-      const { dsc, pv2, bar } = await fetchProduct(barcode);
+      const { dsc, pv2, bar, image } = await fetchProduct(barcode);
       productNameEl.textContent = dsc;
       productPriceEl.textContent = pv2.toString().replace(".", ",");
       productBarcodeEl.textContent = bar;
+      if (image) {
+        console.log("Imagem válida recebida:", image);
+        productSvg.style.display = "none";
+        productImage.src = image;
+        productImage.style.display = "block";
+      } else {
+        console.log("Nenhuma imagem recebida, exibindo SVG padrão.");
+        productImage.style.display = "none";
+        productSvg.style.display = "block";
+      }
       loader.style.display = "none";
       priceContent.style.display = "flex";
       setTimeout(() => {
@@ -196,17 +213,19 @@ document.addEventListener("DOMContentLoaded", () => {
           priceViewTimeout = setTimeout(showIdleScreen, 1000);
         });
       }, 500);
-    } catch {
+    } catch (e) {
+      console.log("Erro ao buscar produto:", e);
       loader.style.display = "none";
       showMessageScreen("Produto não encontrado", "", "error");
-      setTimeout(() => {
-        const msg = new SpeechSynthesisUtterance("Produto não encontrado");
-        msg.lang = "pt-BR";
-        if (selectedVoice) msg.voice = selectedVoice;
-        msg.pitch = 1.0;
-        msg.rate = 1.3;
-        speechSynthesis.speak(msg);
-      }, 300);
+      const msg = new SpeechSynthesisUtterance("Produto não encontrado");
+      msg.lang = "pt-BR";
+      if (selectedVoice) msg.voice = selectedVoice;
+      msg.pitch = 1.0;
+      msg.rate = 1.3;
+      msg.onend = () => {
+        priceViewTimeout = setTimeout(showIdleScreen, 1000);
+      };
+      speechSynthesis.speak(msg);
     }
   }
 
@@ -222,30 +241,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     bufTimeout = setTimeout(() => (buf = ""), 200);
   });
-
-  const handleServerMessage = (data) => {
-    switch (data.type) {
-      case "NEW_CAMPAIGN":
-      case "UPDATE_CAMPAIGN":
-      case "DELETE_CAMPAIGN":
-        fetchAndResetPlaylist();
-        break;
-      case "FORCE_REFRESH":
-        wsManager.disconnect(false);
-        location.reload(true);
-        break;
-      case "DEVICE_REVOKED":
-        wsManager.disconnect(false);
-        clearInterval(playlistInterval);
-        location.href = "/pair?error=revoked";
-        break;
-      case "TYPE_CHANGED":
-        wsManager.disconnect(false);
-        location.href =
-          data.payload.newType === "busca_preco" ? "/price" : "/player";
-        break;
-    }
-  };
 
   class WebSocketManager {
     constructor() {
@@ -268,9 +263,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (!res.ok) throw new Error();
         const { accessToken } = await res.json();
+        console.log("WebSocket token válido:", accessToken);
         this.stopProbing();
         this.establishConnection(accessToken);
-      } catch {}
+      } catch (e) {
+        console.log("Erro ao obter WebSocket token:", e);
+      }
     }
     startProbing() {
       if (this.probeTimer || !this.shouldReconnect) return;
@@ -293,11 +291,32 @@ document.addEventListener("DOMContentLoaded", () => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       this.ws = new WebSocket(`${proto}//${location.host}?token=${token}`);
-      this.ws.onopen = fetchAndResetPlaylist;
+      this.ws.onopen = () => {
+        console.log("WebSocket conectado.");
+        fetchAndResetPlaylist();
+      };
       this.ws.onmessage = (e) => {
-        try {
-          handleServerMessage(JSON.parse(e.data));
-        } catch {}
+        const data = JSON.parse(e.data);
+        switch (data.type) {
+          case "NEW_CAMPAIGN":
+          case "UPDATE_CAMPAIGN":
+          case "DELETE_CAMPAIGN":
+            fetchAndResetPlaylist();
+            break;
+          case "FORCE_REFRESH":
+            this.disconnect(false);
+            location.reload(true);
+            break;
+          case "DEVICE_REVOKED":
+            this.disconnect(false);
+            clearInterval(playlistInterval);
+            location.href = "/pair?error=revoked";
+            break;
+          case "TYPE_CHANGED":
+            this.disconnect(false);
+            location.href =
+              data.payload.newType === "busca_preco" ? "/price" : "/player";
+        }
       };
       this.ws.onclose = () => {
         if (this.shouldReconnect) this.startProbing();
@@ -318,7 +337,6 @@ document.addEventListener("DOMContentLoaded", () => {
   wsManager.connect();
   if (playlistInterval) clearInterval(playlistInterval);
   playlistInterval = setInterval(fetchAndResetPlaylist, 60000);
-
   showIdleScreen();
   fetchAndResetPlaylist();
 });
