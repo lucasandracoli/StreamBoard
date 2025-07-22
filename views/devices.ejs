@@ -1,6 +1,6 @@
 <% const deviceIcons = { tv: 'bi-tv', windows: 'bi-windows', linux:
 'bi-terminal', android: 'bi-android2', ios: 'bi-apple', web: 'bi-globe2',
-default: 'bi-question-circle' }; %>
+busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
 
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -194,6 +194,13 @@ default: 'bi-question-circle' }; %>
           </div>
           <div class="details-modal-footer">
             <button
+              class="device-button"
+              id="modalGenerateMagicLinkButton"
+              style="display: none"
+            >
+              <i class="bi bi-link-45deg"></i> Gerar Link Mágico
+            </button>
+            <button
               class="device-button device-button-revoke"
               id="modalRevokeButton"
             >
@@ -254,6 +261,7 @@ default: 'bi-question-circle' }; %>
               <option value="android">Android</option>
               <option value="ios">iOS</option>
               <option value="web">Web</option>
+              <option value="busca_preco">Busca Preço</option>
               <option value="unknown" selected>Outro</option>
             </select>
           </div>

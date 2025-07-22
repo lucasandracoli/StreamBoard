@@ -51,8 +51,7 @@
             <tr>
               <th>Nome</th>
               <th>Status</th>
-              <th>Data de Início</th>
-              <th>Data de Término</th>
+              <th>Período</th>
               <th>Dispositivos</th>
               <th>Setor(es)</th>
               <th>Ações</th>
@@ -61,7 +60,7 @@
           <tbody id="campaigns-table-body">
             <% if (campaigns.length === 0) { %>
             <tr id="no-campaigns-row">
-              <td colspan="7" style="text-align: center">
+              <td colspan="6" style="text-align: center">
                 Nenhuma campanha cadastrada.
               </td>
             </tr>
@@ -74,8 +73,7 @@
                   <span data-status-text><%= campaign.status.text %></span>
                 </span>
               </td>
-              <td><%= campaign.start_date_formatted %></td>
-              <td><%= campaign.end_date_formatted %></td>
+              <td><%= campaign.periodo_formatado %></td>
               <td class="device-badges-cell">
                 <% if (campaign.devices && campaign.devices.length > 0) { %> <%
                 campaign.devices.forEach(device => { %>

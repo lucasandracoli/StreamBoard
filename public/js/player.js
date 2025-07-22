@@ -161,7 +161,6 @@ document.addEventListener("DOMContentLoaded", () => {
           this.establishConnection(data.accessToken);
         }
       } catch (error) {
-        // Erro de rede. O timer continua e tentará novamente.
       }
     }
 

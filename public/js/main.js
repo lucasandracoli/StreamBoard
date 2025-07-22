@@ -127,6 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (campaignModal) {
     let tomSelect;
+    let selectedCampaignDeviceIds = new Set();
     const placeholderText = "Selecione um ou mais dispositivos";
 
     const openCampaignModalBtn = document.getElementById("openCampaignModal");
@@ -146,12 +147,16 @@ document.addEventListener("DOMContentLoaded", () => {
       dateFormat: "d/m/Y H:i",
       locale: "pt",
       time_24hr: true,
+      defaultHour: 6,
+      defaultMinute: 0,
     });
     const endDatePicker = flatpickr("#end_date", {
       enableTime: true,
       dateFormat: "d/m/Y H:i",
       locale: "pt",
       time_24hr: true,
+      defaultHour: 23,
+      defaultMinute: 59,
     });
 
     const resetFileInput = () => {
@@ -174,25 +179,27 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const updateDeviceOptions = () => {
-      const selectedSector = sectorFilter.value;
-      const currentValues = tomSelect.getValue();
+      if (!tomSelect) return;
 
-      let filteredDevices = allDevices;
-      if (selectedSector !== "all") {
-        filteredDevices = allDevices.filter((d) => d.sector === selectedSector);
-      }
+      const currentSector = sectorFilter.value;
 
-      tomSelect.clear();
+      const devicesInSector =
+        currentSector === "all"
+          ? allDevices
+          : allDevices.filter((d) => d.sector === currentSector);
+
+      const selectedDevices = [...selectedCampaignDeviceIds]
+        .map((id) => allDevices.find((d) => String(d.id) === id))
+        .filter(Boolean);
+
+      const combined = [...devicesInSector, ...selectedDevices];
+      const options = Array.from(
+        new Map(combined.map((d) => [d.id, d])).values()
+      );
+
       tomSelect.clearOptions();
-      tomSelect.addOptions(
-        filteredDevices.map((d) => ({ value: d.id, text: d.name }))
-      );
-
-      const validValues = currentValues.filter((val) =>
-        filteredDevices.some((d) => d.id == val)
-      );
-      tomSelect.setValue(validValues, true);
-      setPlaceholderVisibility();
+      tomSelect.addOptions(options.map((d) => ({ value: d.id, text: d.name })));
+      tomSelect.setValue([...selectedCampaignDeviceIds]);
     };
 
     cancelCampaignModalBtn?.addEventListener("click", () => {
@@ -239,6 +246,12 @@ document.addEventListener("DOMContentLoaded", () => {
         endDatePicker.setDate(campaign.end_date, true);
 
         if (tomSelect) {
+          tomSelect.clear();
+          const associatedDeviceIds = associatedDevices.map((d) =>
+            String(d.id)
+          );
+          selectedCampaignDeviceIds = new Set(associatedDeviceIds);
+
           const uniqueSectors = [
             ...new Set(associatedDevices.map((d) => d.sector).filter(Boolean)),
           ];
@@ -250,10 +263,6 @@ document.addEventListener("DOMContentLoaded", () => {
           }
 
           updateDeviceOptions();
-
-          const associatedDeviceIds = associatedDevices.map((d) => d.id);
-          tomSelect.setValue(associatedDeviceIds);
-          setPlaceholderVisibility();
         }
 
         if (campaign.midia) {
@@ -352,7 +361,10 @@ document.addEventListener("DOMContentLoaded", () => {
         plugins: ["remove_button"],
         create: false,
         placeholder: placeholderText,
-        onChange: setPlaceholderVisibility,
+        onChange: (value) => {
+          selectedCampaignDeviceIds = new Set(value);
+          setPlaceholderVisibility();
+        },
       });
 
       sectorFilter.addEventListener("change", updateDeviceOptions);
@@ -464,8 +476,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const revokeBtn = document.getElementById("modalRevokeButton");
     const reactivateBtn = document.getElementById("modalReactivateButton");
+    const magicLinkBtn = document.getElementById(
+      "modalGenerateMagicLinkButton"
+    );
+
     revokeBtn.dataset.identifier = data.device_identifier;
     reactivateBtn.dataset.identifier = data.device_identifier;
+    magicLinkBtn.dataset.id = data.id;
 
     if (data.is_active) {
       revokeBtn.style.display = "inline-flex";
@@ -473,6 +490,12 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       revokeBtn.style.display = "none";
       reactivateBtn.style.display = "inline-flex";
+    }
+
+    if (data.status && data.status.text === "Inativo") {
+      magicLinkBtn.style.display = "inline-flex";
+    } else {
+      magicLinkBtn.style.display = "none";
     }
   };
 
@@ -500,6 +523,34 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   });
+
+  if (document.body.id === "devices-page") {
+    const magicLinkBtn = document.getElementById(
+      "modalGenerateMagicLinkButton"
+    );
+    if (magicLinkBtn) {
+      magicLinkBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const deviceId = e.currentTarget.dataset.id;
+        try {
+          const res = await fetch(`/devices/${deviceId}/magicLink`, {
+            method: "POST",
+          });
+
+          if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.message || "Falha ao gerar o link.");
+          }
+
+          const json = await res.json();
+          await navigator.clipboard.writeText(json.magicLink);
+          notyf.success("Link mágico copiado para a área de transferência!");
+        } catch (err) {
+          notyf.error(err.message || "Não foi possível copiar o link.");
+        }
+      });
+    }
+  }
 
   detailsModal?.addEventListener("click", function (e) {
     const copyElement = e.target.closest(".copyable-code");

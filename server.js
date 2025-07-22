@@ -53,6 +53,43 @@ function generateAccessToken(device) {
   );
 }
 
+function formatarPeriodo(dataInicio, dataFim) {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  const inicio = new Date(dataInicio);
+  const fim = new Date(dataFim);
+
+  const mesmoDia = inicio.toDateString() === fim.toDateString();
+
+  const opcoesHora = { hour: "2-digit", minute: "2-digit", hour12: false };
+  const horaInicio = inicio.toLocaleTimeString("pt-BR", opcoesHora);
+  const horaFim = fim.toLocaleTimeString("pt-BR", opcoesHora);
+
+  if (mesmoDia) {
+    const inicioNormalizado = new Date(inicio);
+    inicioNormalizado.setHours(0, 0, 0, 0);
+
+    let diaExibido;
+    if (inicioNormalizado.getTime() === hoje.getTime()) {
+      diaExibido = "Hoje";
+    } else {
+      const opcoesData = { day: "2-digit", month: "2-digit" };
+      diaExibido = inicio.toLocaleDateString("pt-BR", opcoesData);
+    }
+    return `${diaExibido}, das ${horaInicio} às ${horaFim}`;
+  } else {
+    const opcoesDataCurta = { day: "2-digit", month: "2-digit" };
+    const dataInicioExibida = inicio.toLocaleDateString(
+      "pt-BR",
+      opcoesDataCurta
+    );
+    const dataFimExibida = fim.toLocaleDateString("pt-BR", opcoesDataCurta);
+
+    return `De ${dataInicioExibida} ${horaInicio} até ${dataFimExibida} ${horaFim}`;
+  }
+}
+
 function generateRefreshToken(device) {
   return jwt.sign(
     { id: device.id, device_identifier: device.device_identifier },
@@ -235,6 +272,11 @@ wss.on("connection", async (ws, req) => {
     if (!payload) return ws.close(1008, "Token inválido");
 
     const deviceId = payload.id;
+
+    await db.query("UPDATE devices SET last_seen = NOW() WHERE id = $1", [
+      deviceId,
+    ]);
+
     clients[deviceId] = ws;
 
     broadcastToAdmins({
@@ -322,9 +364,8 @@ setInterval(async () => {
 }, 60000);
 
 app.get("/", (req, res) => {
-  const token = req.cookies.access_token;
-  if (token) {
-    deviceAuth(req, res, () => res.redirect("/player"));
+  if (req.session.userId) {
+    res.redirect("/dashboard");
   } else {
     res.redirect("/login");
   }
@@ -385,8 +426,8 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
     const devicesResult = await db.query(
       `SELECT d.*,
         (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id AND t.is_revoked = false) > 0 as has_tokens
-       FROM devices d
-       ORDER BY d.registered_at DESC`
+        FROM devices d
+        ORDER BY d.registered_at DESC`
     );
 
     const devices = devicesResult.rows.map((device) => {
@@ -437,7 +478,7 @@ app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
   try {
     await db.query(
       `INSERT INTO devices (name, device_identifier, authentication_key, device_type, sector, is_active)
-       VALUES ($1, $2, $3, $4, $5, TRUE)`,
+        VALUES ($1, $2, $3, $4, $5, TRUE)`,
       [name, device_identifier, authentication_key, device_type, sector]
     );
     res.json({
@@ -516,6 +557,35 @@ app.post("/devices/:id/delete", isAuthenticated, isAdmin, async (req, res) => {
     client.release();
   }
 });
+
+app.post(
+  "/devices/:id/magicLink",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = DateTime.now().plus({ hours: 24 }).toJSDate();
+
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+    try {
+      await db.query(
+        "INSERT INTO magic_links (device_id, token_hash, expires_at) VALUES ($1, $2, $3)",
+        [id, tokenHash, expiresAt]
+      );
+
+      const magicLink = `${req.protocol}://${req.get(
+        "host"
+      )}/pair/magic?token=${token}`;
+
+      res.status(200).json({ magicLink });
+    } catch (err) {
+      console.error("Erro ao gerar link mágico:", err);
+      res.status(500).json({ message: "Erro ao gerar link mágico." });
+    }
+  }
+);
 
 app.post(
   "/devices/:identifier/revoke",
@@ -602,7 +672,38 @@ app.post(
 );
 
 app.get("/pair", (req, res) => {
-  res.render("pair");
+  const accessToken = req.cookies.access_token;
+  const refreshToken = req.cookies.refresh_token;
+
+  if (!accessToken && !refreshToken) {
+    return res.render("pair");
+  }
+
+  deviceAuth(req, res, async () => {
+    try {
+      const deviceResult = await db.query(
+        "SELECT device_type FROM devices WHERE id = $1",
+        [req.device.id]
+      );
+
+      if (deviceResult.rows.length === 0) {
+        return res.render("pair");
+      }
+
+      const device = deviceResult.rows[0];
+      if (device.device_type === "busca_preco") {
+        return res.redirect("/price");
+      } else {
+        return res.redirect("/player");
+      }
+    } catch (err) {
+      console.error(
+        "Erro ao redirecionar dispositivo autenticado da rota /pair:",
+        err
+      );
+      return res.render("pair");
+    }
+  });
 });
 
 app.post("/pair", async (req, res) => {
@@ -663,7 +764,11 @@ app.post("/pair", async (req, res) => {
       maxAge: 604800000,
     });
 
-    return res.redirect("/player");
+    if (device.device_type === "busca_preco") {
+      return res.redirect("/price");
+    } else {
+      return res.redirect("/player");
+    }
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Erro no pareamento: ", err);
@@ -676,15 +781,50 @@ app.post("/pair", async (req, res) => {
 app.get("/player", deviceAuth, async (req, res) => {
   try {
     const deviceResult = await db.query(
-      "SELECT name FROM devices WHERE id = $1",
+      "SELECT name, device_type FROM devices WHERE id = $1",
       [req.device.id]
     );
     if (deviceResult.rows.length === 0) {
       return res.status(404).send("Dispositivo não encontrado.");
     }
-    const deviceName = deviceResult.rows[0].name;
-    res.render("player", { deviceName });
+
+    const device = deviceResult.rows[0];
+
+    if (device.device_type === "busca_preco") {
+      return res.redirect("/price");
+    }
+
+    res.render("player", { deviceName: device.name });
   } catch (err) {
+    res.status(500).send("Erro ao carregar dispositivo.");
+  }
+});
+
+app.get("/price", deviceAuth, async (req, res) => {
+  try {
+    const deviceResult = await db.query(
+      "SELECT id, name FROM devices WHERE id = $1",
+      [req.device.id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      return res.status(404).send("Dispositivo não encontrado.");
+    }
+    const device = deviceResult.rows[0];
+    const campaignsResult = await db.query(
+      `SELECT c.* FROM campaigns c
+        JOIN campaign_device cd ON c.id = cd.campaign_id
+        WHERE cd.device_id = $1
+        AND c.start_date <= NOW() 
+        AND c.end_date >= NOW()`,
+      [device.id]
+    );
+
+    const offers = campaignsResult.rows;
+
+    res.render("price", { deviceName: device.name, offers });
+  } catch (err) {
+    console.error("Erro ao carregar a página de preços:", err);
     res.status(500).send("Erro ao carregar dispositivo.");
   }
 });
@@ -710,7 +850,9 @@ app.get(
 
     try {
       const deviceResult = await db.query(
-        "SELECT * FROM devices WHERE id = $1",
+        `SELECT d.*,
+        (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id AND t.is_revoked = false) > 0 as has_tokens
+        FROM devices d WHERE d.id = $1`,
         [id]
       );
 
@@ -721,13 +863,24 @@ app.get(
 
       const activeCampaignsResult = await db.query(
         `SELECT c.name FROM campaigns c
-         JOIN campaign_device cd ON c.id = cd.campaign_id
-         WHERE cd.device_id = $1 AND NOW() BETWEEN c.start_date AND c.end_date`,
+        JOIN campaign_device cd ON c.id = cd.campaign_id
+        WHERE cd.device_id = $1 AND NOW() BETWEEN c.start_date AND c.end_date`,
         [id]
       );
       const activeCampaigns = activeCampaignsResult.rows.map((c) => c.name);
 
       const isOnline = clients.hasOwnProperty(device.id);
+
+      let status;
+      if (!device.is_active) {
+        status = { text: "Revogado", class: "online-status revoked" };
+      } else if (isOnline) {
+        status = { text: "Online", class: "online-status online" };
+      } else if (device.has_tokens) {
+        status = { text: "Offline", class: "online-status offline" };
+      } else {
+        status = { text: "Inativo", class: "online-status inactive" };
+      }
 
       const formatOptions = { zone: "America/Sao_Paulo", locale: "pt-BR" };
       const registeredAtFormatted = DateTime.fromJSDate(
@@ -746,6 +899,7 @@ app.get(
         registered_at_formatted: registeredAtFormatted,
         last_seen_formatted: lastSeenFormatted,
         active_campaigns: activeCampaigns,
+        status: status,
       };
 
       res.json(details);
@@ -756,14 +910,115 @@ app.get(
   }
 );
 
+app.get("/pair/magic", async (req, res) => {
+  const { token } = req.query;
+
+  if (!token) {
+    return res.status(400).send("Token não fornecido.");
+  }
+
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const client = await db.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const linkResult = await client.query(
+      "SELECT * FROM magic_links WHERE token_hash = $1",
+      [tokenHash]
+    );
+
+    if (linkResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.render("pair", {
+        error: "Link de pareamento inválido ou expirado.",
+      });
+    }
+
+    const magicLink = linkResult.rows[0];
+
+    if (magicLink.used_at) {
+      await client.query("ROLLBACK");
+      return res.render("pair", {
+        error: "Este link de pareamento já foi utilizado.",
+      });
+    }
+
+    if (new Date() > new Date(magicLink.expires_at)) {
+      await client.query("ROLLBACK");
+      return res.render("pair", { error: "Este link de pareamento expirou." });
+    }
+
+    await client.query("UPDATE magic_links SET used_at = NOW() WHERE id = $1", [
+      magicLink.id,
+    ]);
+
+    const deviceResult = await client.query(
+      "SELECT * FROM devices WHERE id = $1 AND is_active = true",
+      [magicLink.device_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.render("pair", {
+        error: "O dispositivo associado a este link não está ativo.",
+      });
+    }
+
+    const device = deviceResult.rows[0];
+
+    await client.query(
+      "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
+      [device.id]
+    );
+
+    const accessToken = generateAccessToken(device);
+    const refreshToken = generateRefreshToken(device);
+
+    await client.query(
+      "INSERT INTO tokens (device_id, token, refresh_token) VALUES ($1, $2, $3)",
+      [device.id, accessToken, refreshToken]
+    );
+
+    await client.query("UPDATE devices SET last_seen = NOW() WHERE id = $1", [
+      device.id,
+    ]);
+
+    await client.query("COMMIT");
+
+    res.cookie("access_token", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 900000,
+    });
+    res.cookie("refresh_token", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 604800000,
+    });
+
+    if (device.device_type === "busca_preco") {
+      return res.redirect("/price");
+    } else {
+      return res.redirect("/player");
+    }
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Erro na autenticação com link mágico: ", err);
+    res.render("pair", { error: "Erro ao autenticar dispositivo." });
+  } finally {
+    client.release();
+  }
+});
+
 app.get("/api/device/playlist", deviceAuth, async (req, res) => {
   try {
     const result = await db.query(
       `SELECT c.* FROM campaigns c
-       JOIN campaign_device cd ON c.id = cd.campaign_id
-       WHERE cd.device_id = $1
-         AND c.start_date <= NOW() 
-         AND c.end_date >= NOW()`,
+        JOIN campaign_device cd ON c.id = cd.campaign_id
+        WHERE cd.device_id = $1
+        AND c.start_date <= NOW() 
+        AND c.end_date >= NOW()`,
       [req.device.id]
     );
 
@@ -809,8 +1064,6 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
       };
       const startDate = DateTime.fromJSDate(campaign.start_date, formatOptions);
       const endDate = DateTime.fromJSDate(campaign.end_date, formatOptions);
-      const start_date_formatted = startDate.toFormat("dd/MM/yyyy, HH:mm:ss");
-      const end_date_formatted = endDate.toFormat("dd/MM/yyyy, HH:mm:ss");
 
       let status;
       if (now < startDate) {
@@ -823,10 +1076,12 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
 
       return {
         ...campaign,
-        start_date_formatted,
-        end_date_formatted,
         status,
         devices: campaign.devices || [],
+        periodo_formatado: formatarPeriodo(
+          campaign.start_date,
+          campaign.end_date
+        ),
       };
     });
 
@@ -897,7 +1152,7 @@ app.post(
 
       const campaignResult = await client.query(
         `INSERT INTO campaigns (name, start_date, end_date, midia)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
+          VALUES ($1, $2, $3, $4) RETURNING *`,
         [name, parsedStartDate, parsedEndDate, file_path]
       );
       const newCampaign = campaignResult.rows[0];
@@ -905,7 +1160,7 @@ app.post(
       if (req.file) {
         await client.query(
           `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type)
-           VALUES ($1, $2, $3, $4)`,
+            VALUES ($1, $2, $3, $4)`,
           [newCampaign.id, req.file.filename, file_path, req.file.mimetype]
         );
       }
@@ -913,7 +1168,7 @@ app.post(
       for (const device_id of device_ids) {
         await client.query(
           `INSERT INTO campaign_device (campaign_id, device_id)
-           VALUES ($1, $2)`,
+            VALUES ($1, $2)`,
           [newCampaign.id, device_id]
         );
       }
@@ -1039,9 +1294,9 @@ app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
 
     const associatedDevicesResult = await db.query(
       `SELECT d.id, d.sector 
-             FROM devices d 
-             JOIN campaign_device cd ON d.id = cd.device_id 
-             WHERE cd.campaign_id = $1`,
+                      FROM devices d 
+                      JOIN campaign_device cd ON d.id = cd.device_id 
+                      WHERE cd.campaign_id = $1`,
       [id]
     );
     const associatedDevices = associatedDevicesResult.rows;
