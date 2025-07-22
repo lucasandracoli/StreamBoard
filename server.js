@@ -6,6 +6,7 @@ const session = require("express-session");
 const bodyParser = require("body-parser");
 const bcrypt = require("bcrypt");
 const db = require("./config/streamboard");
+const sysmo = require("./config/sysmo");
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
@@ -1387,6 +1388,33 @@ app.post("/api/broadcastRefresh", isAuthenticated, isAdmin, (req, res) => {
   res
     .status(200)
     .json({ message: "Comando de atualização enviado a todos os players." });
+});
+
+app.get("/api/product/:barcode", async (req, res) => {
+  const { barcode } = req.params;
+  try {
+    const result = await sysmo.query(
+      `
+      SELECT
+        pro.cod   AS cod,
+        bar.bar   AS bar,
+        pro.dsc   AS dsc,
+        pre.pv2   AS pv2
+      FROM gcepro02 pro
+      JOIN gcebar01 bar ON pro.cod = bar.pro
+      JOIN gcepro04 pre ON pre.cod = bar.pro AND pre.emp = 1
+      WHERE bar.bar = $1
+    `,
+      [barcode]
+    );
+    console.log("DB return:", result.rows);
+    if (result.rows.length === 0)
+      return res.status(404).json({ message: "Produto não encontrado." });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Erro ao buscar produto." });
+  }
 });
 
 server.listen(PORT, () => {

@@ -1,4 +1,3 @@
-// price.js
 document.addEventListener("DOMContentLoaded", () => {
   const viewWrapper = document.getElementById("price-view-wrapper");
   const idleScreen = document.getElementById("idle-screen");
@@ -14,13 +13,13 @@ document.addEventListener("DOMContentLoaded", () => {
   let priceViewTimeout;
   let mediaTimer = null;
   let playlist = [];
-  let currentCampaignIndex = -1;
+  let currentCampaign = -1;
   const mediaCache = {};
   let playlistInterval = null;
-  let messageCardElement = null;
+  let messageCardEl = null;
   let selectedVoice = null;
 
-  window.speechSynthesis.onvoiceschanged = () => {
+  const initVoices = () => {
     const voices = speechSynthesis.getVoices();
     selectedVoice =
       voices.find((v) => v.name === "Google português do Brasil") ||
@@ -29,85 +28,67 @@ document.addEventListener("DOMContentLoaded", () => {
       ) ||
       voices.find((v) => v.lang === "pt-BR");
   };
+  initVoices();
+  window.speechSynthesis.onvoiceschanged = initVoices;
 
   const showMessageScreen = (
     title = "Aguardando",
     subtitle = "O terminal está pronto.",
     state = "info"
   ) => {
-    if (mediaTimer) clearTimeout(mediaTimer);
-    if (priceViewTimeout) clearTimeout(priceViewTimeout);
+    clearTimeout(mediaTimer);
+    clearTimeout(priceViewTimeout);
     idleScreen.style.display = "none";
     priceCheckCard.style.display = "none";
     footer.style.display = "none";
-    if (messageCardElement) messageCardElement.remove();
+    if (messageCardEl) messageCardEl.remove();
     const icons = {
       info: "bi-clock-history",
       reconnecting: "bi-wifi-off",
       error: "bi-shield-lock-fill",
     };
     const iconClass = icons[state] || "bi-info-circle-fill";
-    const spinnerHtml =
+    const spinner =
       state === "reconnecting" ? '<div class="spinner"></div>' : "";
     viewWrapper.insertAdjacentHTML(
       "beforeend",
-      `
-      <div class="player-message-card ${state}">
-        <i class="icon bi ${iconClass}"></i>
-        <div class="message-content">
-          <p class="message-title">${title}</p>
-          <p class="message-subtitle">${subtitle}</p>
-        </div>
-        ${spinnerHtml}
-      </div>
-    `
+      `<div class="player-message-card ${state}"><i class="icon bi ${iconClass}"></i><div class="message-content"><p class="message-title">${title}</p><p class="message-subtitle">${subtitle}</p></div>${spinner}</div>`
     );
-    messageCardElement = viewWrapper.querySelector(".player-message-card");
+    messageCardEl = viewWrapper.querySelector(".player-message-card");
   };
 
   const hasPlayableMedia = () => playlist.some((c) => c.midia);
 
-  const speakProductDetails = (name, price, onComplete) => {
-    if ("speechSynthesis" in window) {
-      speechSynthesis.cancel();
-      const priceFloat = parseFloat(price.replace(",", "."));
-      const reais = Math.floor(priceFloat);
-      const centavos = Math.round((priceFloat - reais) * 100);
-      let text = `${name}. `;
-      if (reais) text += `${reais} ${reais === 1 ? "real" : "reais"}`;
-      if (centavos)
-        text +=
-          (reais ? " e " : "") +
-          `${centavos} ${centavos === 1 ? "centavo" : "centavos"}`;
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "pt-BR";
-      if (selectedVoice) u.voice = selectedVoice;
-      u.pitch = 1.0;
-      u.rate = 1.2;
-      u.onend = onComplete;
-      speechSynthesis.speak(u);
-    } else onComplete();
+  const speakPrice = (price, onComplete) => {
+    if (!("speechSynthesis" in window)) return onComplete();
+    speechSynthesis.cancel();
+    const text = `O preço é R$ ${price}`;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "pt-BR";
+    if (selectedVoice) u.voice = selectedVoice;
+    u.pitch = 1.0;
+    u.rate = 1.3;
+    u.onend = onComplete;
+    speechSynthesis.speak(u);
   };
 
   const preloadMedia = () => {
     playlist.forEach((c) => {
-      if (c.midia && !mediaCache[c.midia]) {
-        const ext = c.midia.split(".").pop().toLowerCase();
-        let el;
-        if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext))
-          el = new Image();
-        else if (["mp4", "webm", "mov"].includes(ext))
-          el = document.createElement("video");
-        if (el) {
-          el.src = c.midia;
-          mediaCache[c.midia] = el;
-        }
+      if (!c.midia || mediaCache[c.midia]) return;
+      const ext = c.midia.split(".").pop().toLowerCase();
+      let el;
+      if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) el = new Image();
+      else if (["mp4", "webm", "mov"].includes(ext))
+        el = document.createElement("video");
+      if (el) {
+        el.src = c.midia;
+        mediaCache[c.midia] = el;
       }
     });
   };
 
   const displayMedia = (campaign) => {
-    if (mediaTimer) clearTimeout(mediaTimer);
+    clearTimeout(mediaTimer);
     offerContainer.innerHTML = "";
     offerContainer.style.backgroundColor = "#000";
     const url = campaign.midia;
@@ -140,13 +121,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     offerContainer.style.display = "flex";
     backgroundImage.style.display = "none";
-    let next = (currentCampaignIndex + 1) % playlist.length;
+    let next = (currentCampaign + 1) % playlist.length;
     let tries = 0;
     while (!playlist[next].midia && tries < playlist.length) {
       next = (next + 1) % playlist.length;
       tries++;
     }
-    currentCampaignIndex = next;
+    currentCampaign = next;
     displayMedia(playlist[next]);
   };
 
@@ -156,12 +137,12 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) {
         if ([401, 403].includes(res.status)) {
           wsManager.disconnect(false);
-          window.location.href = "/pair?error=session_expired";
+          location.href = "/pair?error=session_expired";
         }
         return;
       }
       playlist = await res.json();
-      currentCampaignIndex = -1;
+      currentCampaign = -1;
       if (hasPlayableMedia()) preloadMedia();
       showIdleScreen();
     } catch {
@@ -170,9 +151,9 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   function showIdleScreen() {
-    if (messageCardElement) {
-      messageCardElement.remove();
-      messageCardElement = null;
+    if (messageCardEl) {
+      messageCardEl.remove();
+      messageCardEl = null;
     }
     priceCheckCard.style.display = "none";
     idleScreen.style.display = "flex";
@@ -182,9 +163,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showPriceCard() {
-    if (messageCardElement) {
-      messageCardElement.remove();
-      messageCardElement = null;
+    if (messageCardEl) {
+      messageCardEl.remove();
+      messageCardEl = null;
     }
     idleScreen.style.display = "none";
     priceCheckCard.style.display = "flex";
@@ -192,24 +173,41 @@ document.addEventListener("DOMContentLoaded", () => {
     clearTimeout(mediaTimer);
   }
 
-  function displayProduct(barcode) {
+  const fetchProduct = async (barcode) => {
+    const res = await fetch(`/api/product/${barcode}`);
+    if (!res.ok) throw new Error();
+    return res.json();
+  };
+
+  async function displayProduct(barcode) {
     showPriceCard();
     loader.style.display = "flex";
     priceContent.style.display = "none";
     clearTimeout(priceViewTimeout);
-    const data = {
-      name: "Produto Exemplo Extra Longo",
-      price: "2224,50",
-      barcode,
-    };
-    productNameEl.textContent = data.name;
-    productPriceEl.textContent = data.price;
-    productBarcodeEl.textContent = data.barcode;
-    loader.style.display = "none";
-    priceContent.style.display = "flex";
-    speakProductDetails(data.name, data.price, () => {
-      priceViewTimeout = setTimeout(showIdleScreen, 1000);
-    });
+    try {
+      const { dsc, pv2, bar } = await fetchProduct(barcode);
+      productNameEl.textContent = dsc;
+      productPriceEl.textContent = pv2.toString().replace(".", ",");
+      productBarcodeEl.textContent = bar;
+      loader.style.display = "none";
+      priceContent.style.display = "flex";
+      setTimeout(() => {
+        speakPrice(pv2.toString().replace(".", ","), () => {
+          priceViewTimeout = setTimeout(showIdleScreen, 1000);
+        });
+      }, 500);
+    } catch {
+      loader.style.display = "none";
+      showMessageScreen("Produto não encontrado", "", "error");
+      setTimeout(() => {
+        const msg = new SpeechSynthesisUtterance("Produto não encontrado");
+        msg.lang = "pt-BR";
+        if (selectedVoice) msg.voice = selectedVoice;
+        msg.pitch = 1.0;
+        msg.rate = 1.3;
+        speechSynthesis.speak(msg);
+      }, 300);
+    }
   }
 
   let buf = "";
@@ -219,7 +217,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Enter") {
       if (buf.length > 3) displayProduct(buf);
       buf = "";
-    } else if (e.key.length === 1 && /^[a-zA-Z0-9]$/.test(e.key)) {
+    } else if (e.key.length === 1 && /^[0-9]$/.test(e.key)) {
       buf += e.key;
     }
     bufTimeout = setTimeout(() => (buf = ""), 200);
@@ -288,7 +286,7 @@ document.addEventListener("DOMContentLoaded", () => {
       );
     }
     stopProbing() {
-      clearInterval(this.probeTimer);
+      clearTimeout(this.probeTimer);
       this.probeTimer = null;
     }
     establishConnection(token) {
@@ -320,4 +318,7 @@ document.addEventListener("DOMContentLoaded", () => {
   wsManager.connect();
   if (playlistInterval) clearInterval(playlistInterval);
   playlistInterval = setInterval(fetchAndResetPlaylist, 60000);
+
+  showIdleScreen();
+  fetchAndResetPlaylist();
 });
