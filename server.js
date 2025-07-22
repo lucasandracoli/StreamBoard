@@ -113,7 +113,16 @@ async function deviceAuth(req, res, next) {
   if (accessToken) {
     const payload = verifyToken(accessToken);
     if (payload) {
-      req.device = payload;
+      const d = await db.query(
+        "SELECT * FROM devices WHERE id = $1 AND is_active = TRUE",
+        [payload.id]
+      );
+      if (d.rows.length === 0) {
+        res.clearCookie("access_token");
+        res.clearCookie("refresh_token");
+        return res.redirect("/pair?error=device_not_found");
+      }
+      req.device = d.rows[0];
       return next();
     }
   }
@@ -147,11 +156,17 @@ async function deviceAuth(req, res, next) {
       storedToken.id,
     ]);
 
-    const deviceResult = await client.query(
-      "SELECT * FROM devices WHERE id = $1",
+    const d = await client.query(
+      "SELECT * FROM devices WHERE id = $1 AND is_active = TRUE",
       [storedToken.device_id]
     );
-    const device = deviceResult.rows[0];
+    if (d.rows.length === 0) {
+      await client.query("COMMIT");
+      res.clearCookie("access_token");
+      res.clearCookie("refresh_token");
+      return res.redirect("/pair?error=device_not_found");
+    }
+    const device = d.rows[0];
 
     const newAccessToken = generateAccessToken(device);
     const newRefreshToken = generateRefreshToken(device);
@@ -177,7 +192,6 @@ async function deviceAuth(req, res, next) {
     next();
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("Erro na autenticação com refresh token:", err);
     return res.status(403).redirect("/pair?error=session_error");
   } finally {
     client.release();
@@ -223,7 +237,7 @@ const isAuthenticated = async (req, res, next) => {
       req.user = result.rows[0];
       next();
     }
-  } catch (err) {
+  } catch {
     res.status(500).send("Erro ao validar sessão.");
   }
 };
@@ -258,63 +272,82 @@ wss.on("connection", async (ws, req) => {
 
   if (pathname === "/admin-ws") {
     adminClients.add(ws);
-    ws.on("close", () => {
-      adminClients.delete(ws);
-    });
+    ws.on("close", () => adminClients.delete(ws));
+
+    const allDevices = await db.query("SELECT id, is_active FROM devices");
+    for (const { id, is_active } of allDevices.rows) {
+      const isOnline = Boolean(clients[id]);
+      const tokenCountResult = await db.query(
+        "SELECT COUNT(*) AS cnt FROM tokens WHERE device_id = $1 AND is_revoked = false",
+        [id]
+      );
+      const tokenCount = parseInt(tokenCountResult.rows[0].cnt, 10);
+      let status;
+      if (!is_active) {
+        status = { text: "Revogado", class: "online-status revoked" };
+      } else if (isOnline) {
+        status = { text: "Online", class: "online-status online" };
+      } else if (tokenCount > 0) {
+        status = { text: "Offline", class: "online-status offline" };
+      } else {
+        status = { text: "Inativo", class: "online-status inactive" };
+      }
+      ws.send(
+        JSON.stringify({
+          type: "DEVICE_STATUS_UPDATE",
+          payload: { deviceId: id, status },
+        })
+      );
+    }
+
     return;
   }
 
   const token = query.token;
-  if (!token) return ws.close(1008, "Token não fornecido");
+  if (!token) {
+    ws.close(1008, "Token não fornecido");
+    return;
+  }
 
-  try {
-    const payload = verifyToken(token);
-    if (!payload) return ws.close(1008, "Token inválido");
+  const payload = verifyToken(token);
+  if (!payload) {
+    ws.close(1008, "Token inválido ou expirado");
+    return;
+  }
 
-    const deviceId = payload.id;
+  const deviceId = payload.id;
+  await db.query("UPDATE devices SET last_seen = NOW() WHERE id = $1", [
+    deviceId,
+  ]);
+  clients[deviceId] = ws;
 
-    await db.query("UPDATE devices SET last_seen = NOW() WHERE id = $1", [
+  broadcastToAdmins({
+    type: "DEVICE_STATUS_UPDATE",
+    payload: {
       deviceId,
-    ]);
+      status: { text: "Online", class: "online-status online" },
+    },
+  });
 
-    clients[deviceId] = ws;
+  ws.isAlive = true;
+  ws.on("pong", () => (ws.isAlive = true));
 
+  ws.on("close", async () => {
+    delete clients[deviceId];
+    const tokenCountResult = await db.query(
+      "SELECT COUNT(*) AS cnt FROM tokens WHERE device_id = $1 AND is_revoked = false",
+      [deviceId]
+    );
+    const tokenCount = parseInt(tokenCountResult.rows[0].cnt, 10);
+    const status =
+      tokenCount > 0
+        ? { text: "Offline", class: "online-status offline" }
+        : { text: "Inativo", class: "online-status inactive" };
     broadcastToAdmins({
       type: "DEVICE_STATUS_UPDATE",
-      payload: {
-        deviceId,
-        status: { text: "Online", class: "online-status online" },
-      },
+      payload: { deviceId, status },
     });
-
-    ws.isAlive = true;
-    ws.on("pong", () => {
-      ws.isAlive = true;
-    });
-
-    ws.on("close", async () => {
-      delete clients[deviceId];
-      try {
-        const deviceResult = await db.query(
-          "SELECT COUNT(*) as token_count FROM tokens WHERE device_id = $1 AND is_revoked = false",
-          [deviceId]
-        );
-        const hasTokens = deviceResult.rows[0].token_count > 0;
-        const status = {
-          text: hasTokens ? "Offline" : "Inativo",
-          class: `online-status ${hasTokens ? "offline" : "inactive"}`,
-        };
-        broadcastToAdmins({
-          type: "DEVICE_STATUS_UPDATE",
-          payload: { deviceId, status },
-        });
-      } catch (err) {
-        console.error("Erro ao verificar tokens no logout do WS:", err);
-      }
-    });
-  } catch (err) {
-    ws.close(1008, "Token inválido ou expirado");
-  }
+  });
 });
 
 const heartbeatInterval = setInterval(() => {
@@ -358,9 +391,7 @@ setInterval(async () => {
         },
       });
     });
-  } catch (err) {
-    console.error("Erro ao verificar status das campanhas:", err);
-  }
+  } catch {}
 }, 60000);
 
 app.get("/", (req, res) => {
@@ -408,7 +439,7 @@ app.post("/login", async (req, res) => {
       status: "error",
       message: "Usuário ou senha incorretos.",
     });
-  } catch (error) {
+  } catch {
     res.status(500).json({
       code: 500,
       status: "error",
@@ -459,8 +490,7 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
     });
 
     res.render("devices", { devices });
-  } catch (err) {
-    console.error("Erro ao carregar dispositivos:", err);
+  } catch {
     res.status(500).send("Erro ao carregar dispositivos.");
   }
 });
@@ -485,8 +515,7 @@ app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
       code: 200,
       message: "Dispositivo cadastrado com sucesso.",
     });
-  } catch (err) {
-    console.error("Erro ao cadastrar dispositivo:", err);
+  } catch {
     res.status(500).json({
       code: 500,
       message: "Erro ao cadastrar dispositivo. Tente novamente.",
@@ -497,25 +526,38 @@ app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
 app.post("/devices/:id/edit", isAuthenticated, isAdmin, async (req, res) => {
   const { id } = req.params;
   const { name, device_type, sector } = req.body;
-
   if (!name || !device_type || !sector) {
     return res.status(400).json({
       code: 400,
       message: "Todos os campos (Nome, Tipo e Setor) são obrigatórios.",
     });
   }
-
   try {
+    const oldRes = await db.query(
+      "SELECT device_type FROM devices WHERE id = $1",
+      [id]
+    );
+    if (oldRes.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ code: 404, message: "Dispositivo não encontrado." });
+    }
+    const oldType = oldRes.rows[0].device_type;
     await db.query(
       "UPDATE devices SET name = $1, device_type = $2, sector = $3 WHERE id = $4",
       [name, device_type, sector, id]
     );
+    if (oldType !== device_type) {
+      sendUpdateToDevice(id, {
+        type: "TYPE_CHANGED",
+        payload: { newType: device_type },
+      });
+    }
     res.json({
       code: 200,
       message: "Dispositivo atualizado com sucesso.",
     });
-  } catch (err) {
-    console.error("Erro ao atualizar dispositivo:", err);
+  } catch {
     res.status(500).json({
       code: 500,
       message: "Erro ao atualizar dispositivo. Tente novamente.",
@@ -526,10 +568,8 @@ app.post("/devices/:id/edit", isAuthenticated, isAdmin, async (req, res) => {
 app.post("/devices/:id/delete", isAuthenticated, isAdmin, async (req, res) => {
   const { id } = req.params;
   const client = await db.connect();
-
   try {
     await client.query("BEGIN");
-
     await client.query("DELETE FROM campaign_device WHERE device_id = $1", [
       id,
     ]);
@@ -538,20 +578,16 @@ app.post("/devices/:id/delete", isAuthenticated, isAdmin, async (req, res) => {
       "DELETE FROM devices WHERE id = $1",
       [id]
     );
-
     if (deleteResult.rowCount === 0) {
       await client.query("ROLLBACK");
       return res.status(404).json({ message: "Dispositivo não encontrado." });
     }
-
     await client.query("COMMIT");
-
     res.status(200).json({
       message: "Dispositivo excluído com sucesso.",
     });
-  } catch (err) {
+  } catch {
     await client.query("ROLLBACK");
-    console.error("ERRO AO EXCLUIR DISPOSITIVO:", err);
     res.status(500).json({ message: "Erro ao excluir o dispositivo." });
   } finally {
     client.release();
@@ -566,22 +602,17 @@ app.post(
     const { id } = req.params;
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = DateTime.now().plus({ hours: 24 }).toJSDate();
-
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-
     try {
       await db.query(
         "INSERT INTO magic_links (device_id, token_hash, expires_at) VALUES ($1, $2, $3)",
         [id, tokenHash, expiresAt]
       );
-
       const magicLink = `${req.protocol}://${req.get(
         "host"
       )}/pair/magic?token=${token}`;
-
       res.status(200).json({ magicLink });
-    } catch (err) {
-      console.error("Erro ao gerar link mágico:", err);
+    } catch {
       res.status(500).json({ message: "Erro ao gerar link mágico." });
     }
   }
@@ -596,45 +627,33 @@ app.post(
     const client = await db.connect();
     try {
       await client.query("BEGIN");
-
       const result = await client.query(
         "SELECT id FROM devices WHERE device_identifier = $1",
         [identifier]
       );
-
       if (result.rows.length === 0) {
         await client.query("ROLLBACK");
         return res.status(404).json({ message: "Dispositivo não encontrado." });
       }
-
       const deviceId = result.rows[0].id;
-
       await client.query(
         "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
         [deviceId]
       );
-
       await client.query("UPDATE devices SET is_active = FALSE WHERE id = $1", [
         deviceId,
       ]);
-
       await client.query("COMMIT");
-
       sendUpdateToDevice(deviceId, {
         type: "DEVICE_REVOKED",
         payload: { identifier: identifier },
       });
-
       res.status(200).json({
         message:
           "Acesso do dispositivo revogado e status atualizado com sucesso.",
       });
-    } catch (err) {
+    } catch {
       await client.query("ROLLBACK");
-      console.error(
-        "Erro ao revogar token e atualizar status do dispositivo:",
-        err
-      );
       res
         .status(500)
         .json({ message: "Erro ao revogar acesso do dispositivo." });
@@ -650,60 +669,45 @@ app.post(
   isAdmin,
   async (req, res) => {
     const { identifier } = req.params;
-
     try {
       const result = await db.query(
         "UPDATE devices SET is_active = TRUE WHERE device_identifier = $1",
         [identifier]
       );
-
       if (result.rowCount === 0) {
         return res.status(404).json({ message: "Dispositivo não encontrado." });
       }
-
       res.status(200).json({
         message: "Dispositivo reativado com sucesso.",
       });
-    } catch (err) {
-      console.error("Erro ao reativar o dispositivo:", err);
+    } catch {
       res.status(500).json({ message: "Erro ao reativar o dispositivo." });
     }
   }
 );
 
 app.get("/pair", (req, res) => {
+  const { error } = req.query;
   const accessToken = req.cookies.access_token;
   const refreshToken = req.cookies.refresh_token;
 
-  if (!accessToken && !refreshToken) {
-    return res.render("pair");
+  if (req.session.userId) {
+    return res.redirect("/dashboard");
   }
-
-  deviceAuth(req, res, async () => {
-    try {
-      const deviceResult = await db.query(
-        "SELECT device_type FROM devices WHERE id = $1",
-        [req.device.id]
-      );
-
-      if (deviceResult.rows.length === 0) {
-        return res.render("pair");
-      }
-
-      const device = deviceResult.rows[0];
-      if (device.device_type === "busca_preco") {
-        return res.redirect("/price");
-      } else {
-        return res.redirect("/player");
-      }
-    } catch (err) {
-      console.error(
-        "Erro ao redirecionar dispositivo autenticado da rota /pair:",
-        err
-      );
-      return res.render("pair");
-    }
-  });
+  if (accessToken || refreshToken) {
+    return deviceAuth(req, res, () => {
+      const type = req.device.device_type;
+      return res.redirect(type === "busca_preco" ? "/price" : "/player");
+    });
+  }
+  if (error) {
+    res.clearCookie("access_token");
+    res.clearCookie("refresh_token");
+    return res.render("pair", { error });
+  }
+  res.clearCookie("access_token");
+  res.clearCookie("refresh_token");
+  res.render("pair");
 });
 
 app.post("/pair", async (req, res) => {
@@ -713,7 +717,6 @@ app.post("/pair", async (req, res) => {
       error: "ID do Dispositivo e Chave de Autenticação são obrigatórios.",
     });
   }
-
   const client = await db.connect();
   try {
     await client.query("BEGIN");
@@ -721,7 +724,6 @@ app.post("/pair", async (req, res) => {
       "SELECT * FROM devices WHERE device_identifier = $1 AND is_active = true",
       [device_identifier]
     );
-
     if (
       result.rows.length === 0 ||
       result.rows[0].authentication_key !== authentication_key
@@ -731,28 +733,21 @@ app.post("/pair", async (req, res) => {
         error: "ID do Dispositivo ou Chave de Autenticação inválidos.",
       });
     }
-
     const device = result.rows[0];
-
     await client.query(
       "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
       [device.id]
     );
-
     const accessToken = generateAccessToken(device);
     const refreshToken = generateRefreshToken(device);
-
     await client.query(
       "INSERT INTO tokens (device_id, token, refresh_token) VALUES ($1, $2, $3)",
       [device.id, accessToken, refreshToken]
     );
-
     await client.query("UPDATE devices SET last_seen = NOW() WHERE id = $1", [
       device.id,
     ]);
-
     await client.query("COMMIT");
-
     res.cookie("access_token", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -763,15 +758,13 @@ app.post("/pair", async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       maxAge: 604800000,
     });
-
     if (device.device_type === "busca_preco") {
       return res.redirect("/price");
     } else {
       return res.redirect("/player");
     }
-  } catch (err) {
+  } catch {
     await client.query("ROLLBACK");
-    console.error("Erro no pareamento: ", err);
     res.render("pair", { error: "Erro ao autenticar dispositivo." });
   } finally {
     client.release();
@@ -779,6 +772,9 @@ app.post("/pair", async (req, res) => {
 });
 
 app.get("/player", deviceAuth, async (req, res) => {
+  if (req.device.device_type === "busca_preco") {
+    return res.redirect("/price");
+  }
   try {
     const deviceResult = await db.query(
       "SELECT name, device_type FROM devices WHERE id = $1",
@@ -787,26 +783,22 @@ app.get("/player", deviceAuth, async (req, res) => {
     if (deviceResult.rows.length === 0) {
       return res.status(404).send("Dispositivo não encontrado.");
     }
-
     const device = deviceResult.rows[0];
-
-    if (device.device_type === "busca_preco") {
-      return res.redirect("/price");
-    }
-
     res.render("player", { deviceName: device.name });
-  } catch (err) {
+  } catch {
     res.status(500).send("Erro ao carregar dispositivo.");
   }
 });
 
 app.get("/price", deviceAuth, async (req, res) => {
+  if (req.device.device_type !== "busca_preco") {
+    return res.redirect("/player");
+  }
   try {
     const deviceResult = await db.query(
       "SELECT id, name FROM devices WHERE id = $1",
       [req.device.id]
     );
-
     if (deviceResult.rows.length === 0) {
       return res.status(404).send("Dispositivo não encontrado.");
     }
@@ -819,12 +811,9 @@ app.get("/price", deviceAuth, async (req, res) => {
         AND c.end_date >= NOW()`,
       [device.id]
     );
-
     const offers = campaignsResult.rows;
-
     res.render("price", { deviceName: device.name, offers });
-  } catch (err) {
-    console.error("Erro ao carregar a página de preços:", err);
+  } catch {
     res.status(500).send("Erro ao carregar dispositivo.");
   }
 });
@@ -841,13 +830,21 @@ app.get("/logout", (req, res) => {
   });
 });
 
+async function revokeToken(refreshToken) {
+  try {
+    await db.query(
+      "UPDATE tokens SET is_revoked = TRUE WHERE refresh_token = $1",
+      [refreshToken]
+    );
+  } catch {}
+}
+
 app.get(
   "/api/deviceDetails/:id",
   isAuthenticated,
   isAdmin,
   async (req, res) => {
     const { id } = req.params;
-
     try {
       const deviceResult = await db.query(
         `SELECT d.*,
@@ -855,12 +852,10 @@ app.get(
         FROM devices d WHERE d.id = $1`,
         [id]
       );
-
       if (deviceResult.rows.length === 0) {
         return res.status(404).json({ message: "Dispositivo não encontrado." });
       }
       const device = deviceResult.rows[0];
-
       const activeCampaignsResult = await db.query(
         `SELECT c.name FROM campaigns c
         JOIN campaign_device cd ON c.id = cd.campaign_id
@@ -868,9 +863,7 @@ app.get(
         [id]
       );
       const activeCampaigns = activeCampaignsResult.rows.map((c) => c.name);
-
       const isOnline = clients.hasOwnProperty(device.id);
-
       let status;
       if (!device.is_active) {
         status = { text: "Revogado", class: "online-status revoked" };
@@ -881,7 +874,6 @@ app.get(
       } else {
         status = { text: "Inativo", class: "online-status inactive" };
       }
-
       const formatOptions = { zone: "America/Sao_Paulo", locale: "pt-BR" };
       const registeredAtFormatted = DateTime.fromJSDate(
         device.registered_at,
@@ -892,19 +884,15 @@ app.get(
             "dd/MM/yyyy HH:mm:ss"
           )
         : "Nunca";
-
-      const details = {
+      res.json({
         ...device,
         is_online: isOnline,
         registered_at_formatted: registeredAtFormatted,
         last_seen_formatted: lastSeenFormatted,
         active_campaigns: activeCampaigns,
         status: status,
-      };
-
-      res.json(details);
-    } catch (err) {
-      console.error("Erro ao buscar detalhes do dispositivo:", err);
+      });
+    } catch {
       res.status(500).json({ message: "Erro interno do servidor." });
     }
   }
@@ -912,80 +900,62 @@ app.get(
 
 app.get("/pair/magic", async (req, res) => {
   const { token } = req.query;
-
   if (!token) {
     return res.status(400).send("Token não fornecido.");
   }
-
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
   const client = await db.connect();
-
   try {
     await client.query("BEGIN");
-
-    const linkResult = await client.query(
+    const linkResult = await db.query(
       "SELECT * FROM magic_links WHERE token_hash = $1",
       [tokenHash]
     );
-
     if (linkResult.rows.length === 0) {
       await client.query("ROLLBACK");
       return res.render("pair", {
         error: "Link de pareamento inválido ou expirado.",
       });
     }
-
     const magicLink = linkResult.rows[0];
-
     if (magicLink.used_at) {
       await client.query("ROLLBACK");
       return res.render("pair", {
         error: "Este link de pareamento já foi utilizado.",
       });
     }
-
     if (new Date() > new Date(magicLink.expires_at)) {
       await client.query("ROLLBACK");
       return res.render("pair", { error: "Este link de pareamento expirou." });
     }
-
     await client.query("UPDATE magic_links SET used_at = NOW() WHERE id = $1", [
       magicLink.id,
     ]);
-
     const deviceResult = await client.query(
       "SELECT * FROM devices WHERE id = $1 AND is_active = true",
       [magicLink.device_id]
     );
-
     if (deviceResult.rows.length === 0) {
       await client.query("ROLLBACK");
       return res.render("pair", {
         error: "O dispositivo associado a este link não está ativo.",
       });
     }
-
     const device = deviceResult.rows[0];
-
     await client.query(
       "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
       [device.id]
     );
-
     const accessToken = generateAccessToken(device);
     const refreshToken = generateRefreshToken(device);
-
     await client.query(
       "INSERT INTO tokens (device_id, token, refresh_token) VALUES ($1, $2, $3)",
       [device.id, accessToken, refreshToken]
     );
-
     await client.query("UPDATE devices SET last_seen = NOW() WHERE id = $1", [
       device.id,
     ]);
-
     await client.query("COMMIT");
-
     res.cookie("access_token", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -996,15 +966,13 @@ app.get("/pair/magic", async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       maxAge: 604800000,
     });
-
     if (device.device_type === "busca_preco") {
       return res.redirect("/price");
     } else {
       return res.redirect("/player");
     }
-  } catch (err) {
+  } catch {
     await client.query("ROLLBACK");
-    console.error("Erro na autenticação com link mágico: ", err);
     res.render("pair", { error: "Erro ao autenticar dispositivo." });
   } finally {
     client.release();
@@ -1021,17 +989,14 @@ app.get("/api/device/playlist", deviceAuth, async (req, res) => {
         AND c.end_date >= NOW()`,
       [req.device.id]
     );
-
     res.setHeader(
       "Cache-Control",
       "no-store, no-cache, must-revalidate, private"
     );
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
-
     res.json(result.rows);
-  } catch (err) {
-    console.error("Erro ao buscar playlist:", err);
+  } catch {
     res.status(500).json({ message: "Erro ao buscar playlist." });
   }
 });
@@ -1054,9 +1019,7 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
       ORDER BY 
         c.created_at DESC
     `);
-
     const now = DateTime.now().setZone("America/Sao_Paulo");
-
     const campaigns = campaignsResult.rows.map((campaign) => {
       const formatOptions = {
         zone: "America/Sao_Paulo",
@@ -1064,7 +1027,6 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
       };
       const startDate = DateTime.fromJSDate(campaign.start_date, formatOptions);
       const endDate = DateTime.fromJSDate(campaign.end_date, formatOptions);
-
       let status;
       if (now < startDate) {
         status = { text: "Agendada", class: "online-status scheduled" };
@@ -1073,7 +1035,6 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
       } else {
         status = { text: "Ativa", class: "online-status online" };
       }
-
       return {
         ...campaign,
         status,
@@ -1084,20 +1045,16 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
         ),
       };
     });
-
     const devicesResult = await db.query(
       "SELECT * FROM devices WHERE is_active = TRUE ORDER BY name"
     );
     const devices = devicesResult.rows;
-
     const sectorsResult = await db.query(
       "SELECT DISTINCT sector FROM devices WHERE sector IS NOT NULL AND sector <> '' ORDER BY sector"
     );
     const sectors = sectorsResult.rows.map((r) => r.sector);
-
     res.render("campaigns", { campaigns, devices, sectors });
-  } catch (err) {
-    console.error("Erro ao carregar campanhas:", err);
+  } catch {
     res.status(500).send("Erro ao carregar campanhas.");
   }
 });
@@ -1109,17 +1066,14 @@ app.post(
   upload.single("media"),
   async (req, res) => {
     let { name, start_date, end_date, device_ids } = req.body;
-
     if (!name || !start_date || !end_date || !device_ids) {
       return res
         .status(400)
         .json({ message: "Todos os campos são obrigatórios." });
     }
-
     if (!Array.isArray(device_ids)) {
       device_ids = [device_ids];
     }
-
     let parsedStartDate, parsedEndDate;
     try {
       parsedStartDate = DateTime.fromFormat(
@@ -1135,28 +1089,24 @@ app.post(
           message: "A data de término não pode ser anterior à data de início.",
         });
       }
-    } catch (dateError) {
+    } catch {
       return res.status(400).json({
         message: "Formato de data ou hora inválido. Use DD/MM/AAAA HH:MM.",
       });
     }
-
     let file_path = null;
     if (req.file) {
       file_path = `/uploads/${req.file.filename}`;
     }
-
     const client = await db.connect();
     try {
       await client.query("BEGIN");
-
       const campaignResult = await client.query(
         `INSERT INTO campaigns (name, start_date, end_date, midia)
           VALUES ($1, $2, $3, $4) RETURNING *`,
         [name, parsedStartDate, parsedEndDate, file_path]
       );
       const newCampaign = campaignResult.rows[0];
-
       if (req.file) {
         await client.query(
           `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type)
@@ -1164,7 +1114,6 @@ app.post(
           [newCampaign.id, req.file.filename, file_path, req.file.mimetype]
         );
       }
-
       for (const device_id of device_ids) {
         await client.query(
           `INSERT INTO campaign_device (campaign_id, device_id)
@@ -1172,16 +1121,13 @@ app.post(
           [newCampaign.id, device_id]
         );
       }
-
       await client.query("COMMIT");
-
       device_ids.forEach((device_id) => {
         sendUpdateToDevice(device_id, {
           type: "NEW_CAMPAIGN",
           payload: newCampaign,
         });
       });
-
       res.status(200).json({
         code: 200,
         message: "Campanha criada e associada aos dispositivos.",
@@ -1189,7 +1135,6 @@ app.post(
       });
     } catch (err) {
       await client.query("ROLLBACK");
-      console.error("ERRO AO CRIAR CAMPANHA:", err);
       res.status(500).json({
         message: "Erro interno ao criar campanha.",
         error: err.message,
@@ -1207,25 +1152,21 @@ app.post(
   async (req, res) => {
     const { id } = req.params;
     const client = await db.connect();
-
     try {
       await client.query("BEGIN");
-
-      const campaignResult = await client.query(
+      const campaignResult = await db.query(
         "SELECT midia FROM campaigns WHERE id = $1",
         [id]
       );
       const mediaPath =
         campaignResult.rows.length > 0 ? campaignResult.rows[0].midia : null;
-
-      const affectedDevicesResult = await client.query(
+      const affectedDevicesResult = await db.query(
         "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
         [id]
       );
       const affectedDeviceIds = affectedDevicesResult.rows.map(
         (row) => row.device_id
       );
-
       await client.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
         id,
       ]);
@@ -1237,42 +1178,26 @@ app.post(
         "DELETE FROM campaigns WHERE id = $1",
         [id]
       );
-
       await client.query("COMMIT");
-
       if (mediaPath) {
         const fileName = path.basename(mediaPath);
         const fullPath = path.join(__dirname, "uploads", fileName);
-
-        try {
-          await fsPromises.unlink(fullPath);
-        } catch (fileError) {
-          if (fileError.code !== "ENOENT") {
-            console.warn(
-              `Aviso: Arquivo de mídia ${fullPath} não pôde ser excluído:`,
-              fileError
-            );
-          }
-        }
+        fsPromises.unlink(fullPath).catch(() => {});
       }
-
       if (deleteResult.rowCount === 0) {
         return res.status(404).json({ message: "Campanha não encontrada." });
       }
-
       affectedDeviceIds.forEach((deviceId) => {
         sendUpdateToDevice(deviceId, {
           type: "DELETE_CAMPAIGN",
           payload: { campaignId: Number(id) },
         });
       });
-
       res.status(200).json({
         message: "Campanha e mídia associada foram excluídas com sucesso.",
       });
-    } catch (err) {
+    } catch {
       await client.query("ROLLBACK");
-      console.error("ERRO AO EXCLUIR CAMPANHA:", err);
       res.status(500).json({ message: "Erro ao excluir campanha." });
     } finally {
       client.release();
@@ -1291,7 +1216,6 @@ app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
       return res.status(404).json({ message: "Campanha não encontrada." });
     }
     const campaign = campaignResult.rows[0];
-
     const associatedDevicesResult = await db.query(
       `SELECT d.id, d.sector 
                       FROM devices d 
@@ -1300,15 +1224,12 @@ app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
       [id]
     );
     const associatedDevices = associatedDevicesResult.rows;
-
     const allDevicesResult = await db.query(
       "SELECT id, name FROM devices WHERE is_active = TRUE"
     );
     const allDevices = allDevicesResult.rows;
-
     res.json({ campaign, associatedDevices, allDevices });
-  } catch (err) {
-    console.error("Erro ao buscar detalhes da campanha:", err);
+  } catch {
     res.status(500).json({ message: "Erro interno do servidor." });
   }
 });
@@ -1321,17 +1242,14 @@ app.post(
   async (req, res) => {
     const { id } = req.params;
     let { name, start_date, end_date, device_ids, remove_media } = req.body;
-
     if (!name || !start_date || !end_date || !device_ids) {
       return res
         .status(400)
         .json({ message: "Todos os campos são obrigatórios." });
     }
-
     if (!Array.isArray(device_ids)) {
       device_ids = [device_ids];
     }
-
     let parsedStartDate, parsedEndDate;
     try {
       parsedStartDate = DateTime.fromFormat(
@@ -1347,16 +1265,14 @@ app.post(
           message: "A data de término não pode ser anterior à data de início.",
         });
       }
-    } catch (dateError) {
+    } catch {
       return res.status(400).json({
         message: "Formato de data ou hora inválido. Use DD/MM/AAAA HH:MM.",
       });
     }
-
     const client = await db.connect();
     try {
       await client.query("BEGIN");
-
       const oldDevicesResult = await client.query(
         "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
         [id]
@@ -1364,20 +1280,17 @@ app.post(
       const oldDeviceIds = oldDevicesResult.rows.map((row) =>
         row.device_id.toString()
       );
-
       const campaignQuery = await client.query(
         "SELECT midia FROM campaigns WHERE id = $1",
         [id]
       );
       let mediaPath = campaignQuery.rows[0]?.midia;
       const oldMediaPath = mediaPath;
-
       if (req.file) {
         mediaPath = `/uploads/${req.file.filename}`;
       } else if (remove_media === "true") {
         mediaPath = null;
       }
-
       if (oldMediaPath && oldMediaPath !== mediaPath) {
         const oldFullPath = path.join(
           __dirname,
@@ -1388,43 +1301,29 @@ app.post(
           "DELETE FROM campaign_uploads WHERE campaign_id = $1",
           [id]
         );
-        try {
-          await fsPromises.unlink(oldFullPath);
-        } catch (fileError) {
-          if (fileError.code !== "ENOENT")
-            console.warn(
-              `Aviso: Arquivo de mídia antigo não foi excluído:`,
-              fileError
-            );
-        }
+        fsPromises.unlink(oldFullPath).catch(() => {});
       }
-
       if (req.file) {
         await client.query(
           `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type) VALUES ($1, $2, $3, $4) ON CONFLICT (campaign_id) DO UPDATE SET file_name = EXCLUDED.file_name, file_path = EXCLUDED.file_path, file_type = EXCLUDED.file_type`,
           [id, req.file.filename, mediaPath, req.file.mimetype]
         );
       }
-
       const updatedCampaignResult = await client.query(
         `UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, midia = $4 WHERE id = $5 RETURNING *`,
         [name, parsedStartDate, parsedEndDate, mediaPath, id]
       );
       const updatedCampaign = updatedCampaignResult.rows[0];
-
       await client.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
         id,
       ]);
-
       for (const device_id of device_ids) {
         await client.query(
           `INSERT INTO campaign_device (campaign_id, device_id) VALUES ($1, $2)`,
           [id, device_id]
         );
       }
-
       await client.query("COMMIT");
-
       const devicesToRemove = oldDeviceIds.filter(
         (oldId) => !device_ids.includes(oldId)
       );
@@ -1434,28 +1333,24 @@ app.post(
       const devicesToUpdate = device_ids.filter((id) =>
         oldDeviceIds.includes(id)
       );
-
       devicesToRemove.forEach((deviceId) => {
         sendUpdateToDevice(deviceId, {
           type: "DELETE_CAMPAIGN",
           payload: { campaignId: Number(id) },
         });
       });
-
       devicesToAdd.forEach((deviceId) => {
         sendUpdateToDevice(deviceId, {
           type: "NEW_CAMPAIGN",
           payload: updatedCampaign,
         });
       });
-
       devicesToUpdate.forEach((deviceId) => {
         sendUpdateToDevice(deviceId, {
           type: "UPDATE_CAMPAIGN",
           payload: updatedCampaign,
         });
       });
-
       res.status(200).json({
         code: 200,
         message: "Campanha atualizada com sucesso.",
@@ -1463,7 +1358,6 @@ app.post(
       });
     } catch (err) {
       await client.query("ROLLBACK");
-      console.error("ERRO AO ATUALIZAR CAMPANHA:", err);
       res.status(500).json({
         message: "Erro interno ao atualizar campanha.",
         error: err.message,
@@ -1474,35 +1368,22 @@ app.post(
   }
 );
 
-async function revokeToken(refreshToken) {
-  try {
-    await db.query(
-      "UPDATE tokens SET is_revoked = TRUE WHERE refresh_token = $1",
-      [refreshToken]
-    );
-  } catch (err) {
-    console.error("Erro ao revogar token:", err);
-  }
-}
-
 app.get("/api/wsToken", deviceAuth, (req, res) => {
   try {
     const accessToken = generateAccessToken(req.device);
     res.json({ accessToken });
-  } catch (error) {
+  } catch {
     res.status(500).json({ message: "Erro ao gerar token para WebSocket." });
   }
 });
 
 app.post("/api/broadcastRefresh", isAuthenticated, isAdmin, (req, res) => {
   const message = JSON.stringify({ type: "FORCE_REFRESH" });
-
   wss.clients.forEach((ws) => {
     if (ws.isAlive) {
       ws.send(message);
     }
   });
-
   res
     .status(200)
     .json({ message: "Comando de atualização enviado a todos os players." });

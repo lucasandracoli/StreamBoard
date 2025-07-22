@@ -1,3 +1,4 @@
+// price.js
 document.addEventListener("DOMContentLoaded", () => {
   const viewWrapper = document.getElementById("price-view-wrapper");
   const idleScreen = document.getElementById("idle-screen");
@@ -20,7 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let selectedVoice = null;
 
   window.speechSynthesis.onvoiceschanged = () => {
-    const voices = window.speechSynthesis.getVoices();
+    const voices = speechSynthesis.getVoices();
     selectedVoice =
       voices.find((v) => v.name === "Google português do Brasil") ||
       voices.find(
@@ -48,53 +49,58 @@ document.addEventListener("DOMContentLoaded", () => {
     const iconClass = icons[state] || "bi-info-circle-fill";
     const spinnerHtml =
       state === "reconnecting" ? '<div class="spinner"></div>' : "";
-    const messageCardHtml = `<div class="player-message-card ${state}"><i class="icon bi ${iconClass}"></i><div class="message-content"><p class="message-title">${title}</p><p class="message-subtitle">${subtitle}</p></div>${spinnerHtml}</div>`;
-    viewWrapper.insertAdjacentHTML("beforeend", messageCardHtml);
+    viewWrapper.insertAdjacentHTML(
+      "beforeend",
+      `
+      <div class="player-message-card ${state}">
+        <i class="icon bi ${iconClass}"></i>
+        <div class="message-content">
+          <p class="message-title">${title}</p>
+          <p class="message-subtitle">${subtitle}</p>
+        </div>
+        ${spinnerHtml}
+      </div>
+    `
+    );
     messageCardElement = viewWrapper.querySelector(".player-message-card");
   };
 
-  const hasPlayableMedia = () =>
-    playlist && playlist.length > 0 && playlist.some((c) => c.midia);
+  const hasPlayableMedia = () => playlist.some((c) => c.midia);
 
-  function speakProductDetails(name, price, onComplete) {
+  const speakProductDetails = (name, price, onComplete) => {
     if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+      speechSynthesis.cancel();
       const priceFloat = parseFloat(price.replace(",", "."));
       const reais = Math.floor(priceFloat);
       const centavos = Math.round((priceFloat - reais) * 100);
-      let priceText = "";
-      if (reais > 0) priceText += `${reais} ${reais === 1 ? "real" : "reais"}`;
-      if (centavos > 0) {
-        if (reais > 0) priceText += " e ";
-        priceText += `${centavos} ${centavos === 1 ? "centavo" : "centavos"}`;
-      }
-      const textToSpeak = `${name}. ${priceText}.`;
-      const utterance = new SpeechSynthesisUtterance(textToSpeak);
-      utterance.lang = "pt-BR";
-      if (selectedVoice) utterance.voice = selectedVoice;
-      utterance.pitch = 1.0;
-      utterance.rate = 1.2;
-      utterance.onend = () => {
-        if (onComplete) onComplete();
-      };
-      window.speechSynthesis.speak(utterance);
-    } else {
-      if (onComplete) onComplete();
-    }
-  }
+      let text = `${name}. `;
+      if (reais) text += `${reais} ${reais === 1 ? "real" : "reais"}`;
+      if (centavos)
+        text +=
+          (reais ? " e " : "") +
+          `${centavos} ${centavos === 1 ? "centavo" : "centavos"}`;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "pt-BR";
+      if (selectedVoice) u.voice = selectedVoice;
+      u.pitch = 1.0;
+      u.rate = 1.2;
+      u.onend = onComplete;
+      speechSynthesis.speak(u);
+    } else onComplete();
+  };
 
   const preloadMedia = () => {
-    playlist.forEach((campaign) => {
-      if (campaign.midia && !mediaCache[campaign.midia]) {
-        const fileExtension = campaign.midia.split(".").pop().toLowerCase();
-        let mediaElement;
-        if (["jpg", "jpeg", "png", "gif", "webp"].includes(fileExtension))
-          mediaElement = new Image();
-        else if (["mp4", "webm", "mov"].includes(fileExtension))
-          mediaElement = document.createElement("video");
-        if (mediaElement) {
-          mediaElement.src = campaign.midia;
-          mediaCache[campaign.midia] = mediaElement;
+    playlist.forEach((c) => {
+      if (c.midia && !mediaCache[c.midia]) {
+        const ext = c.midia.split(".").pop().toLowerCase();
+        let el;
+        if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext))
+          el = new Image();
+        else if (["mp4", "webm", "mov"].includes(ext))
+          el = document.createElement("video");
+        if (el) {
+          el.src = c.midia;
+          mediaCache[c.midia] = el;
         }
       }
     });
@@ -102,27 +108,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const displayMedia = (campaign) => {
     if (mediaTimer) clearTimeout(mediaTimer);
-    if (!offerContainer) return;
     offerContainer.innerHTML = "";
     offerContainer.style.backgroundColor = "#000";
-    const mediaUrl = campaign.midia;
-    const fileExtension = mediaUrl.split(".").pop().toLowerCase();
-    const cachedMedia = mediaCache[mediaUrl];
-    const mediaElement = cachedMedia ? cachedMedia.cloneNode(true) : null;
-    if (
-      mediaElement &&
-      ["jpg", "jpeg", "png", "gif", "webp"].includes(fileExtension)
-    ) {
-      mediaElement.onerror = () => playNextMedia();
-      offerContainer.appendChild(mediaElement);
+    const url = campaign.midia;
+    const ext = url.split(".").pop().toLowerCase();
+    const cached = mediaCache[url];
+    if (cached && ["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
+      const img = cached.cloneNode();
+      img.onerror = playNextMedia;
+      offerContainer.appendChild(img);
       mediaTimer = setTimeout(playNextMedia, 10000);
-    } else if (mediaElement && ["mp4", "webm", "mov"].includes(fileExtension)) {
-      mediaElement.autoplay = true;
-      mediaElement.muted = true;
-      mediaElement.playsInline = true;
-      mediaElement.onended = playNextMedia;
-      mediaElement.onerror = () => playNextMedia();
-      offerContainer.appendChild(mediaElement);
+    } else if (cached && ["mp4", "webm", "mov"].includes(ext)) {
+      const vid = cached.cloneNode();
+      vid.autoplay = true;
+      vid.muted = true;
+      vid.playsInline = true;
+      vid.onended = playNextMedia;
+      vid.onerror = playNextMedia;
+      offerContainer.appendChild(vid);
     } else {
       playNextMedia();
     }
@@ -130,40 +133,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const playNextMedia = () => {
     if (!hasPlayableMedia()) {
-      if (mediaTimer) clearTimeout(mediaTimer);
+      clearTimeout(mediaTimer);
       offerContainer.style.display = "none";
       backgroundImage.style.display = "block";
       return;
     }
     offerContainer.style.display = "flex";
     backgroundImage.style.display = "none";
-    let nextIndex = (currentCampaignIndex + 1) % playlist.length;
-    let attempts = 0;
-    while (!playlist[nextIndex].midia && attempts < playlist.length) {
-      nextIndex = (nextIndex + 1) % playlist.length;
-      attempts++;
+    let next = (currentCampaignIndex + 1) % playlist.length;
+    let tries = 0;
+    while (!playlist[next].midia && tries < playlist.length) {
+      next = (next + 1) % playlist.length;
+      tries++;
     }
-    currentCampaignIndex = nextIndex;
-    displayMedia(playlist[currentCampaignIndex]);
+    currentCampaignIndex = next;
+    displayMedia(playlist[next]);
   };
 
   const fetchAndResetPlaylist = async () => {
     try {
-      const response = await fetch("/api/device/playlist", {
-        cache: "no-cache",
-      });
-      if (!response.ok) {
-        if ([401, 403].includes(response.status)) {
+      const res = await fetch("/api/device/playlist", { cache: "no-cache" });
+      if (!res.ok) {
+        if ([401, 403].includes(res.status)) {
           wsManager.disconnect(false);
           window.location.href = "/pair?error=session_expired";
         }
         return;
       }
-      playlist = await response.json();
+      playlist = await res.json();
       currentCampaignIndex = -1;
       if (hasPlayableMedia()) preloadMedia();
       showIdleScreen();
-    } catch (error) {
+    } catch {
       setTimeout(fetchAndResetPlaylist, 10000);
     }
   };
@@ -176,7 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
     priceCheckCard.style.display = "none";
     idleScreen.style.display = "flex";
     footer.style.display = "flex";
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
     playNextMedia();
   }
 
@@ -188,44 +189,43 @@ document.addEventListener("DOMContentLoaded", () => {
     idleScreen.style.display = "none";
     priceCheckCard.style.display = "flex";
     footer.style.display = "none";
-    if (mediaTimer) clearTimeout(mediaTimer);
+    clearTimeout(mediaTimer);
   }
 
   function displayProduct(barcode) {
     showPriceCard();
     loader.style.display = "flex";
     priceContent.style.display = "none";
-    if (priceViewTimeout) clearTimeout(priceViewTimeout);
-    const productData = {
+    clearTimeout(priceViewTimeout);
+    const data = {
       name: "Produto Exemplo Extra Longo",
-      price: "24,50",
-      barcode: barcode,
+      price: "2224,50",
+      barcode,
     };
-    productNameEl.textContent = productData.name;
-    productPriceEl.textContent = productData.price;
-    productBarcodeEl.textContent = productData.barcode;
+    productNameEl.textContent = data.name;
+    productPriceEl.textContent = data.price;
+    productBarcodeEl.textContent = data.barcode;
     loader.style.display = "none";
     priceContent.style.display = "flex";
-    speakProductDetails(productData.name, productData.price, () => {
+    speakProductDetails(data.name, data.price, () => {
       priceViewTimeout = setTimeout(showIdleScreen, 1000);
     });
   }
 
-  let barcodeBuffer = "";
-  let barcodeTimeout = null;
+  let buf = "";
+  let bufTimeout = null;
   document.addEventListener("keydown", (e) => {
-    if (barcodeTimeout) clearTimeout(barcodeTimeout);
+    clearTimeout(bufTimeout);
     if (e.key === "Enter") {
-      if (barcodeBuffer.length > 3) displayProduct(barcodeBuffer);
-      barcodeBuffer = "";
-    } else if (e.key.length === 1 && /^[a-zA-Z0-9]$/.test(e.key))
-      barcodeBuffer += e.key;
-    barcodeTimeout = setTimeout(() => {
-      barcodeBuffer = "";
-    }, 200);
+      if (buf.length > 3) displayProduct(buf);
+      buf = "";
+    } else if (e.key.length === 1 && /^[a-zA-Z0-9]$/.test(e.key)) {
+      buf += e.key;
+    }
+    bufTimeout = setTimeout(() => (buf = ""), 200);
   });
 
-  function handleServerMessage(data) {
+  const handleServerMessage = (data) => {
     switch (data.type) {
       case "NEW_CAMPAIGN":
       case "UPDATE_CAMPAIGN":
@@ -234,15 +234,20 @@ document.addEventListener("DOMContentLoaded", () => {
         break;
       case "FORCE_REFRESH":
         wsManager.disconnect(false);
-        window.location.reload(true);
+        location.reload(true);
         break;
       case "DEVICE_REVOKED":
         wsManager.disconnect(false);
-        if (playlistInterval) clearInterval(playlistInterval);
-        window.location.href = "/pair?error=revoked";
+        clearInterval(playlistInterval);
+        location.href = "/pair?error=revoked";
+        break;
+      case "TYPE_CHANGED":
+        wsManager.disconnect(false);
+        location.href =
+          data.payload.newType === "busca_preco" ? "/price" : "/player";
         break;
     }
-  }
+  };
 
   class WebSocketManager {
     constructor() {
@@ -253,32 +258,27 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     async probeAndConnect() {
       try {
-        const response = await fetch("/api/wsToken");
-        if (response.status === 401 || response.status === 403) {
+        const res = await fetch("/api/wsToken");
+        if ([401, 403].includes(res.status)) {
           this.disconnect(false);
-          showMessageScreen(
-            "Sessão Inválida",
-            "Redirecionando para autenticação...",
-            "error"
+          showMessageScreen("Sessão Inválida", "Redirecionando...", "error");
+          setTimeout(
+            () => (location.href = "/pair?error=session_expired"),
+            4000
           );
-          setTimeout(() => {
-            window.location.href = "/pair?error=session_expired";
-          }, 4000);
           return;
         }
-        if (!response.ok) throw new Error("Servidor não está pronto.");
-        const data = await response.json();
-        if (data && data.accessToken) {
-          this.stopProbing();
-          this.establishConnection(data.accessToken);
-        }
-      } catch (error) {}
+        if (!res.ok) throw new Error();
+        const { accessToken } = await res.json();
+        this.stopProbing();
+        this.establishConnection(accessToken);
+      } catch {}
     }
     startProbing() {
       if (this.probeTimer || !this.shouldReconnect) return;
       showMessageScreen(
         "Conexão Perdida",
-        "Tentando reconectar ao servidor...",
+        "Tentando reconectar...",
         "reconnecting"
       );
       this.probeAndConnect();
@@ -293,23 +293,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     establishConnection(token) {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}?token=${token}`;
-      this.ws = new WebSocket(wsUrl);
-      this.ws.onopen = () => {
-        fetchAndResetPlaylist();
-      };
-      this.ws.onmessage = (event) => {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      this.ws = new WebSocket(`${proto}//${location.host}?token=${token}`);
+      this.ws.onopen = fetchAndResetPlaylist;
+      this.ws.onmessage = (e) => {
         try {
-          handleServerMessage(JSON.parse(event.data));
-        } catch (e) {}
+          handleServerMessage(JSON.parse(e.data));
+        } catch {}
       };
       this.ws.onclose = () => {
         if (this.shouldReconnect) this.startProbing();
       };
-      this.ws.onerror = () => {
-        this.ws.close();
-      };
+      this.ws.onerror = () => this.ws.close();
     }
     connect() {
       this.startProbing();
@@ -317,7 +312,7 @@ document.addEventListener("DOMContentLoaded", () => {
     disconnect(shouldReconnect = true) {
       this.shouldReconnect = shouldReconnect;
       this.stopProbing();
-      if (this.ws) this.ws.close(1000, "Desconexão intencional.");
+      if (this.ws) this.ws.close(1000, "Intentional");
     }
   }
 

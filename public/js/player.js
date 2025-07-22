@@ -1,3 +1,4 @@
+// player.js
 document.addEventListener("DOMContentLoaded", () => {
   const campaignContainer = document.getElementById("campaign-container");
   let playlist = [];
@@ -12,7 +13,6 @@ document.addEventListener("DOMContentLoaded", () => {
   ) => {
     if (mediaTimer) clearTimeout(mediaTimer);
     campaignContainer.style.backgroundColor = "var(--color-background)";
-
     const icons = {
       info: "bi-clock-history",
       reconnecting: "bi-wifi-off",
@@ -21,7 +21,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const iconClass = icons[state] || "bi-info-circle-fill";
     const spinnerHtml =
       state === "reconnecting" ? '<div class="spinner"></div>' : "";
-
     campaignContainer.innerHTML = `
       <div class="player-message-card ${state}">
         <i class="icon bi ${iconClass}"></i>
@@ -38,24 +37,21 @@ document.addEventListener("DOMContentLoaded", () => {
     if (mediaTimer) clearTimeout(mediaTimer);
     campaignContainer.innerHTML = "";
     campaignContainer.style.backgroundColor = "#000";
-
     if (!campaign || !campaign.midia) {
       playNext();
       return;
     }
-
-    const fileExtension = campaign.midia.split(".").pop().toLowerCase();
-    const mediaUrl = campaign.midia;
-
-    if (["jpg", "jpeg", "png", "gif", "webp"].includes(fileExtension)) {
+    const ext = campaign.midia.split(".").pop().toLowerCase();
+    const url = campaign.midia;
+    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
       const img = document.createElement("img");
-      img.src = mediaUrl;
+      img.src = url;
       img.onerror = () => playNext();
       campaignContainer.appendChild(img);
       mediaTimer = setTimeout(playNext, 10000);
-    } else if (["mp4", "webm", "mov"].includes(fileExtension)) {
+    } else if (["mp4", "webm", "mov"].includes(ext)) {
       const video = document.createElement("video");
-      video.src = mediaUrl;
+      video.src = url;
       video.autoplay = true;
       video.muted = true;
       video.playsInline = true;
@@ -78,32 +74,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const fetchAndResetPlaylist = async () => {
     try {
-      const response = await fetch("/api/device/playlist", {
-        cache: "no-cache",
-      });
-
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
+      const res = await fetch("/api/device/playlist", { cache: "no-cache" });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
           wsManager.disconnect(false);
           if (playlistInterval) clearInterval(playlistInterval);
           window.location.href = "/pair?error=session_expired";
         }
         return;
       }
-
-      playlist = await response.json();
-
+      playlist = await res.json();
       if (playlist.length > 0) {
         currentCampaignIndex = -1;
         playNext();
       } else {
         showWaitingScreen();
       }
-    } catch (error) {
-      console.error(
-        "Falha ao buscar playlist. Tentando novamente em 10s.",
-        error
-      );
+    } catch {
       setTimeout(fetchAndResetPlaylist, 10000);
     }
   };
@@ -124,6 +111,11 @@ document.addEventListener("DOMContentLoaded", () => {
         wsManager.disconnect(false);
         window.location.reload(true);
         break;
+      case "TYPE_CHANGED":
+        wsManager.disconnect(false);
+        window.location.href =
+          data.payload.newType === "busca_preco" ? "/price" : "/player";
+        break;
     }
   };
 
@@ -134,41 +126,29 @@ document.addEventListener("DOMContentLoaded", () => {
       this.probeInterval = 5000;
       this.shouldReconnect = true;
     }
-
     async probeAndConnect() {
       try {
-        const response = await fetch("/api/wsToken");
-        if (response.status === 401 || response.status === 403) {
+        const res = await fetch("/api/wsToken");
+        if (res.status === 401 || res.status === 403) {
           this.disconnect(false);
-          showWaitingScreen(
-            "Sessão Inválida",
-            "Redirecionando para autenticação...",
-            "error"
+          showWaitingScreen("Sessão Inválida", "Redirecionando...", "error");
+          setTimeout(
+            () => (window.location.href = "/pair?error=session_expired"),
+            4000
           );
-          setTimeout(() => {
-            window.location.href = "/pair?error=session_expired";
-          }, 4000);
           return;
         }
-
-        if (!response.ok) {
-          throw new Error("Servidor não está pronto.");
-        }
-
-        const data = await response.json();
-        if (data && data.accessToken) {
-          this.stopProbing();
-          this.establishConnection(data.accessToken);
-        }
-      } catch (error) {
-      }
+        if (!res.ok) throw new Error();
+        const { accessToken } = await res.json();
+        this.stopProbing();
+        this.establishConnection(accessToken);
+      } catch {}
     }
-
     startProbing() {
       if (this.probeTimer || !this.shouldReconnect) return;
       showWaitingScreen(
         "Conexão Perdida",
-        "Tentando reconectar ao servidor...",
+        "Tentando reconectar...",
         "reconnecting"
       );
       this.probeAndConnect();
@@ -177,56 +157,37 @@ document.addEventListener("DOMContentLoaded", () => {
         this.probeInterval
       );
     }
-
     stopProbing() {
       clearInterval(this.probeTimer);
       this.probeTimer = null;
     }
-
     establishConnection(token) {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
-
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}?token=${token}`;
-      this.ws = new WebSocket(wsUrl);
-
-      this.ws.onopen = () => {
-        fetchAndResetPlaylist();
-      };
-
-      this.ws.onmessage = (event) => {
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      this.ws = new WebSocket(`${protocol}//${location.host}?token=${token}`);
+      this.ws.onopen = fetchAndResetPlaylist;
+      this.ws.onmessage = (e) => {
         try {
-          handleServerMessage(JSON.parse(event.data));
-        } catch (e) {}
+          handleServerMessage(JSON.parse(e.data));
+        } catch {}
       };
-
       this.ws.onclose = () => {
-        if (this.shouldReconnect) {
-          this.startProbing();
-        }
+        if (this.shouldReconnect) this.startProbing();
       };
-
-      this.ws.onerror = (err) => {
-        this.ws.close();
-      };
+      this.ws.onerror = () => this.ws.close();
     }
-
     connect() {
       this.startProbing();
     }
-
     disconnect(shouldReconnect = true) {
       this.shouldReconnect = shouldReconnect;
       this.stopProbing();
-      if (this.ws) {
-        this.ws.close(1000, "Desconexão intencional.");
-      }
+      if (this.ws) this.ws.close(1000, "Intentional");
     }
   }
 
   const wsManager = new WebSocketManager();
   wsManager.connect();
-
   if (playlistInterval) clearInterval(playlistInterval);
   playlistInterval = setInterval(fetchAndResetPlaylist, 45000);
 });
