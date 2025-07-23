@@ -19,6 +19,18 @@ const fsPromises = require("fs").promises;
 const url = require("url");
 const axios = require("axios");
 
+const logger = {
+  info: (message) => {
+    console.log(`[${new Date().toISOString()}] [INFO] ${message}`);
+  },
+  error: (message, error) => {
+    console.error(
+      `[${new Date().toISOString()}] [ERROR] ${message}`,
+      error || ""
+    );
+  },
+};
+
 Settings.defaultZone = "America/Sao_Paulo";
 
 const app = express();
@@ -29,6 +41,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRATION = "15m";
 const JWT_REFRESH_EXPIRATION = "90d";
+const JWT_REFRESH_COOKIE_MAX_AGE = 90 * 24 * 60 * 60 * 1000;
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -190,13 +203,14 @@ async function deviceAuth(req, res, next) {
     res.cookie("refresh_token", newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: 7776000000,
+      maxAge: JWT_REFRESH_COOKIE_MAX_AGE,
     });
 
     req.device = device;
     next();
   } catch (err) {
     await client.query("ROLLBACK");
+    logger.error("Erro na autenticação do dispositivo via refresh token.", err);
     return res.status(403).redirect("/pair?error=session_error");
   } finally {
     client.release();
@@ -242,7 +256,8 @@ const isAuthenticated = async (req, res, next) => {
       req.user = result.rows[0];
       next();
     }
-  } catch {
+  } catch (err) {
+    logger.error("Erro ao validar sessão do usuário.", err);
     res.status(500).send("Erro ao validar sessão.");
   }
 };
@@ -396,7 +411,9 @@ setInterval(async () => {
         },
       });
     });
-  } catch {}
+  } catch (err) {
+    logger.error("Erro ao verificar status das campanhas.", err);
+  }
 }, 60000);
 
 app.get("/", (req, res) => {
@@ -444,7 +461,8 @@ app.post("/login", async (req, res) => {
       status: "error",
       message: "Usuário ou senha incorretos.",
     });
-  } catch {
+  } catch (err) {
+    logger.error("Erro no processo de login.", err);
     res.status(500).json({
       code: 500,
       status: "error",
@@ -462,8 +480,8 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
     const devicesResult = await db.query(
       `SELECT d.*,
         (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id AND t.is_revoked = false) > 0 as has_tokens
-        FROM devices d
-        ORDER BY d.registered_at DESC`
+         FROM devices d
+         ORDER BY d.registered_at DESC`
     );
 
     const devices = devicesResult.rows.map((device) => {
@@ -495,7 +513,8 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
     });
 
     res.render("devices", { devices });
-  } catch {
+  } catch (err) {
+    logger.error("Erro ao carregar dispositivos.", err);
     res.status(500).send("Erro ao carregar dispositivos.");
   }
 });
@@ -520,7 +539,8 @@ app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
       code: 200,
       message: "Dispositivo cadastrado com sucesso.",
     });
-  } catch {
+  } catch (err) {
+    logger.error("Erro ao cadastrar dispositivo.", err);
     res.status(500).json({
       code: 500,
       message: "Erro ao cadastrar dispositivo. Tente novamente.",
@@ -562,7 +582,8 @@ app.post("/devices/:id/edit", isAuthenticated, isAdmin, async (req, res) => {
       code: 200,
       message: "Dispositivo atualizado com sucesso.",
     });
-  } catch {
+  } catch (err) {
+    logger.error("Erro ao atualizar dispositivo.", err);
     res.status(500).json({
       code: 500,
       message: "Erro ao atualizar dispositivo. Tente novamente.",
@@ -575,24 +596,37 @@ app.post("/devices/:id/delete", isAuthenticated, isAdmin, async (req, res) => {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
+
+    const deviceResult = await client.query(
+      "SELECT device_identifier FROM devices WHERE id = $1",
+      [id]
+    );
+
+    if (deviceResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Dispositivo não encontrado." });
+    }
+    const deviceIdentifier = deviceResult.rows[0].device_identifier;
+
     await client.query("DELETE FROM campaign_device WHERE device_id = $1", [
       id,
     ]);
     await client.query("DELETE FROM tokens WHERE device_id = $1", [id]);
-    const deleteResult = await client.query(
-      "DELETE FROM devices WHERE id = $1",
-      [id]
-    );
-    if (deleteResult.rowCount === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ message: "Dispositivo não encontrado." });
-    }
+    await client.query("DELETE FROM devices WHERE id = $1", [id]);
+
     await client.query("COMMIT");
-    res.status(200).json({
-      message: "Dispositivo excluído com sucesso.",
+
+    sendUpdateToDevice(id, {
+      type: "DEVICE_REVOKED",
+      payload: { identifier: deviceIdentifier },
     });
-  } catch {
+
+    res.status(200).json({
+      message: "Dispositivo excluído e sessão encerrada com sucesso.",
+    });
+  } catch (err) {
     await client.query("ROLLBACK");
+    logger.error("Erro ao excluir dispositivo:", err);
     res.status(500).json({ message: "Erro ao excluir o dispositivo." });
   } finally {
     client.release();
@@ -617,7 +651,8 @@ app.post(
         "host"
       )}/pair/magic?token=${token}`;
       res.status(200).json({ magicLink });
-    } catch {
+    } catch (err) {
+      logger.error("Erro ao gerar link mágico.", err);
       res.status(500).json({ message: "Erro ao gerar link mágico." });
     }
   }
@@ -657,8 +692,9 @@ app.post(
         message:
           "Acesso do dispositivo revogado e status atualizado com sucesso.",
       });
-    } catch {
+    } catch (err) {
       await client.query("ROLLBACK");
+      logger.error("Erro ao revogar acesso do dispositivo.", err);
       res
         .status(500)
         .json({ message: "Erro ao revogar acesso do dispositivo." });
@@ -685,7 +721,8 @@ app.post(
       res.status(200).json({
         message: "Dispositivo reativado com sucesso.",
       });
-    } catch {
+    } catch (err) {
+      logger.error("Erro ao reativar o dispositivo.", err);
       res.status(500).json({ message: "Erro ao reativar o dispositivo." });
     }
   }
@@ -761,15 +798,16 @@ app.post("/pair", async (req, res) => {
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: 604800000,
+      maxAge: JWT_REFRESH_COOKIE_MAX_AGE,
     });
     if (device.device_type === "busca_preco") {
       return res.redirect("/price");
     } else {
       return res.redirect("/player");
     }
-  } catch {
+  } catch (err) {
     await client.query("ROLLBACK");
+    logger.error("Erro ao autenticar dispositivo no pareamento.", err);
     res.render("pair", { error: "Erro ao autenticar dispositivo." });
   } finally {
     client.release();
@@ -790,7 +828,8 @@ app.get("/player", deviceAuth, async (req, res) => {
     }
     const device = deviceResult.rows[0];
     res.render("player", { deviceName: device.name });
-  } catch {
+  } catch (err) {
+    logger.error("Erro ao carregar a página do player.", err);
     res.status(500).send("Erro ao carregar dispositivo.");
   }
 });
@@ -810,15 +849,16 @@ app.get("/price", deviceAuth, async (req, res) => {
     const device = deviceResult.rows[0];
     const campaignsResult = await db.query(
       `SELECT c.* FROM campaigns c
-        JOIN campaign_device cd ON c.id = cd.campaign_id
-        WHERE cd.device_id = $1
-        AND c.start_date <= NOW() 
-        AND c.end_date >= NOW()`,
+       JOIN campaign_device cd ON c.id = cd.campaign_id
+       WHERE cd.device_id = $1
+       AND c.start_date <= NOW() 
+       AND c.end_date >= NOW()`,
       [device.id]
     );
     const offers = campaignsResult.rows;
     res.render("price", { deviceName: device.name, offers });
-  } catch {
+  } catch (err) {
+    logger.error("Erro ao carregar a página de busca de preço.", err);
     res.status(500).send("Erro ao carregar dispositivo.");
   }
 });
@@ -841,7 +881,9 @@ async function revokeToken(refreshToken) {
       "UPDATE tokens SET is_revoked = TRUE WHERE refresh_token = $1",
       [refreshToken]
     );
-  } catch {}
+  } catch (err) {
+    logger.error("Erro ao revogar token durante o logout.", err);
+  }
 }
 
 app.get(
@@ -854,7 +896,7 @@ app.get(
       const deviceResult = await db.query(
         `SELECT d.*,
         (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id AND t.is_revoked = false) > 0 as has_tokens
-        FROM devices d WHERE d.id = $1`,
+         FROM devices d WHERE d.id = $1`,
         [id]
       );
       if (deviceResult.rows.length === 0) {
@@ -863,8 +905,8 @@ app.get(
       const device = deviceResult.rows[0];
       const activeCampaignsResult = await db.query(
         `SELECT c.name FROM campaigns c
-        JOIN campaign_device cd ON c.id = cd.campaign_id
-        WHERE cd.device_id = $1 AND NOW() BETWEEN c.start_date AND c.end_date`,
+         JOIN campaign_device cd ON c.id = cd.campaign_id
+         WHERE cd.device_id = $1 AND NOW() BETWEEN c.start_date AND c.end_date`,
         [id]
       );
       const activeCampaigns = activeCampaignsResult.rows.map((c) => c.name);
@@ -897,7 +939,8 @@ app.get(
         active_campaigns: activeCampaigns,
         status: status,
       });
-    } catch {
+    } catch (err) {
+      logger.error("Erro ao buscar detalhes do dispositivo.", err);
       res.status(500).json({ message: "Erro interno do servidor." });
     }
   }
@@ -969,15 +1012,16 @@ app.get("/pair/magic", async (req, res) => {
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: 604800000,
+      maxAge: JWT_REFRESH_COOKIE_MAX_AGE,
     });
     if (device.device_type === "busca_preco") {
       return res.redirect("/price");
     } else {
       return res.redirect("/player");
     }
-  } catch {
+  } catch (err) {
     await client.query("ROLLBACK");
+    logger.error("Erro ao autenticar dispositivo com link mágico.", err);
     res.render("pair", { error: "Erro ao autenticar dispositivo." });
   } finally {
     client.release();
@@ -988,10 +1032,10 @@ app.get("/api/device/playlist", deviceAuth, async (req, res) => {
   try {
     const result = await db.query(
       `SELECT c.* FROM campaigns c
-        JOIN campaign_device cd ON c.id = cd.campaign_id
-        WHERE cd.device_id = $1
-        AND c.start_date <= NOW() 
-        AND c.end_date >= NOW()`,
+       JOIN campaign_device cd ON c.id = cd.campaign_id
+       WHERE cd.device_id = $1
+       AND c.start_date <= NOW() 
+       AND c.end_date >= NOW()`,
       [req.device.id]
     );
     res.setHeader(
@@ -1001,7 +1045,8 @@ app.get("/api/device/playlist", deviceAuth, async (req, res) => {
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
     res.json(result.rows);
-  } catch {
+  } catch (err) {
+    logger.error("Erro ao buscar playlist do dispositivo.", err);
     res.status(500).json({ message: "Erro ao buscar playlist." });
   }
 });
@@ -1059,7 +1104,8 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
     );
     const sectors = sectorsResult.rows.map((r) => r.sector);
     res.render("campaigns", { campaigns, devices, sectors });
-  } catch {
+  } catch (err) {
+    logger.error("Erro ao carregar campanhas.", err);
     res.status(500).send("Erro ao carregar campanhas.");
   }
 });
@@ -1094,7 +1140,8 @@ app.post(
           message: "A data de término não pode ser anterior à data de início.",
         });
       }
-    } catch {
+    } catch (err) {
+      logger.error("Formato de data inválido na criação de campanha.", err);
       return res.status(400).json({
         message: "Formato de data ou hora inválido. Use DD/MM/AAAA HH:MM.",
       });
@@ -1140,6 +1187,7 @@ app.post(
       });
     } catch (err) {
       await client.query("ROLLBACK");
+      logger.error("Erro interno ao criar campanha.", err);
       res.status(500).json({
         message: "Erro interno ao criar campanha.",
         error: err.message,
@@ -1187,7 +1235,9 @@ app.post(
       if (mediaPath) {
         const fileName = path.basename(mediaPath);
         const fullPath = path.join(__dirname, "uploads", fileName);
-        fsPromises.unlink(fullPath).catch(() => {});
+        fsPromises.unlink(fullPath).catch((err) => {
+          logger.error(`Falha ao excluir arquivo de mídia: ${fullPath}`, err);
+        });
       }
       if (deleteResult.rowCount === 0) {
         return res.status(404).json({ message: "Campanha não encontrada." });
@@ -1201,8 +1251,9 @@ app.post(
       res.status(200).json({
         message: "Campanha e mídia associada foram excluídas com sucesso.",
       });
-    } catch {
+    } catch (err) {
       await client.query("ROLLBACK");
+      logger.error(`Erro ao excluir campanha ID ${id}.`, err);
       res.status(500).json({ message: "Erro ao excluir campanha." });
     } finally {
       client.release();
@@ -1223,9 +1274,9 @@ app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
     const campaign = campaignResult.rows[0];
     const associatedDevicesResult = await db.query(
       `SELECT d.id, d.sector 
-                        FROM devices d 
-                        JOIN campaign_device cd ON d.id = cd.device_id 
-                        WHERE cd.campaign_id = $1`,
+         FROM devices d 
+         JOIN campaign_device cd ON d.id = cd.device_id 
+         WHERE cd.campaign_id = $1`,
       [id]
     );
     const associatedDevices = associatedDevicesResult.rows;
@@ -1234,7 +1285,8 @@ app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
     );
     const allDevices = allDevicesResult.rows;
     res.json({ campaign, associatedDevices, allDevices });
-  } catch {
+  } catch (err) {
+    logger.error(`Erro ao buscar detalhes da campanha ID ${id}.`, err);
     res.status(500).json({ message: "Erro interno do servidor." });
   }
 });
@@ -1270,7 +1322,8 @@ app.post(
           message: "A data de término não pode ser anterior à data de início.",
         });
       }
-    } catch {
+    } catch (err) {
+      logger.error("Formato de data inválido na edição de campanha.", err);
       return res.status(400).json({
         message: "Formato de data ou hora inválido. Use DD/MM/AAAA HH:MM.",
       });
@@ -1306,7 +1359,9 @@ app.post(
           "DELETE FROM campaign_uploads WHERE campaign_id = $1",
           [id]
         );
-        fsPromises.unlink(oldFullPath).catch(() => {});
+        fsPromises.unlink(oldFullPath).catch((err) => {
+          logger.error(`Falha ao excluir mídia antiga: ${oldFullPath}`, err);
+        });
       }
       if (req.file) {
         await client.query(
@@ -1363,6 +1418,7 @@ app.post(
       });
     } catch (err) {
       await client.query("ROLLBACK");
+      logger.error(`Erro interno ao atualizar campanha ID ${id}.`, err);
       res.status(500).json({
         message: "Erro interno ao atualizar campanha.",
         error: err.message,
@@ -1377,7 +1433,8 @@ app.get("/api/wsToken", deviceAuth, (req, res) => {
   try {
     const accessToken = generateAccessToken(req.device);
     res.json({ accessToken });
-  } catch {
+  } catch (err) {
+    logger.error("Erro ao gerar token para WebSocket.", err);
     res.status(500).json({ message: "Erro ao gerar token para WebSocket." });
   }
 });
@@ -1424,6 +1481,7 @@ async function authenticateCampeao() {
     campeaoTokenExp = Date.now() + 14 * 60 * 1000;
   } catch (err) {
     campeaoToken = null;
+    logger.error("Falha ao autenticar na API Campeão.", err);
     throw err;
   }
 }
@@ -1443,6 +1501,7 @@ async function gqlRequest(body) {
     });
   } catch (err) {
     if (err.response && err.response.status === 401) {
+      logger.info("Token da API Campeão expirado, reautenticando.");
       campeaoToken = null;
       await ensureToken();
       return axios.post(GQL_URL, body, {
@@ -1450,6 +1509,7 @@ async function gqlRequest(body) {
         timeout: 10000,
       });
     }
+    logger.error("Erro na requisição GQL para a API Campeão.", err);
     throw err;
   }
 }
@@ -1510,6 +1570,7 @@ app.get("/api/product/:barcode", async (req, res) => {
         `,
       });
     } catch (err) {
+      logger.error(`Erro ao consultar API externa para o produto ${iid}.`, err);
       return res
         .status(500)
         .json({ message: "Erro ao consultar API externa." });
@@ -1532,19 +1593,14 @@ app.get("/api/product/:barcode", async (req, res) => {
       image,
     });
   } catch (err) {
+    logger.error(
+      `Erro ao buscar produto com código de barras ${barcode}.`,
+      err
+    );
     return res.status(500).json({ message: "Erro ao buscar produto." });
   }
 });
 
-app.get("/api/debug/campeao-auth", async (req, res) => {
-  try {
-    await ensureToken();
-    res.json({ ok: true, expiraEmMs: campeaoTokenExp - Date.now() });
-  } catch (e) {
-    res.status(500).json({ ok: false, erro: e.message });
-  }
-});
-
 server.listen(PORT, () => {
-  console.log(`Servidor rodando em http://127.0.0.1:${PORT}`);
+  logger.info(`🔥 Server Running in http://127.0.0.1:${PORT}`);
 });

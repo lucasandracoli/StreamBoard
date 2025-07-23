@@ -1,3 +1,5 @@
+import DeviceConnector from "./utils/connector.js";
+
 document.addEventListener("DOMContentLoaded", () => {
   const viewWrapper = document.getElementById("price-view-wrapper");
   const idleScreen = document.getElementById("idle-screen");
@@ -133,7 +135,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch("/api/device/playlist", { cache: "no-cache" });
       if (!res.ok) {
         if ([401, 403].includes(res.status)) {
-          wsManager.disconnect(false);
+          connector.disconnect(false);
           location.href = "/pair?error=session_expired";
         }
         return;
@@ -171,11 +173,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const fetchProduct = async (barcode) => {
-    console.log(`Buscando produto para barcode: ${barcode}`);
     const res = await fetch(`/api/product/${barcode}`);
     if (!res.ok) throw new Error();
     const json = await res.json();
-    console.log("Resposta completa do produto:", json);
     return json;
   };
 
@@ -197,12 +197,10 @@ document.addEventListener("DOMContentLoaded", () => {
       productPriceEl.textContent = pv2.toString().replace(".", ",");
       productBarcodeEl.textContent = bar;
       if (image) {
-        console.log("Imagem válida recebida:", image);
         productSvg.style.display = "none";
         productImage.src = image;
         productImage.style.display = "block";
       } else {
-        console.log("Nenhuma imagem recebida, exibindo SVG padrão.");
         productImage.style.display = "none";
         productSvg.style.display = "block";
       }
@@ -214,7 +212,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }, 500);
     } catch (e) {
-      console.log("Erro ao buscar produto:", e);
       loader.style.display = "none";
       showMessageScreen("Produto não encontrado", "", "error");
       const msg = new SpeechSynthesisUtterance("Produto não encontrado");
@@ -242,101 +239,50 @@ document.addEventListener("DOMContentLoaded", () => {
     bufTimeout = setTimeout(() => (buf = ""), 200);
   });
 
-  class WebSocketManager {
-    constructor() {
-      this.ws = null;
-      this.probeTimer = null;
-      this.probeInterval = 5000;
-      this.shouldReconnect = true;
-    }
-    async probeAndConnect() {
-      try {
-        const res = await fetch("/api/wsToken");
-        if ([401, 403].includes(res.status)) {
-          this.disconnect(false);
-          showMessageScreen("Sessão Inválida", "Redirecionando...", "error");
-          setTimeout(
-            () => (location.href = "/pair?error=session_expired"),
-            4000
-          );
-          return;
-        }
-        if (!res.ok) throw new Error();
-        const { accessToken } = await res.json();
-        console.log("WebSocket token válido:", accessToken);
-        this.stopProbing();
-        this.establishConnection(accessToken);
-      } catch (e) {
-        console.log("Erro ao obter WebSocket token:", e);
+  const connector = new DeviceConnector({
+    onOpen: () => {
+      fetchAndResetPlaylist();
+    },
+    onMessage: (data) => {
+      switch (data.type) {
+        case "NEW_CAMPAIGN":
+        case "UPDATE_CAMPAIGN":
+        case "DELETE_CAMPAIGN":
+          fetchAndResetPlaylist();
+          break;
+        case "FORCE_REFRESH":
+          connector.disconnect(false);
+          location.reload(true);
+          break;
+        case "DEVICE_REVOKED":
+          connector.disconnect(false);
+          clearInterval(playlistInterval);
+          location.href = "/pair?error=revoked";
+          break;
+        case "TYPE_CHANGED":
+          connector.disconnect(false);
+          location.href =
+            data.payload.newType === "busca_preco" ? "/price" : "/player";
+          break;
       }
-    }
-    startProbing() {
-      if (this.probeTimer || !this.shouldReconnect) return;
+    },
+    onReconnecting: () => {
       showMessageScreen(
         "Conexão Perdida",
         "Tentando reconectar...",
         "reconnecting"
       );
-      this.probeAndConnect();
-      this.probeTimer = setInterval(
-        () => this.probeAndConnect(),
-        this.probeInterval
-      );
-    }
-    stopProbing() {
-      clearTimeout(this.probeTimer);
-      this.probeTimer = null;
-    }
-    establishConnection(token) {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
-      const proto = location.protocol === "https:" ? "wss:" : "ws:";
-      this.ws = new WebSocket(`${proto}//${location.host}?token=${token}`);
-      this.ws.onopen = () => {
-        console.log("WebSocket conectado.");
-        fetchAndResetPlaylist();
-      };
-      this.ws.onmessage = (e) => {
-        const data = JSON.parse(e.data);
-        switch (data.type) {
-          case "NEW_CAMPAIGN":
-          case "UPDATE_CAMPAIGN":
-          case "DELETE_CAMPAIGN":
-            fetchAndResetPlaylist();
-            break;
-          case "FORCE_REFRESH":
-            this.disconnect(false);
-            location.reload(true);
-            break;
-          case "DEVICE_REVOKED":
-            this.disconnect(false);
-            clearInterval(playlistInterval);
-            location.href = "/pair?error=revoked";
-            break;
-          case "TYPE_CHANGED":
-            this.disconnect(false);
-            location.href =
-              data.payload.newType === "busca_preco" ? "/price" : "/player";
-        }
-      };
-      this.ws.onclose = () => {
-        if (this.shouldReconnect) this.startProbing();
-      };
-      this.ws.onerror = () => this.ws.close();
-    }
-    connect() {
-      this.startProbing();
-    }
-    disconnect(shouldReconnect = true) {
-      this.shouldReconnect = shouldReconnect;
-      this.stopProbing();
-      if (this.ws) this.ws.close(1000, "Intentional");
-    }
-  }
+    },
+    onAuthFailure: () => {
+      showMessageScreen("Sessão Inválida", "Redirecionando...", "error");
+      setTimeout(() => (location.href = "/pair?error=session_expired"), 4000);
+    },
+  });
 
-  const wsManager = new WebSocketManager();
-  wsManager.connect();
+  connector.connect();
   if (playlistInterval) clearInterval(playlistInterval);
   playlistInterval = setInterval(fetchAndResetPlaylist, 60000);
+
   showIdleScreen();
   fetchAndResetPlaylist();
 });

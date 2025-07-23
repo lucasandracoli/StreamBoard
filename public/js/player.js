@@ -1,4 +1,5 @@
-// player.js
+import DeviceConnector from "./utils/connector.js";
+
 document.addEventListener("DOMContentLoaded", () => {
   const campaignContainer = document.getElementById("campaign-container");
   let playlist = [];
@@ -77,7 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch("/api/device/playlist", { cache: "no-cache" });
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
-          wsManager.disconnect(false);
+          connector.disconnect(false);
           if (playlistInterval) clearInterval(playlistInterval);
           window.location.href = "/pair?error=session_expired";
         }
@@ -103,91 +104,42 @@ document.addEventListener("DOMContentLoaded", () => {
         fetchAndResetPlaylist();
         break;
       case "DEVICE_REVOKED":
-        wsManager.disconnect(false);
+        connector.disconnect(false);
         if (playlistInterval) clearInterval(playlistInterval);
         window.location.href = "/pair?error=revoked";
         break;
       case "FORCE_REFRESH":
-        wsManager.disconnect(false);
+        connector.disconnect(false);
         window.location.reload(true);
         break;
       case "TYPE_CHANGED":
-        wsManager.disconnect(false);
+        connector.disconnect(false);
         window.location.href =
           data.payload.newType === "busca_preco" ? "/price" : "/player";
         break;
     }
   };
 
-  class WebSocketManager {
-    constructor() {
-      this.ws = null;
-      this.probeTimer = null;
-      this.probeInterval = 5000;
-      this.shouldReconnect = true;
-    }
-    async probeAndConnect() {
-      try {
-        const res = await fetch("/api/wsToken");
-        if (res.status === 401 || res.status === 403) {
-          this.disconnect(false);
-          showWaitingScreen("Sessão Inválida", "Redirecionando...", "error");
-          setTimeout(
-            () => (window.location.href = "/pair?error=session_expired"),
-            4000
-          );
-          return;
-        }
-        if (!res.ok) throw new Error();
-        const { accessToken } = await res.json();
-        this.stopProbing();
-        this.establishConnection(accessToken);
-      } catch {}
-    }
-    startProbing() {
-      if (this.probeTimer || !this.shouldReconnect) return;
+  const connector = new DeviceConnector({
+    onOpen: fetchAndResetPlaylist,
+    onMessage: handleServerMessage,
+    onReconnecting: () => {
       showWaitingScreen(
         "Conexão Perdida",
         "Tentando reconectar...",
         "reconnecting"
       );
-      this.probeAndConnect();
-      this.probeTimer = setInterval(
-        () => this.probeAndConnect(),
-        this.probeInterval
+    },
+    onAuthFailure: () => {
+      showWaitingScreen("Sessão Inválida", "Redirecionando...", "error");
+      setTimeout(
+        () => (window.location.href = "/pair?error=session_expired"),
+        4000
       );
-    }
-    stopProbing() {
-      clearInterval(this.probeTimer);
-      this.probeTimer = null;
-    }
-    establishConnection(token) {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
-      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-      this.ws = new WebSocket(`${protocol}//${location.host}?token=${token}`);
-      this.ws.onopen = fetchAndResetPlaylist;
-      this.ws.onmessage = (e) => {
-        try {
-          handleServerMessage(JSON.parse(e.data));
-        } catch {}
-      };
-      this.ws.onclose = () => {
-        if (this.shouldReconnect) this.startProbing();
-      };
-      this.ws.onerror = () => this.ws.close();
-    }
-    connect() {
-      this.startProbing();
-    }
-    disconnect(shouldReconnect = true) {
-      this.shouldReconnect = shouldReconnect;
-      this.stopProbing();
-      if (this.ws) this.ws.close(1000, "Intentional");
-    }
-  }
+    },
+  });
 
-  const wsManager = new WebSocketManager();
-  wsManager.connect();
+  connector.connect();
   if (playlistInterval) clearInterval(playlistInterval);
   playlistInterval = setInterval(fetchAndResetPlaylist, 45000);
 });
