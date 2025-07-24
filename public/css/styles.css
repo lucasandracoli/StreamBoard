@@ -22,7 +22,7 @@
   --color-warning-light: #fef3c7;
 
   --text-xs: 0.75rem;
-  --text-sm: 0.80rem;
+  --text-sm: 0.8rem;
   --text-base: 0.85rem;
   --text-lg: 1rem;
   --text-xl: 1.125rem;
@@ -360,7 +360,6 @@ body {
 }
 
 .device-table tbody tr:hover {
-  background-color: #f0f0f0;
   cursor: pointer;
 }
 
@@ -510,7 +509,7 @@ body {
   font-weight: 500;
   transition: background-color var(--transition-normal),
     color var(--transition-normal);
-  border: none;  
+  border: none;
 }
 
 .device-button-cancel:hover {
@@ -1439,11 +1438,21 @@ html,
   color: var(--color-primary);
 }
 
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
 .footer-icon-svg {
   width: 40px;
   height: 40px;
   color: var(--color-primary);
-  animation: bounce 2s ease-in-out infinite;
+  animation: bounce 1s infinite alternate;
 }
 
 select.modal-input {

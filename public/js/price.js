@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
     messageCardEl = viewWrapper.querySelector(".player-message-card");
   };
 
-  const hasPlayableMedia = () => playlist.some((c) => c.midia);
+  const hasPlayableMedia = () => playlist.some((c) => c.file_path);
 
   const speakPrice = (price, onComplete) => {
     if (!("speechSynthesis" in window)) return onComplete();
@@ -75,26 +75,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const preloadMedia = () => {
     playlist.forEach((c) => {
-      if (!c.midia || mediaCache[c.midia]) return;
-      const ext = c.midia.split(".").pop().toLowerCase();
+      if (!c.file_path || mediaCache[c.file_path]) return;
+      const ext = c.file_path.split(".").pop().toLowerCase();
       let el;
       if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) el = new Image();
       else if (["mp4", "webm", "mov"].includes(ext))
         el = document.createElement("video");
       if (el) {
-        el.src = c.midia;
-        mediaCache[c.midia] = el;
+        el.src = c.file_path;
+        mediaCache[c.file_path] = el;
       }
     });
   };
 
   const displayMedia = (campaign) => {
-    clearTimeout(mediaTimer);
+    if (mediaTimer) clearTimeout(mediaTimer);
     offerContainer.innerHTML = "";
     offerContainer.style.backgroundColor = "#000";
-    const url = campaign.midia;
+    offerContainer.style.display = "block";
+    backgroundImage.style.display = "none";
+
+    if (!campaign || !campaign.file_path) {
+      playNextMedia();
+      return;
+    }
+
+    const url = campaign.file_path;
     const ext = url.split(".").pop().toLowerCase();
     const cached = mediaCache[url];
+
     if (cached && ["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
       const img = cached.cloneNode();
       img.onerror = playNextMedia;
@@ -108,7 +117,9 @@ document.addEventListener("DOMContentLoaded", () => {
       vid.onended = playNextMedia;
       vid.onerror = playNextMedia;
       offerContainer.appendChild(vid);
-    } else playNextMedia();
+    } else {
+      playNextMedia();
+    }
   };
 
   const playNextMedia = () => {
@@ -118,16 +129,16 @@ document.addEventListener("DOMContentLoaded", () => {
       backgroundImage.style.display = "block";
       return;
     }
-    offerContainer.style.display = "flex";
+    offerContainer.style.display = "block";
     backgroundImage.style.display = "none";
     let next = (currentCampaign + 1) % playlist.length;
     let tries = 0;
-    while (!playlist[next].midia && tries < playlist.length) {
+    while (!playlist[next].file_path && tries < playlist.length) {
       next = (next + 1) % playlist.length;
       tries++;
     }
     currentCampaign = next;
-    displayMedia(playlist[next]);
+    displayMedia(playlist[currentCampaign]);
   };
 
   const fetchAndResetPlaylist = async () => {
@@ -158,7 +169,15 @@ document.addEventListener("DOMContentLoaded", () => {
     idleScreen.style.display = "flex";
     footer.style.display = "flex";
     if ("speechSynthesis" in window) speechSynthesis.cancel();
-    playNextMedia();
+
+    if (hasPlayableMedia()) {
+      offerContainer.style.display = "block";
+      backgroundImage.style.display = "none";
+      playNextMedia();
+    } else {
+      offerContainer.style.display = "none";
+      backgroundImage.style.display = "block";
+    }
   }
 
   function showPriceCard() {
