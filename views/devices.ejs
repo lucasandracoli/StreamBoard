@@ -1,6 +1,7 @@
-<% const deviceIcons = { tv: 'bi-tv', windows: 'bi-windows', linux:
-'bi-terminal', android: 'bi-android2', ios: 'bi-apple', web: 'bi-globe2',
-busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
+<% const deviceIcons = { 'midia_indoor': 'bi-tv', 'terminal_consulta':
+'bi-upc-scan', default: 'bi-question-circle' }; const deviceTypeMap = {
+'midia_indoor': 'Mídia Indoor', 'terminal_consulta': 'Terminal de Consulta',
+'default': 'Tipo Desconhecido' }; %>
 
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -69,17 +70,31 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
                   <span data-status-text><%= device.status.text %></span>
                 </span>
               </td>
-              <td class="break-word"><%= device.company_name || 'N/A' %></td>
+              <td class="break-word">
+                <span class="highlight-company"
+                  ><%= device.company_name || 'N/A' %></span
+                >
+              </td>
               <td class="break-word"><%= device.sector_name || 'N/A' %></td>
               <td class="icon-cell">
                 <button
                   class="details-icon-button open-details-modal"
                   data-device-id="<%= device.id %>"
                   title="Ver Detalhes"
+                  style="
+                    background: none;
+                    border: none;
+                    padding: 0;
+                    margin: 0;
+                    color: inherit;
+                    font: inherit;
+                    cursor: pointer;
+                    text-align: left;
+                    width: 100%;
+                  "
                 >
-                  <i
-                    class="bi <%= deviceIcons[device.device_type] || deviceIcons.default %>"
-                  ></i>
+                  <%= deviceTypeMap[device.device_type] || deviceTypeMap.default
+                  %>
                 </button>
               </td>
               <td class="actions-cell">
@@ -152,7 +167,7 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
               <h4>Localização</h4>
               <p>
                 <span class="details-label">Empresa:</span>
-                <span id="modalDeviceCompany"></span>
+                <span id="modalDeviceCompany" class="highlight-company"></span>
               </p>
               <p>
                 <span class="details-label">Setor:</span>
@@ -160,8 +175,19 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
               </p>
             </div>
             <div class="details-section">
-              <h4>Atividade Atual</h4>
-              <div id="modalActiveCampaigns"></div>
+              <h4>Atividade e Conexão</h4>
+              <p>
+                <span class="details-label">Visto por último:</span>
+                <span id="modalLastSeen"></span>
+              </p>
+              <p>
+                <span class="details-label">Data de Cadastro:</span>
+                <span id="modalRegisteredAt"></span>
+              </p>
+              <p>
+                <span class="details-label">Campanhas Ativas:</span>
+                <span id="modalActiveCampaigns"></span>
+              </p>
             </div>
             <div class="details-section">
               <h4>Dados de Acesso</h4>
@@ -273,14 +299,8 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
               class="modal-input"
               required
             >
-              <option value="tv">TV</option>
-              <option value="windows">Windows</option>
-              <option value="linux">Linux</option>
-              <option value="android">Android</option>
-              <option value="ios">iOS</option>
-              <option value="web">Web</option>
-              <option value="busca_preco">Busca Preço</option>
-              <option value="unknown" selected>Outro</option>
+              <option value="midia_indoor" selected>Mídia Indoor</option>
+              <option value="terminal_consulta">Terminal de Consulta</option>
             </select>
           </div>
           <div class="modal-actions">

@@ -808,7 +808,7 @@ app.get("/pair", (req, res) => {
   if (accessToken || refreshToken) {
     return deviceAuth(req, res, () => {
       const type = req.device.device_type;
-      return res.redirect(type === "busca_preco" ? "/price" : "/player");
+      return res.redirect(type === "terminal_consulta" ? "/price" : "/player");
     });
   }
   if (error) {
@@ -869,7 +869,7 @@ app.post("/pair", async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       maxAge: JWT_REFRESH_COOKIE_MAX_AGE,
     });
-    if (device.device_type === "busca_preco") {
+    if (device.device_type === "terminal_consulta") {
       return res.redirect("/price");
     } else {
       return res.redirect("/player");
@@ -884,7 +884,7 @@ app.post("/pair", async (req, res) => {
 });
 
 app.get("/player", deviceAuth, async (req, res) => {
-  if (req.device.device_type === "busca_preco") {
+  if (req.device.device_type === "terminal_consulta") {
     return res.redirect("/price");
   }
   try {
@@ -904,7 +904,7 @@ app.get("/player", deviceAuth, async (req, res) => {
 });
 
 app.get("/price", deviceAuth, async (req, res) => {
-  if (req.device.device_type !== "busca_preco") {
+  if (req.device.device_type !== "terminal_consulta") {
     return res.redirect("/player");
   }
   try {
@@ -1088,7 +1088,7 @@ app.get("/pair/magic", async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       maxAge: JWT_REFRESH_COOKIE_MAX_AGE,
     });
-    if (device.device_type === "busca_preco") {
+    if (device.device_type === "terminal_consulta") {
       return res.redirect("/price");
     } else {
       return res.redirect("/player");
@@ -1229,7 +1229,7 @@ app.post(
       await client.query("BEGIN");
       const campaignResult = await client.query(
         `INSERT INTO campaigns (name, start_date, end_date, company_id)
-          VALUES ($1, $2, $3, $4) RETURNING *`,
+         VALUES ($1, $2, $3, $4) RETURNING *`,
         [name, parsedStartDate, parsedEndDate, company_id]
       );
       const newCampaign = campaignResult.rows[0];
@@ -1239,7 +1239,7 @@ app.post(
           const filePath = `/uploads/${file.filename}`;
           await client.query(
             `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order)
-                VALUES ($1, $2, $3, $4, $5)`,
+               VALUES ($1, $2, $3, $4, $5)`,
             [newCampaign.id, file.filename, filePath, file.mimetype, index]
           );
         }
@@ -1248,7 +1248,7 @@ app.post(
       for (const device_id of device_ids) {
         await client.query(
           `INSERT INTO campaign_device (campaign_id, device_id)
-            VALUES ($1, $2)`,
+           VALUES ($1, $2)`,
           [newCampaign.id, device_id]
         );
       }
@@ -1558,7 +1558,7 @@ app.post(
         const newFilePath = `/uploads/${req.file.filename}`;
         await client.query(
           `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order)
-                 VALUES ($1, $2, $3, $4, 0)`,
+             VALUES ($1, $2, $3, $4, 0)`,
           [id, req.file.filename, newFilePath, req.file.mimetype]
         );
       }
@@ -1616,6 +1616,57 @@ app.post("/api/sectors", isAuthenticated, isAdmin, async (req, res) => {
     res.status(500).json({ message: "Erro ao adicionar novo setor." });
   }
 });
+
+app.post(
+  "/api/sectors/:id/delete",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+
+      const devicesCountResult = await client.query(
+        "SELECT COUNT(*) FROM devices WHERE sector_id = $1",
+        [id]
+      );
+      const devicesCount = parseInt(devicesCountResult.rows[0].count, 10);
+
+      if (devicesCount > 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          message:
+            "Não é possível excluir este setor pois existem dispositivos associados a ele. Remova ou reassocie os dispositivos primeiro.",
+        });
+      }
+
+      const deleteResult = await client.query(
+        "DELETE FROM sectors WHERE id = $1 RETURNING *",
+        [id]
+      );
+
+      if (deleteResult.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ message: "Setor não encontrado." });
+      }
+
+      await client.query("COMMIT");
+      res.status(200).json({ message: "Setor excluído com sucesso." });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "23503") {
+        return res.status(409).json({
+          message:
+            "Não é possível excluir este setor pois existem referências a ele em outras tabelas (ex: dispositivos). Remova as associações primeiro.",
+        });
+      }
+      res.status(500).json({ message: "Erro ao excluir setor." });
+    } finally {
+      client.release();
+    }
+  }
+);
 
 app.get("/api/companies/:id", isAuthenticated, isAdmin, async (req, res) => {
   const { id } = req.params;

@@ -5,6 +5,12 @@ document.addEventListener("DOMContentLoaded", () => {
     dismissible: true,
   });
 
+  const deviceTypeNames = {
+    midia_indoor: "Mídia Indoor",
+    terminal_consulta: "Terminal de Consulta",
+    default: "Tipo Desconhecido",
+  };
+
   const handleFetchError = async (response) => {
     try {
       const errorJson = await response.json();
@@ -111,18 +117,40 @@ document.addEventListener("DOMContentLoaded", () => {
     sectorList.addEventListener("click", async (e) => {
       if (e.target.classList.contains("delete-sector-btn")) {
         const sectorId = e.target.dataset.id;
-        if (confirm("Tem certeza que deseja excluir este setor?")) {
+
+        const confirmationModal = document.getElementById("confirmationModal");
+        const confirmButton = document.getElementById("confirmDeletion");
+        const cancelButton = document.getElementById("cancelConfirmation");
+
+        confirmationModal.querySelector(
+          ".confirmation-modal-body p"
+        ).textContent = "Deseja realmente excluir este setor?";
+
+        confirmationModal.style.display = "flex";
+
+        const newConfirmButton = confirmButton.cloneNode(true);
+        confirmButton.parentNode.replaceChild(newConfirmButton, confirmButton);
+        const newCancelButton = cancelButton.cloneNode(true);
+        cancelButton.parentNode.replaceChild(newCancelButton, cancelButton);
+
+        newConfirmButton.addEventListener("click", async () => {
           try {
             const res = await fetch(`/api/sectors/${sectorId}/delete`, {
               method: "POST",
             });
             if (!res.ok) throw new Error(await handleFetchError(res));
             notyf.success("Setor excluído.");
+            confirmationModal.style.display = "none";
             fetchAndRenderSectors(currentCompanyId);
           } catch (error) {
             notyf.error(error.message || "Falha ao excluir setor.");
+            confirmationModal.style.display = "none";
           }
-        }
+        });
+
+        newCancelButton.addEventListener("click", () => {
+          confirmationModal.style.display = "none";
+        });
       }
     });
 
@@ -417,19 +445,19 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       filePreviewWrapper.innerHTML = `
-            <div class="file-preview">
-                <div class="file-preview-icon">
-                    <i class="bi ${iconClass}"></i>
+                <div class="file-preview">
+                    <div class="file-preview-icon">
+                        <i class="bi ${iconClass}"></i>
+                    </div>
+                    <div class="file-preview-details">
+                        <div class="file-preview-name" title="${fileName}">${fileName}</div>
+                        <div class="file-preview-extension">${fileExtension}</div>
+                    </div>
+                    <button type="button" class="file-preview-remove">
+                        <i class="bi bi-x"></i>
+                    </button>
                 </div>
-                <div class="file-preview-details">
-                    <div class="file-preview-name" title="${fileName}">${fileName}</div>
-                    <div class="file-preview-extension">${fileExtension}</div>
-                </div>
-                <button type="button" class="file-preview-remove">
-                    <i class="bi bi-x"></i>
-                </button>
-            </div>
-        `;
+            `;
       fileUploadButton.style.display = "none";
     };
 
@@ -536,45 +564,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const detailsModal = document.getElementById("deviceDetailsModal");
   if (detailsModal) {
-    const populateDetailsModal = (data) => {
-      document.getElementById("modalDeviceName").textContent = data.name;
-      document.getElementById(
-        "modalDeviceType"
-      ).textContent = `Dispositivo ${data.device_type}`;
+    const populateDetailsModal = (device) => {
+      const deviceIcons = {
+        midia_indoor: "bi-tv",
+        terminal_consulta: "bi-upc-scan",
+        default: "bi-question-circle",
+      };
+
+      document.getElementById("modalDeviceName").textContent = device.name;
       document.getElementById("modalDeviceCompany").textContent =
-        data.company_name || "N/A";
+        device.company_name || "N/A";
       document.getElementById("modalDeviceSector").textContent =
-        data.sector_name || "N/A";
+        device.sector_name || "N/A";
+      document.getElementById("modalDeviceType").textContent =
+        deviceTypeNames[device.device_type] || deviceTypeNames.default;
+      document.getElementById("modalLastSeen").textContent =
+        device.last_seen_formatted;
+      document.getElementById("modalRegisteredAt").textContent =
+        device.registered_at_formatted;
+
+      const iconClass = deviceIcons[device.device_type] || deviceIcons.default;
+      document.getElementById(
+        "modalDeviceIcon"
+      ).innerHTML = `<i class="bi ${iconClass}"></i>`;
+
+      const campaignsSpan = document.getElementById("modalActiveCampaigns");
+      if (device.active_campaigns && device.active_campaigns.length > 0) {
+        campaignsSpan.textContent = device.active_campaigns.join(", ");
+      } else {
+        campaignsSpan.textContent = "Nenhuma campanha ativa no momento.";
+      }
 
       const identifierEl = document.getElementById("modalDeviceIdentifier");
       identifierEl.textContent =
-        data.device_identifier.substring(0, 16) + "...";
-      identifierEl.dataset.fullValue = data.device_identifier;
+        device.device_identifier.substring(0, 16) + "...";
+      identifierEl.dataset.fullValue = device.device_identifier;
 
       const authKeyEl = document.getElementById("modalAuthKey");
-      authKeyEl.textContent = data.authentication_key.substring(0, 16) + "...";
-      authKeyEl.dataset.fullValue = data.authentication_key;
-
-      const campaignsDiv = document.getElementById("modalActiveCampaigns");
-      if (data.active_campaigns && data.active_campaigns.length > 0) {
-        campaignsDiv.innerHTML = data.active_campaigns
-          .map(
-            (name) =>
-              `<p><span class="details-label">Campanha:</span><span>${name}</span></p>`
-          )
-          .join("");
-      } else {
-        campaignsDiv.innerHTML =
-          '<p class="details-subtitle">Nenhuma campanha ativa no momento.</p>';
-      }
-
-      const iconContainer = document.getElementById("modalDeviceIcon");
-      const icon = document.querySelector(
-        `.open-details-modal[data-device-id="${data.id}"] i`
-      );
-      if (icon) {
-        iconContainer.innerHTML = icon.outerHTML;
-      }
+      authKeyEl.textContent =
+        device.authentication_key.substring(0, 16) + "...";
+      authKeyEl.dataset.fullValue = device.authentication_key;
 
       const revokeBtn = document.getElementById("modalRevokeButton");
       const reactivateBtn = document.getElementById("modalReactivateButton");
@@ -582,15 +611,15 @@ document.addEventListener("DOMContentLoaded", () => {
         "modalGenerateMagicLinkButton"
       );
 
-      revokeBtn.dataset.identifier = data.device_identifier;
-      reactivateBtn.dataset.identifier = data.device_identifier;
-      magicLinkBtn.dataset.id = data.id;
+      revokeBtn.dataset.identifier = device.device_identifier;
+      reactivateBtn.dataset.identifier = device.device_identifier;
+      magicLinkBtn.dataset.id = device.id;
 
-      if (data.is_active) {
+      if (device.is_active) {
         revokeBtn.style.display = "inline-flex";
         reactivateBtn.style.display = "none";
         magicLinkBtn.style.display =
-          data.status.text === "Inativo" ? "inline-flex" : "none";
+          device.status.text === "Inativo" ? "inline-flex" : "none";
       } else {
         revokeBtn.style.display = "none";
         reactivateBtn.style.display = "inline-flex";
@@ -704,18 +733,26 @@ document.addEventListener("DOMContentLoaded", () => {
           e.stopPropagation();
           const id = e.currentTarget.dataset.id;
           let url = "";
+          let message = "";
 
           if (document.body.id === "campaigns-page") {
             url = `/campaigns/${id}/delete`;
+            message = "Deseja realmente excluir esta campanha?";
           } else if (document.body.id === "devices-page") {
             url = `/devices/${id}/delete`;
+            message = "Deseja realmente excluir este dispositivo?";
           } else if (document.body.id === "companies-page") {
             url = `/companies/${id}/delete`;
+            message =
+              "Deseja realmente excluir esta empresa? Todos os dispositivos e campanhas associados também serão removidos.";
           } else {
             return;
           }
 
           confirmationModal.style.display = "flex";
+          confirmationModal.querySelector(
+            ".confirmation-modal-body p"
+          ).textContent = message;
 
           const confirmBtn = document.getElementById("confirmDeletion");
           const newConfirmBtn = confirmBtn.cloneNode(true);
@@ -757,7 +794,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (event.target.closest(".actions-cell")) {
         return;
       }
-      this.querySelector(".open-details-modal")?.click();
+      const detailsButton = this.querySelector(".open-details-modal");
+      if (detailsButton) {
+        detailsButton.click();
+      }
     });
   });
 
