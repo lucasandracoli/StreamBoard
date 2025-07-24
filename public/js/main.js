@@ -75,11 +75,11 @@ document.addEventListener("DOMContentLoaded", () => {
           : sectors
               .map(
                 (sector) => `
-            <div class="sector-item">
-              <span>${sector.name}</span>
-              <button type="button" class="delete-sector-btn" data-id="${sector.id}">X</button>
-            </div>
-          `
+                <div class="sector-item">
+                  <span>${sector.name}</span>
+                  <button type="button" class="delete-sector-btn" data-id="${sector.id}">X</button>
+                </div>
+              `
               )
               .join("");
     };
@@ -378,6 +378,53 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
+    const generateVideoThumbnail = (file) => {
+      return new Promise((resolve) => {
+        const video = document.createElement("video");
+        video.setAttribute("crossorigin", "anonymous");
+        video.preload = "metadata";
+
+        const source =
+          file instanceof File ? URL.createObjectURL(file) : file.file_path;
+
+        const onSeeked = () => {
+          video.removeEventListener("seeked", onSeeked);
+          window.setTimeout(() => {
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            if (!canvas.width || !canvas.height) {
+              resolve(null);
+              return;
+            }
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL("image/jpeg");
+            if (file instanceof File) {
+              URL.revokeObjectURL(source);
+            }
+            resolve(dataUrl);
+          }, 100);
+        };
+
+        const onLoadedData = () => {
+          video.removeEventListener("loadeddata", onLoadedData);
+          video.currentTime = 1;
+        };
+
+        video.addEventListener("loadeddata", onLoadedData);
+        video.addEventListener("seeked", onSeeked);
+        video.addEventListener("error", () => {
+          if (file instanceof File) {
+            URL.revokeObjectURL(source);
+          }
+          resolve(null);
+        });
+
+        video.src = source;
+      });
+    };
+
     const populateDevicesForCampaign = async (companyId) => {
       tomSelect.clear();
       tomSelect.clearOptions();
@@ -416,10 +463,10 @@ document.addEventListener("DOMContentLoaded", () => {
         sortableInstance = null;
       }
       elements.filePreviewWrapper.innerHTML = "";
-      if (stagedFiles.length === 0) return;
 
       const list = document.createElement("ul");
       list.className = "file-preview-list";
+
       stagedFiles.forEach((file, index) => {
         const fileName = file.name || file.file_name;
         const fileType = file.type || file.file_type || "";
@@ -427,13 +474,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const isVideo = fileType.startsWith("video/");
         let thumbnailHtml = `<i class="bi bi-file-earmark"></i>`;
 
-        if (isImage) {
-          const src =
-            file instanceof File ? URL.createObjectURL(file) : file.file_path;
-          thumbnailHtml = `<img src="${src}" alt="preview">`;
-        } else if (isVideo) {
-          thumbnailHtml = `<i class="bi bi-film"></i>`;
-        }
+        const item = document.createElement("li");
+        item.className = "file-preview-item";
+        item.dataset.id = file.id || `new-${index}`;
 
         const durationInputHtml = isImage
           ? `<div class="media-duration-group">
@@ -444,9 +487,6 @@ document.addEventListener("DOMContentLoaded", () => {
              </div>`
           : "";
 
-        const item = document.createElement("li");
-        item.className = "file-preview-item";
-        item.dataset.id = file.id || `new-${index}`;
         item.innerHTML = `
           <div class="media-thumbnail">${thumbnailHtml}</div>
           <div class="media-details">
@@ -454,12 +494,47 @@ document.addEventListener("DOMContentLoaded", () => {
             ${durationInputHtml}
           </div>
           <button type="button" class="remove-file-btn" data-index="${index}">&times;</button>`;
+
         list.appendChild(item);
+
+        const thumbnailContainer = item.querySelector(".media-thumbnail");
+
+        if (isImage) {
+          const src =
+            file instanceof File ? URL.createObjectURL(file) : file.file_path;
+          thumbnailContainer.innerHTML = `<img src="${src}" alt="preview">`;
+        } else if (isVideo) {
+          thumbnailContainer.innerHTML = `<i class="bi bi-film"></i>`;
+
+          generateVideoThumbnail(file)
+            .then((thumbnailSrc) => {
+              if (thumbnailSrc) {
+                thumbnailContainer.innerHTML = `<img src="${thumbnailSrc}" alt="video preview">`;
+              }
+            })
+            .catch((err) => {
+              console.error("Falha ao gerar thumbnail do vídeo:", err);
+            });
+        }
       });
+
+      if (stagedFiles.length < 5) {
+        const addItem = document.createElement("li");
+        addItem.className = "add-media-card";
+        addItem.innerHTML = `
+          <label for="file-upload" class="add-media-label">
+            <i class="bi bi-plus-lg"></i>
+            <span>Adicionar Mídia</span>
+          </label>
+        `;
+        list.appendChild(addItem);
+      }
+
       elements.filePreviewWrapper.appendChild(list);
 
       sortableInstance = new Sortable(list, {
         animation: 150,
+        filter: ".add-media-card",
         onEnd: (evt) => {
           mediaHasBeenTouched = true;
           const [movedItem] = stagedFiles.splice(evt.oldIndex, 1);
@@ -489,11 +564,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const openCreateCampaignModal = () => {
       resetModal();
+      renderStagedFiles();
       elements.modalTitle.textContent = "Cadastrar Campanha";
       elements.form.action = "/campaigns";
       elements.idInput.value = "";
-      elements.fileUploadButton.querySelector("span").textContent =
-        "Escolher Mídias";
       campaignModal.style.display = "flex";
     };
 
@@ -510,8 +584,6 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.idInput.value = campaign.id;
         elements.nameInput.value = campaign.name;
         elements.companySelect.value = campaign.company_id;
-        elements.fileUploadButton.querySelector("span").textContent =
-          "Adicionar/Substituir Mídias";
 
         fpStart.setDate(campaign.start_date, true);
         fpEnd.setDate(campaign.end_date, true);
@@ -579,7 +651,6 @@ document.addEventListener("DOMContentLoaded", () => {
       row.querySelector(".col-company").textContent = campaign.company_name;
       row.querySelector(".col-type").textContent = campaign.campaign_type;
       row.querySelector(".col-period").textContent = campaign.periodo_formatado;
-
       const deviceCell = row.querySelector(".col-devices");
       let deviceText = "Nenhum";
       if (campaign.devices && campaign.devices.length > 0) {
@@ -897,7 +968,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const connectAdminWs = () => {
     if (!document.body.id.endsWith("-page")) return;
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const protocol = window.location.protocol === "https" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/admin-ws`;
     const ws = new WebSocket(wsUrl);
 
