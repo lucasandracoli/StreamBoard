@@ -47,15 +47,16 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
             <tr>
               <th>Nome</th>
               <th>Status</th>
-              <th>Tipo</th>
+              <th>Empresa</th>
               <th>Setor</th>
+              <th>Tipo</th>
               <th>Ações</th>
             </tr>
           </thead>
           <tbody>
             <% if (devices.length === 0) { %>
             <tr id="no-devices-row">
-              <td colspan="5" style="text-align: center">
+              <td colspan="6" style="text-align: center">
                 Nenhum dispositivo cadastrado.
               </td>
             </tr>
@@ -63,11 +64,13 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
             <tr data-device-id="<%= device.id %>">
               <td class="break-word"><%= device.name %></td>
               <td data-status-cell>
-                <span class="<%= device.status.class %>">
+                <span class="online-status <%= device.status.class %>">
                   <span class="online-dot"></span>
                   <span data-status-text><%= device.status.text %></span>
                 </span>
               </td>
+              <td class="break-word"><%= device.company_name || 'N/A' %></td>
+              <td class="break-word"><%= device.sector_name || 'N/A' %></td>
               <td class="icon-cell">
                 <button
                   class="details-icon-button open-details-modal"
@@ -79,7 +82,6 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
                   ></i>
                 </button>
               </td>
-              <td class="break-word"><%= device.sector %></td>
               <td class="actions-cell">
                 <button
                   class="action-icon action-icon-editar"
@@ -137,7 +139,7 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
     <div id="deviceDetailsModal" class="modal-overlay">
       <div class="modal-card details-modal">
         <div class="details-modal-loader"><div class="spinner"></div></div>
-        <div class="details-modal-content">
+        <div class="details-modal-content" style="display: none">
           <div class="details-modal-header">
             <div id="modalDeviceIcon"></div>
             <div>
@@ -147,14 +149,14 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
           </div>
           <div class="details-modal-body">
             <div class="details-section">
-              <h4>Status da Conexão</h4>
+              <h4>Localização</h4>
               <p>
-                <span class="details-label">Último Acesso:</span>
-                <span id="modalLastSeen"></span>
+                <span class="details-label">Empresa:</span>
+                <span id="modalDeviceCompany"></span>
               </p>
               <p>
-                <span class="details-label">Velocidade Download:</span>
-                <span id="modalDownlink"></span>
+                <span class="details-label">Setor:</span>
+                <span id="modalDeviceSector"></span>
               </p>
             </div>
             <div class="details-section">
@@ -172,23 +174,12 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
                 ></code>
               </p>
               <p>
-                <span class="details-label">Chave de Autenticação:</span>
+                <span class="details-label">Chave:</span>
                 <code
                   id="modalAuthKey"
                   class="copyable-code"
                   title="Clique para copiar"
                 ></code>
-              </p>
-            </div>
-            <div class="details-section">
-              <h4>Informações do Dispositivo</h4>
-              <p>
-                <span class="details-label">Setor:</span>
-                <span id="modalDeviceSector"></span>
-              </p>
-              <p>
-                <span class="details-label">Cadastrado em:</span>
-                <span id="modalRegisteredAt"></span>
               </p>
             </div>
           </div>
@@ -214,7 +205,6 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
               Reativar Dispositivo
             </button>
             <button
-              type="button"
               class="device-button device-button-cancel"
               id="closeDetailsModal"
             >
@@ -246,6 +236,34 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
             />
           </div>
           <div class="form-group">
+            <label for="newDeviceCompany" class="form-label">Empresa</label>
+            <select
+              id="newDeviceCompany"
+              name="company_id"
+              class="modal-input"
+              required
+            >
+              <option value="" disabled selected>Selecione uma empresa</option>
+              <% companies.forEach(company => { %>
+              <option value="<%= company.id %>"><%= company.name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="newDeviceSector" class="form-label">Setor</label>
+            <select
+              id="newDeviceSector"
+              name="sector_id"
+              class="modal-input"
+              required
+              disabled
+            >
+              <option value="" disabled selected>
+                Selecione uma empresa primeiro
+              </option>
+            </select>
+          </div>
+          <div class="form-group">
             <label for="newDeviceType" class="form-label"
               >Tipo de Dispositivo</label
             >
@@ -264,16 +282,6 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
               <option value="busca_preco">Busca Preço</option>
               <option value="unknown" selected>Outro</option>
             </select>
-          </div>
-          <div class="form-group">
-            <label for="newDeviceSector" class="form-label">Setor</label>
-            <input
-              id="newDeviceSector"
-              type="text"
-              name="sector"
-              required
-              class="modal-input"
-            />
           </div>
           <div class="modal-actions">
             <button id="deviceSubmitButton" type="submit" class="device-button">
@@ -315,6 +323,6 @@ busca_preco: 'bi-upc-scan', default: 'bi-question-circle' }; %>
 
     <%- include("partials/footer") %>
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
-    <script src="/js/main.js?v=<%= appVersion %>"></script>
+    <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>
   </body>
 </html>

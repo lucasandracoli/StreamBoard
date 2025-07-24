@@ -8,6 +8,11 @@
       >Início</a
     >
     <a
+      href="/companies"
+      class="navbar-link <%= currentRoute === '/companies' ? 'active' : '' %>"
+      >Empresas</a
+    >
+    <a
       href="/devices"
       class="navbar-link <%= currentRoute === '/devices' ? 'active' : '' %>"
       >Dispositivos</a
@@ -46,7 +51,7 @@
 />
 <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
 
-<script>
+<script>  
   if (
     window.location.pathname === "/login" &&
     window.location.search.includes("logout=true")

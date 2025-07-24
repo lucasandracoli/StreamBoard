@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Gerenciar Empresas</title>
+    <link rel="stylesheet" href="/css/styles.css?v=<%= appVersion %>" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body id="companies-page" class="dashboard">
+    <%- include("partials/navbar") %>
+
+    <main class="container">
+      <div class="device-header">
+        <button class="device-button" id="openCompanyModal">
+          <i class="bi bi-plus-lg"></i>
+          <span>Nova Empresa</span>
+        </button>
+      </div>
+
+      <div class="device-table-wrapper">
+        <table class="device-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>CNPJ</th>
+              <th>Cidade</th>
+              <th>Estado</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (companies.length === 0) { %>
+            <tr id="no-companies-row">
+              <td colspan="5" style="text-align: center">
+                Nenhuma empresa cadastrada.
+              </td>
+            </tr>
+            <% } else { %> <% companies.forEach(company => { %>
+            <tr data-company-id="<%= company.id %>">
+              <td class="break-word"><%= company.name %></td>
+              <td class="break-word"><%= company.cnpj %></td>
+              <td class="break-word"><%= company.city || 'N/A' %></td>
+              <td class="break-word"><%= company.state || 'N/A' %></td>
+              <td class="actions-cell">
+                <button
+                  class="action-icon action-icon-editar"
+                  data-id="<%= company.id %>"
+                  title="Editar Empresa"
+                >
+                  <i class="bi bi-pencil-square"></i>
+                </button>
+                <button
+                  class="action-icon-excluir"
+                  data-id="<%= company.id %>"
+                  title="Excluir Empresa"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M6 6L18 18M6 18L18 6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              </td>
+            </tr>
+            <% }) %> <% } %>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <div id="companyModal" class="modal-overlay">
+      <div class="modal-card" style="max-width: 500px">
+        <div class="modal-header centered">
+          <h2 id="companyModalTitle" class="modal-title">
+            Cadastrar Nova Empresa
+          </h2>
+        </div>
+        <form id="companyForm" method="POST" class="modal-form">
+          <div class="form-group">
+            <label for="companyName" class="form-label">Nome da Empresa</label>
+            <input
+              id="companyName"
+              type="text"
+              name="name"
+              required
+              class="modal-input"
+            />
+          </div>
+          <div class="form-group">
+            <label for="companyCnpj" class="form-label">CNPJ</label>
+            <input
+              id="companyCnpj"
+              type="text"
+              name="cnpj"
+              required
+              class="modal-input"
+              placeholder="00.000.000/0000-00"
+            />
+          </div>
+          <div class="form-group">
+            <label for="companyAddress" class="form-label">Endereço</label>
+            <input
+              id="companyAddress"
+              type="text"
+              name="address"
+              class="modal-input"
+            />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="companyCity" class="form-label">Cidade</label>
+              <input
+                id="companyCity"
+                type="text"
+                name="city"
+                class="modal-input"
+              />
+            </div>
+            <div class="form-group">
+              <label for="companyState" class="form-label">Estado</label>
+              <select id="companyState" name="state" class="modal-input">
+                <option value="">--</option>
+                <option value="AC">AC</option>
+                <option value="AL">AL</option>
+                <option value="AP">AP</option>
+                <option value="AM">AM</option>
+                <option value="BA">BA</option>
+                <option value="CE">CE</option>
+                <option value="DF">DF</option>
+                <option value="ES">ES</option>
+                <option value="GO">GO</option>
+                <option value="MA">MA</option>
+                <option value="MT">MT</option>
+                <option value="MS">MS</option>
+                <option value="MG">MG</option>
+                <option value="PA">PA</option>
+                <option value="PB">PB</option>
+                <option value="PR">PR</option>
+                <option value="PE">PE</option>
+                <option value="PI">PI</option>
+                <option value="RJ">RJ</option>
+                <option value="RN">RN</option>
+                <option value="RS">RS</option>
+                <option value="RO">RO</option>
+                <option value="RR">RR</option>
+                <option value="SC">SC</option>
+                <option value="SP">SP</option>
+                <option value="SE">SE</option>
+                <option value="TO">TO</option>
+              </select>
+            </div>
+          </div>
+          <div id="sectors-management-section" style="display: none">
+            <div class="form-section-divider">
+              <h3 class="section-title">Gerenciar Setores</h3>
+            </div>
+            <div id="sector-list" class="sector-list"></div>
+            <div class="add-sector-form">
+              <input
+                id="newSectorName"
+                type="text"
+                class="modal-input"
+                placeholder="Nome do novo setor"
+              />
+              <button type="button" id="addSectorBtn" class="device-button">
+                Adicionar
+              </button>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button
+              type="button"
+              id="cancelCompanyModal"
+              class="device-button device-button-cancel"
+            >
+              Cancelar
+            </button>
+            <button
+              id="companySubmitButton"
+              type="submit"
+              class="device-button"
+            >
+              Adicionar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="confirmationModal" class="confirmation-modal-overlay">
+      <div class="confirmation-modal">
+        <div class="confirmation-modal-header"><h3>Confirmar Exclusão</h3></div>
+        <div class="confirmation-modal-body">
+          <p>
+            Deseja realmente excluir esta empresa? Todos os dispositivos e
+            campanhas associados também serão removidos. Esta ação não pode ser
+            desfeita.
+          </p>
+        </div>
+        <div class="confirmation-modal-actions">
+          <button id="cancelConfirmation" class="confirmation-modal-cancel">
+            Cancelar
+          </button>
+          <button id="confirmDeletion" class="confirmation-modal-confirm">
+            Excluir
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <%- include("partials/footer") %>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
+    <script src="https://unpkg.com/imask"></script>
+    <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>
+  </body>
+</html>

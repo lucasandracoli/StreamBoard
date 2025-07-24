@@ -304,13 +304,13 @@ wss.on("connection", async (ws, req) => {
       const tokenCount = parseInt(tokenCountResult.rows[0].cnt, 10);
       let status;
       if (!is_active) {
-        status = { text: "Revogado", class: "online-status revoked" };
+        status = { text: "Revogado", class: "revoked" };
       } else if (isOnline) {
-        status = { text: "Online", class: "online-status online" };
+        status = { text: "Online", class: "online" };
       } else if (tokenCount > 0) {
-        status = { text: "Offline", class: "online-status offline" };
+        status = { text: "Offline", class: "offline" };
       } else {
-        status = { text: "Inativo", class: "online-status inactive" };
+        status = { text: "Inativo", class: "inactive" };
       }
       ws.send(
         JSON.stringify({
@@ -345,7 +345,7 @@ wss.on("connection", async (ws, req) => {
     type: "DEVICE_STATUS_UPDATE",
     payload: {
       deviceId,
-      status: { text: "Online", class: "online-status online" },
+      status: { text: "Online", class: "online" },
     },
   });
 
@@ -361,8 +361,8 @@ wss.on("connection", async (ws, req) => {
     const tokenCount = parseInt(tokenCountResult.rows[0].cnt, 10);
     const status =
       tokenCount > 0
-        ? { text: "Offline", class: "online-status offline" }
-        : { text: "Inativo", class: "online-status inactive" };
+        ? { text: "Offline", class: "offline" }
+        : { text: "Inativo", class: "inactive" };
     broadcastToAdmins({
       type: "DEVICE_STATUS_UPDATE",
       payload: { deviceId, status },
@@ -396,11 +396,11 @@ setInterval(async () => {
       let newStatus = null;
 
       if (now < startDate) {
-        newStatus = { text: "Agendada", class: "online-status scheduled" };
+        newStatus = { text: "Agendada", class: "scheduled" };
       } else if (now > endDate) {
-        newStatus = { text: "Finalizada", class: "online-status offline" };
+        newStatus = { text: "Finalizada", class: "offline" };
       } else {
-        newStatus = { text: "Ativa", class: "online-status online" };
+        newStatus = { text: "Ativa", class: "online" };
       }
 
       broadcastToAdmins({
@@ -433,8 +433,6 @@ app.post("/login", async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({
-      code: 400,
-      status: "error",
       message: "Usuário e senha são obrigatórios.",
     });
   }
@@ -450,22 +448,16 @@ app.post("/login", async (req, res) => {
         req.session.username = user.username;
         req.session.userRole = user.user_role;
         return res.status(200).json({
-          code: 200,
-          status: "success",
           message: "Logado com Sucesso.",
         });
       }
     }
     return res.status(401).json({
-      code: 401,
-      status: "error",
       message: "Usuário ou senha incorretos.",
     });
   } catch (err) {
     logger.error("Erro no processo de login.", err);
     res.status(500).json({
-      code: 500,
-      status: "error",
       message: "Erro interno do servidor.",
     });
   }
@@ -475,14 +467,85 @@ app.get("/dashboard", isAuthenticated, isAdmin, (req, res) => {
   res.render("dashboard", { user: req.user });
 });
 
+app.get("/companies", isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const result = await db.query("SELECT * FROM companies ORDER BY name ASC");
+    res.render("companies", { companies: result.rows });
+  } catch (err) {
+    logger.error("Erro ao carregar empresas.", err);
+    res.status(500).send("Erro ao carregar a página de empresas.");
+  }
+});
+
+app.post("/companies", isAuthenticated, isAdmin, async (req, res) => {
+  const { name, cnpj, city, address, state } = req.body;
+  if (!name || !cnpj) {
+    return res.status(400).json({
+      message: "Nome e CNPJ da empresa são obrigatórios.",
+    });
+  }
+  try {
+    await db.query(
+      "INSERT INTO companies (name, cnpj, city, address, state) VALUES ($1, $2, $3, $4, $5)",
+      [name, cnpj, city, address, state]
+    );
+    res.status(201).json({ message: "Empresa cadastrada com sucesso." });
+  } catch (err) {
+    logger.error("Erro ao cadastrar empresa.", err);
+    if (err.code === "23505") {
+      return res.status(409).json({ message: "CNPJ já cadastrado." });
+    }
+    res.status(500).json({ message: "Erro ao cadastrar empresa." });
+  }
+});
+
+app.post("/companies/:id/edit", isAuthenticated, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  const { name, cnpj, city, address, state } = req.body;
+  if (!name || !cnpj) {
+    return res.status(400).json({ message: "Nome e CNPJ são obrigatórios." });
+  }
+  try {
+    await db.query(
+      "UPDATE companies SET name = $1, cnpj = $2, city = $3, address = $4, state = $5 WHERE id = $6",
+      [name, cnpj, city, address, state, id]
+    );
+    res.status(200).json({ message: "Empresa atualizada com sucesso." });
+  } catch (err) {
+    logger.error(`Erro ao editar empresa ${id}.`, err);
+    res.status(500).json({ message: "Erro ao atualizar empresa." });
+  }
+});
+
+app.post(
+  "/companies/:id/delete",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+    try {
+      await db.query("DELETE FROM companies WHERE id = $1", [id]);
+      res.status(200).json({ message: "Empresa excluída com sucesso." });
+    } catch (err) {
+      logger.error(`Erro ao excluir empresa ${id}.`, err);
+      res.status(500).json({ message: "Erro ao excluir empresa." });
+    }
+  }
+);
+
 app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
   try {
-    const devicesResult = await db.query(
-      `SELECT d.*,
-        (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id AND t.is_revoked = false) > 0 as has_tokens
-         FROM devices d
-         ORDER BY d.registered_at DESC`
-    );
+    const devicesResult = await db.query(`
+        SELECT 
+            d.*,
+            c.name as company_name,
+            s.name as sector_name,
+            (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id AND t.is_revoked = false) > 0 as has_tokens
+        FROM devices d
+        LEFT JOIN companies c ON d.company_id = c.id
+        LEFT JOIN sectors s ON d.sector_id = s.id
+        ORDER BY d.registered_at DESC
+    `);
 
     const devices = devicesResult.rows.map((device) => {
       const lastSeenFormatted = device.last_seen
@@ -495,13 +558,13 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
 
       let status;
       if (!device.is_active) {
-        status = { text: "Revogado", class: "online-status revoked" };
+        status = { text: "Revogado", class: "revoked" };
       } else if (isOnline) {
-        status = { text: "Online", class: "online-status online" };
+        status = { text: "Online", class: "online" };
       } else if (device.has_tokens) {
-        status = { text: "Offline", class: "online-status offline" };
+        status = { text: "Offline", class: "offline" };
       } else {
-        status = { text: "Inativo", class: "online-status inactive" };
+        status = { text: "Inativo", class: "inactive" };
       }
 
       return {
@@ -512,7 +575,14 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
       };
     });
 
-    res.render("devices", { devices });
+    const companiesResult = await db.query(
+      "SELECT * FROM companies ORDER BY name"
+    );
+
+    res.render("devices", {
+      devices,
+      companies: companiesResult.rows,
+    });
   } catch (err) {
     logger.error("Erro ao carregar dispositivos.", err);
     res.status(500).send("Erro ao carregar dispositivos.");
@@ -520,10 +590,9 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
 });
 
 app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
-  const { name, device_type, sector } = req.body;
-  if (!name || !device_type || !sector) {
+  const { name, device_type, company_id, sector_id } = req.body;
+  if (!name || !device_type || !company_id || !sector_id) {
     return res.status(400).json({
-      code: 400,
       message: "Todos os campos são obrigatórios.",
     });
   }
@@ -531,18 +600,23 @@ app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
   const authentication_key = crypto.randomBytes(32).toString("hex");
   try {
     await db.query(
-      `INSERT INTO devices (name, device_identifier, authentication_key, device_type, sector, is_active)
-        VALUES ($1, $2, $3, $4, $5, TRUE)`,
-      [name, device_identifier, authentication_key, device_type, sector]
+      `INSERT INTO devices (name, device_identifier, authentication_key, device_type, company_id, sector_id, is_active)
+        VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
+      [
+        name,
+        device_identifier,
+        authentication_key,
+        device_type,
+        company_id,
+        sector_id,
+      ]
     );
     res.json({
-      code: 200,
       message: "Dispositivo cadastrado com sucesso.",
     });
   } catch (err) {
     logger.error("Erro ao cadastrar dispositivo.", err);
     res.status(500).json({
-      code: 500,
       message: "Erro ao cadastrar dispositivo. Tente novamente.",
     });
   }
@@ -550,11 +624,10 @@ app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
 
 app.post("/devices/:id/edit", isAuthenticated, isAdmin, async (req, res) => {
   const { id } = req.params;
-  const { name, device_type, sector } = req.body;
-  if (!name || !device_type || !sector) {
+  const { name, device_type, company_id, sector_id } = req.body;
+  if (!name || !device_type || !company_id || !sector_id) {
     return res.status(400).json({
-      code: 400,
-      message: "Todos os campos (Nome, Tipo e Setor) são obrigatórios.",
+      message: "Todos os campos são obrigatórios.",
     });
   }
   try {
@@ -563,14 +636,12 @@ app.post("/devices/:id/edit", isAuthenticated, isAdmin, async (req, res) => {
       [id]
     );
     if (oldRes.rows.length === 0) {
-      return res
-        .status(404)
-        .json({ code: 404, message: "Dispositivo não encontrado." });
+      return res.status(404).json({ message: "Dispositivo não encontrado." });
     }
     const oldType = oldRes.rows[0].device_type;
     await db.query(
-      "UPDATE devices SET name = $1, device_type = $2, sector = $3 WHERE id = $4",
-      [name, device_type, sector, id]
+      "UPDATE devices SET name = $1, device_type = $2, company_id = $3, sector_id = $4 WHERE id = $5",
+      [name, device_type, company_id, sector_id, id]
     );
     if (oldType !== device_type) {
       sendUpdateToDevice(id, {
@@ -579,13 +650,11 @@ app.post("/devices/:id/edit", isAuthenticated, isAdmin, async (req, res) => {
       });
     }
     res.json({
-      code: 200,
       message: "Dispositivo atualizado com sucesso.",
     });
   } catch (err) {
     logger.error("Erro ao atualizar dispositivo.", err);
     res.status(500).json({
-      code: 500,
       message: "Erro ao atualizar dispositivo. Tente novamente.",
     });
   }
@@ -895,8 +964,13 @@ app.get(
     try {
       const deviceResult = await db.query(
         `SELECT d.*,
+        c.name as company_name,
+        s.name as sector_name,
         (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id AND t.is_revoked = false) > 0 as has_tokens
-         FROM devices d WHERE d.id = $1`,
+         FROM devices d 
+         LEFT JOIN companies c ON d.company_id = c.id
+         LEFT JOIN sectors s ON d.sector_id = s.id
+         WHERE d.id = $1`,
         [id]
       );
       if (deviceResult.rows.length === 0) {
@@ -913,13 +987,13 @@ app.get(
       const isOnline = clients.hasOwnProperty(device.id);
       let status;
       if (!device.is_active) {
-        status = { text: "Revogado", class: "online-status revoked" };
+        status = { text: "Revogado", class: "revoked" };
       } else if (isOnline) {
-        status = { text: "Online", class: "online-status online" };
+        status = { text: "Online", class: "online" };
       } else if (device.has_tokens) {
-        status = { text: "Offline", class: "online-status offline" };
+        status = { text: "Offline", class: "offline" };
       } else {
-        status = { text: "Inativo", class: "online-status inactive" };
+        status = { text: "Inativo", class: "inactive" };
       }
       const formatOptions = { zone: "America/Sao_Paulo", locale: "pt-BR" };
       const registeredAtFormatted = DateTime.fromJSDate(
@@ -1031,11 +1105,13 @@ app.get("/pair/magic", async (req, res) => {
 app.get("/api/device/playlist", deviceAuth, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT c.* FROM campaigns c
-       JOIN campaign_device cd ON c.id = cd.campaign_id
+      `SELECT up.* FROM campaign_uploads up
+       JOIN campaign_device cd ON up.campaign_id = cd.campaign_id
+       JOIN campaigns c ON up.campaign_id = c.id
        WHERE cd.device_id = $1
        AND c.start_date <= NOW() 
-       AND c.end_date >= NOW()`,
+       AND c.end_date >= NOW()
+       ORDER BY up.execution_order ASC`,
       [req.device.id]
     );
     res.setHeader(
@@ -1056,18 +1132,18 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
     const campaignsResult = await db.query(`
       SELECT 
         c.*,
+        co.name as company_name,
         (
           SELECT JSON_AGG(
-            json_build_object('id', d.id, 'name', d.name, 'sector', d.sector)
+            json_build_object('id', d.id, 'name', d.name)
           )
           FROM campaign_device cd
           JOIN devices d ON cd.device_id = d.id
           WHERE cd.campaign_id = c.id
         ) as devices
-      FROM 
-        campaigns c
-      ORDER BY 
-        c.created_at DESC
+      FROM campaigns c
+      JOIN companies co ON c.company_id = co.id
+      ORDER BY c.created_at DESC
     `);
     const now = DateTime.now().setZone("America/Sao_Paulo");
     const campaigns = campaignsResult.rows.map((campaign) => {
@@ -1079,11 +1155,11 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
       const endDate = DateTime.fromJSDate(campaign.end_date, formatOptions);
       let status;
       if (now < startDate) {
-        status = { text: "Agendada", class: "online-status scheduled" };
+        status = { text: "Agendada", class: "scheduled" };
       } else if (now > endDate) {
-        status = { text: "Finalizada", class: "online-status offline" };
+        status = { text: "Finalizada", class: "offline" };
       } else {
-        status = { text: "Ativa", class: "online-status online" };
+        status = { text: "Ativa", class: "online" };
       }
       return {
         ...campaign,
@@ -1095,15 +1171,16 @@ app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
         ),
       };
     });
-    const devicesResult = await db.query(
-      "SELECT * FROM devices WHERE is_active = TRUE ORDER BY name"
+
+    const companiesResult = await db.query(
+      "SELECT id, name FROM companies ORDER BY name"
     );
-    const devices = devicesResult.rows;
-    const sectorsResult = await db.query(
-      "SELECT DISTINCT sector FROM devices WHERE sector IS NOT NULL AND sector <> '' ORDER BY sector"
-    );
-    const sectors = sectorsResult.rows.map((r) => r.sector);
-    res.render("campaigns", { campaigns, devices, sectors });
+
+    res.render("campaigns", {
+      campaigns,
+      companies: companiesResult.rows,
+      sectors: [],
+    });
   } catch (err) {
     logger.error("Erro ao carregar campanhas.", err);
     res.status(500).send("Erro ao carregar campanhas.");
@@ -1114,10 +1191,10 @@ app.post(
   "/campaigns",
   isAuthenticated,
   isAdmin,
-  upload.single("media"),
+  upload.array("media"),
   async (req, res) => {
-    let { name, start_date, end_date, device_ids } = req.body;
-    if (!name || !start_date || !end_date || !device_ids) {
+    let { name, start_date, end_date, device_ids, company_id } = req.body;
+    if (!name || !start_date || !end_date || !device_ids || !company_id) {
       return res
         .status(400)
         .json({ message: "Todos os campos são obrigatórios." });
@@ -1146,26 +1223,28 @@ app.post(
         message: "Formato de data ou hora inválido. Use DD/MM/AAAA HH:MM.",
       });
     }
-    let file_path = null;
-    if (req.file) {
-      file_path = `/uploads/${req.file.filename}`;
-    }
+
     const client = await db.connect();
     try {
       await client.query("BEGIN");
       const campaignResult = await client.query(
-        `INSERT INTO campaigns (name, start_date, end_date, midia)
+        `INSERT INTO campaigns (name, start_date, end_date, company_id)
           VALUES ($1, $2, $3, $4) RETURNING *`,
-        [name, parsedStartDate, parsedEndDate, file_path]
+        [name, parsedStartDate, parsedEndDate, company_id]
       );
       const newCampaign = campaignResult.rows[0];
-      if (req.file) {
-        await client.query(
-          `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type)
-            VALUES ($1, $2, $3, $4)`,
-          [newCampaign.id, req.file.filename, file_path, req.file.mimetype]
-        );
+
+      if (req.files && req.files.length > 0) {
+        for (const [index, file] of req.files.entries()) {
+          const filePath = `/uploads/${file.filename}`;
+          await client.query(
+            `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order)
+                VALUES ($1, $2, $3, $4, $5)`,
+            [newCampaign.id, file.filename, filePath, file.mimetype, index]
+          );
+        }
       }
+
       for (const device_id of device_ids) {
         await client.query(
           `INSERT INTO campaign_device (campaign_id, device_id)
@@ -1181,8 +1260,7 @@ app.post(
         });
       });
       res.status(200).json({
-        code: 200,
-        message: "Campanha criada e associada aos dispositivos.",
+        message: "Campanha criada com sucesso.",
         campaign: newCampaign,
       });
     } catch (err) {
@@ -1207,12 +1285,11 @@ app.post(
     const client = await db.connect();
     try {
       await client.query("BEGIN");
-      const campaignResult = await db.query(
-        "SELECT midia FROM campaigns WHERE id = $1",
+      const uploadsResult = await db.query(
+        "SELECT file_path FROM campaign_uploads WHERE campaign_id = $1",
         [id]
       );
-      const mediaPath =
-        campaignResult.rows.length > 0 ? campaignResult.rows[0].midia : null;
+
       const affectedDevicesResult = await db.query(
         "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
         [id]
@@ -1220,6 +1297,7 @@ app.post(
       const affectedDeviceIds = affectedDevicesResult.rows.map(
         (row) => row.device_id
       );
+
       await client.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
         id,
       ]);
@@ -1231,17 +1309,21 @@ app.post(
         "DELETE FROM campaigns WHERE id = $1",
         [id]
       );
+
       await client.query("COMMIT");
-      if (mediaPath) {
-        const fileName = path.basename(mediaPath);
+
+      for (const row of uploadsResult.rows) {
+        const fileName = path.basename(row.file_path);
         const fullPath = path.join(__dirname, "uploads", fileName);
         fsPromises.unlink(fullPath).catch((err) => {
           logger.error(`Falha ao excluir arquivo de mídia: ${fullPath}`, err);
         });
       }
+
       if (deleteResult.rowCount === 0) {
         return res.status(404).json({ message: "Campanha não encontrada." });
       }
+
       affectedDeviceIds.forEach((deviceId) => {
         sendUpdateToDevice(deviceId, {
           type: "DELETE_CAMPAIGN",
@@ -1249,7 +1331,7 @@ app.post(
         });
       });
       res.status(200).json({
-        message: "Campanha e mídia associada foram excluídas com sucesso.",
+        message: "Campanha e mídias associadas foram excluídas com sucesso.",
       });
     } catch (err) {
       await client.query("ROLLBACK");
@@ -1261,170 +1343,40 @@ app.post(
   }
 );
 
-app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
-  const { id } = req.params;
-  try {
-    const campaignResult = await db.query(
-      "SELECT * FROM campaigns WHERE id = $1",
-      [id]
-    );
-    if (campaignResult.rows.length === 0) {
-      return res.status(404).json({ message: "Campanha não encontrada." });
-    }
-    const campaign = campaignResult.rows[0];
-    const associatedDevicesResult = await db.query(
-      `SELECT d.id, d.sector 
-         FROM devices d 
-         JOIN campaign_device cd ON d.id = cd.device_id 
-         WHERE cd.campaign_id = $1`,
-      [id]
-    );
-    const associatedDevices = associatedDevicesResult.rows;
-    const allDevicesResult = await db.query(
-      "SELECT id, name FROM devices WHERE is_active = TRUE"
-    );
-    const allDevices = allDevicesResult.rows;
-    res.json({ campaign, associatedDevices, allDevices });
-  } catch (err) {
-    logger.error(`Erro ao buscar detalhes da campanha ID ${id}.`, err);
-    res.status(500).json({ message: "Erro interno do servidor." });
-  }
-});
-
-app.post(
-  "/campaigns/:id/edit",
+app.get(
+  "/api/companies/:companyId/sectors",
   isAuthenticated,
   isAdmin,
-  upload.single("media"),
   async (req, res) => {
-    const { id } = req.params;
-    let { name, start_date, end_date, device_ids, remove_media } = req.body;
-    if (!name || !start_date || !end_date || !device_ids) {
-      return res
-        .status(400)
-        .json({ message: "Todos os campos são obrigatórios." });
-    }
-    if (!Array.isArray(device_ids)) {
-      device_ids = [device_ids];
-    }
-    let parsedStartDate, parsedEndDate;
+    const { companyId } = req.params;
     try {
-      parsedStartDate = DateTime.fromFormat(
-        start_date,
-        "dd/MM/yyyy HH:mm"
-      ).toJSDate();
-      parsedEndDate = DateTime.fromFormat(
-        end_date,
-        "dd/MM/yyyy HH:mm"
-      ).toJSDate();
-      if (parsedEndDate < parsedStartDate) {
-        return res.status(400).json({
-          message: "A data de término não pode ser anterior à data de início.",
-        });
-      }
+      const sectorsResult = await db.query(
+        "SELECT * FROM sectors WHERE company_id = $1 ORDER BY name",
+        [companyId]
+      );
+      res.json(sectorsResult.rows);
     } catch (err) {
-      logger.error("Formato de data inválido na edição de campanha.", err);
-      return res.status(400).json({
-        message: "Formato de data ou hora inválido. Use DD/MM/AAAA HH:MM.",
-      });
+      logger.error(`Erro ao buscar setores da empresa ${companyId}.`, err);
+      res.status(500).json({ message: "Erro ao buscar setores." });
     }
-    const client = await db.connect();
+  }
+);
+
+app.get(
+  "/api/companies/:companyId/devices",
+  isAuthenticated,
+  isAdmin,
+  async (req, res) => {
+    const { companyId } = req.params;
     try {
-      await client.query("BEGIN");
-      const oldDevicesResult = await client.query(
-        "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
-        [id]
+      const devicesResult = await db.query(
+        "SELECT id, name FROM devices WHERE company_id = $1 AND is_active = TRUE ORDER BY name",
+        [companyId]
       );
-      const oldDeviceIds = oldDevicesResult.rows.map((row) =>
-        row.device_id.toString()
-      );
-      const campaignQuery = await client.query(
-        "SELECT midia FROM campaigns WHERE id = $1",
-        [id]
-      );
-      let mediaPath = campaignQuery.rows[0]?.midia;
-      const oldMediaPath = mediaPath;
-      if (req.file) {
-        mediaPath = `/uploads/${req.file.filename}`;
-      } else if (remove_media === "true") {
-        mediaPath = null;
-      }
-      if (oldMediaPath && oldMediaPath !== mediaPath) {
-        const oldFullPath = path.join(
-          __dirname,
-          "uploads",
-          path.basename(oldMediaPath)
-        );
-        await client.query(
-          "DELETE FROM campaign_uploads WHERE campaign_id = $1",
-          [id]
-        );
-        fsPromises.unlink(oldFullPath).catch((err) => {
-          logger.error(`Falha ao excluir mídia antiga: ${oldFullPath}`, err);
-        });
-      }
-      if (req.file) {
-        await client.query(
-          `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type) VALUES ($1, $2, $3, $4) ON CONFLICT (campaign_id) DO UPDATE SET file_name = EXCLUDED.file_name, file_path = EXCLUDED.file_path, file_type = EXCLUDED.file_type`,
-          [id, req.file.filename, mediaPath, req.file.mimetype]
-        );
-      }
-      const updatedCampaignResult = await client.query(
-        `UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, midia = $4 WHERE id = $5 RETURNING *`,
-        [name, parsedStartDate, parsedEndDate, mediaPath, id]
-      );
-      const updatedCampaign = updatedCampaignResult.rows[0];
-      await client.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
-        id,
-      ]);
-      for (const device_id of device_ids) {
-        await client.query(
-          `INSERT INTO campaign_device (campaign_id, device_id) VALUES ($1, $2)`,
-          [id, device_id]
-        );
-      }
-      await client.query("COMMIT");
-      const devicesToRemove = oldDeviceIds.filter(
-        (oldId) => !device_ids.includes(oldId)
-      );
-      const devicesToAdd = device_ids.filter(
-        (newId) => !oldDeviceIds.includes(newId)
-      );
-      const devicesToUpdate = device_ids.filter((id) =>
-        oldDeviceIds.includes(id)
-      );
-      devicesToRemove.forEach((deviceId) => {
-        sendUpdateToDevice(deviceId, {
-          type: "DELETE_CAMPAIGN",
-          payload: { campaignId: Number(id) },
-        });
-      });
-      devicesToAdd.forEach((deviceId) => {
-        sendUpdateToDevice(deviceId, {
-          type: "NEW_CAMPAIGN",
-          payload: updatedCampaign,
-        });
-      });
-      devicesToUpdate.forEach((deviceId) => {
-        sendUpdateToDevice(deviceId, {
-          type: "UPDATE_CAMPAIGN",
-          payload: updatedCampaign,
-        });
-      });
-      res.status(200).json({
-        code: 200,
-        message: "Campanha atualizada com sucesso.",
-        campaign: updatedCampaign,
-      });
+      res.json(devicesResult.rows);
     } catch (err) {
-      await client.query("ROLLBACK");
-      logger.error(`Erro interno ao atualizar campanha ID ${id}.`, err);
-      res.status(500).json({
-        message: "Erro interno ao atualizar campanha.",
-        error: err.message,
-      });
-    } finally {
-      client.release();
+      logger.error(`Erro ao buscar dispositivos da empresa ${companyId}.`, err);
+      res.status(500).json({ message: "Erro ao buscar dispositivos." });
     }
   }
 );
@@ -1513,6 +1465,173 @@ async function gqlRequest(body) {
     throw err;
   }
 }
+
+app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const campaignResult = await db.query(
+      `SELECT
+        c.*,
+        (SELECT file_path FROM campaign_uploads cu WHERE cu.campaign_id = c.id LIMIT 1) as file_path,
+        (SELECT file_type FROM campaign_uploads cu WHERE cu.campaign_id = c.id LIMIT 1) as mimetype,
+        (SELECT json_agg(cd.device_id) FROM campaign_device cd WHERE cd.campaign_id = c.id) as device_ids
+       FROM campaigns c
+       WHERE c.id = $1`,
+      [id]
+    );
+
+    if (campaignResult.rows.length === 0) {
+      return res.status(404).json({ message: "Campanha não encontrada." });
+    }
+
+    const campaign = campaignResult.rows[0];
+    campaign.device_ids = campaign.device_ids || [];
+
+    res.json(campaign);
+  } catch (err) {
+    logger.error(`Erro ao buscar detalhes da campanha ${id}.`, err);
+    res.status(500).json({ message: "Erro interno do servidor." });
+  }
+});
+
+app.post(
+  "/campaigns/:id/edit",
+  isAuthenticated,
+  isAdmin,
+  upload.single("media"),
+  async (req, res) => {
+    const { id } = req.params;
+    let { name, start_date, end_date, device_ids, company_id } = req.body;
+
+    if (!name || !start_date || !end_date || !device_ids || !company_id) {
+      return res
+        .status(400)
+        .json({ message: "Todos os campos são obrigatórios." });
+    }
+
+    if (!Array.isArray(device_ids)) {
+      device_ids = [device_ids];
+    }
+
+    const parsedStartDate = DateTime.fromFormat(
+      start_date,
+      "dd/MM/yyyy HH:mm"
+    ).toJSDate();
+    const parsedEndDate = DateTime.fromFormat(
+      end_date,
+      "dd/MM/yyyy HH:mm"
+    ).toJSDate();
+
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+
+      await client.query(
+        "UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, company_id = $4 WHERE id = $5",
+        [name, parsedStartDate, parsedEndDate, company_id, id]
+      );
+
+      if (req.file) {
+        const oldFileResult = await client.query(
+          "SELECT file_path FROM campaign_uploads WHERE campaign_id = $1",
+          [id]
+        );
+        if (oldFileResult.rows.length > 0) {
+          const oldFilePath = path.join(
+            __dirname,
+            oldFileResult.rows[0].file_path
+          );
+          fsPromises
+            .unlink(oldFilePath)
+            .catch((err) =>
+              logger.error(
+                `Falha ao remover arquivo antigo: ${oldFilePath}`,
+                err
+              )
+            );
+        }
+
+        await client.query(
+          "DELETE FROM campaign_uploads WHERE campaign_id = $1",
+          [id]
+        );
+        const newFilePath = `/uploads/${req.file.filename}`;
+        await client.query(
+          `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order)
+                 VALUES ($1, $2, $3, $4, 0)`,
+          [id, req.file.filename, newFilePath, req.file.mimetype]
+        );
+      }
+
+      await client.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
+        id,
+      ]);
+      for (const device_id of device_ids) {
+        await client.query(
+          "INSERT INTO campaign_device (campaign_id, device_id) VALUES ($1, $2)",
+          [id, device_id]
+        );
+      }
+
+      await client.query("COMMIT");
+
+      device_ids.forEach((deviceId) => {
+        sendUpdateToDevice(deviceId, {
+          type: "UPDATE_CAMPAIGN",
+          payload: { campaignId: id },
+        });
+      });
+
+      res.status(200).json({ message: "Campanha atualizada com sucesso." });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      logger.error(`Erro ao editar campanha ${id}.`, err);
+      res.status(500).json({ message: "Erro ao atualizar campanha." });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+app.post("/api/sectors", isAuthenticated, isAdmin, async (req, res) => {
+  const { company_id, name } = req.body;
+  if (!company_id || !name) {
+    return res
+      .status(400)
+      .json({ message: "ID da empresa e nome do setor são obrigatórios." });
+  }
+  try {
+    const result = await db.query(
+      "INSERT INTO sectors (company_id, name) VALUES ($1, $2) RETURNING *",
+      [company_id, name]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    logger.error("Erro ao adicionar setor.", err);
+    if (err.code === "23505") {
+      return res
+        .status(409)
+        .json({ message: "Este setor já existe para esta empresa." });
+    }
+    res.status(500).json({ message: "Erro ao adicionar novo setor." });
+  }
+});
+
+app.get("/api/companies/:id", isAuthenticated, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await db.query("SELECT * FROM companies WHERE id = $1", [
+      id,
+    ]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Empresa não encontrada." });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    logger.error(`Erro ao buscar detalhes da empresa ${id}.`, err);
+    res.status(500).json({ message: "Erro interno do servidor." });
+  }
+});
 
 app.get("/api/product/:barcode", async (req, res) => {
   const { barcode } = req.params;

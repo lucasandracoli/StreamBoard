@@ -38,12 +38,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (mediaTimer) clearTimeout(mediaTimer);
     campaignContainer.innerHTML = "";
     campaignContainer.style.backgroundColor = "#000";
-    if (!campaign || !campaign.midia) {
+
+    if (!campaign || !campaign.file_path) {
       playNext();
       return;
     }
-    const ext = campaign.midia.split(".").pop().toLowerCase();
-    const url = campaign.midia;
+
+    const url = campaign.file_path;
+    const ext = url.split(".").pop().toLowerCase();
+
     if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
       const img = document.createElement("img");
       img.src = url;
@@ -78,13 +81,19 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch("/api/device/playlist", { cache: "no-cache" });
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
-          connector.disconnect(false);
+          wsManager.disconnect(false);
           if (playlistInterval) clearInterval(playlistInterval);
           window.location.href = "/pair?error=session_expired";
         }
         return;
       }
-      playlist = await res.json();
+
+      const campaigns = await res.json();
+
+      playlist = campaigns.filter(
+        (campaign) => campaign.file_path && campaign.file_path.trim() !== ""
+      );
+
       if (playlist.length > 0) {
         currentCampaignIndex = -1;
         playNext();
@@ -104,23 +113,23 @@ document.addEventListener("DOMContentLoaded", () => {
         fetchAndResetPlaylist();
         break;
       case "DEVICE_REVOKED":
-        connector.disconnect(false);
+        wsManager.disconnect(false);
         if (playlistInterval) clearInterval(playlistInterval);
         window.location.href = "/pair?error=revoked";
         break;
       case "FORCE_REFRESH":
-        connector.disconnect(false);
+        wsManager.disconnect(false);
         window.location.reload(true);
         break;
       case "TYPE_CHANGED":
-        connector.disconnect(false);
+        wsManager.disconnect(false);
         window.location.href =
           data.payload.newType === "busca_preco" ? "/price" : "/player";
         break;
     }
   };
 
-  const connector = new DeviceConnector({
+  const wsManager = new DeviceConnector({
     onOpen: fetchAndResetPlaylist,
     onMessage: handleServerMessage,
     onReconnecting: () => {
@@ -139,7 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   });
 
-  connector.connect();
+  wsManager.connect();
   if (playlistInterval) clearInterval(playlistInterval);
   playlistInterval = setInterval(fetchAndResetPlaylist, 45000);
 });

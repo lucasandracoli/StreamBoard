@@ -51,9 +51,9 @@
             <tr>
               <th>Nome</th>
               <th>Status</th>
+              <th>Empresa</th>
               <th>Período</th>
               <th>Dispositivos</th>
-              <th>Setor(es)</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -68,22 +68,22 @@
             <tr data-campaign-id="<%= campaign.id %>">
               <td class="break-word"><%= campaign.name %></td>
               <td data-status-cell>
-                <span class="<%= campaign.status.class %>">
+                <span class="online-status <%= campaign.status.class %>">
                   <span class="online-dot"></span>
                   <span data-status-text><%= campaign.status.text %></span>
                 </span>
               </td>
+              <td class="break-word"><%= campaign.company_name %></td>
               <td><%= campaign.periodo_formatado %></td>
               <td class="device-badges-cell">
                 <% if (campaign.devices && campaign.devices.length > 0) { %> <%
-                campaign.devices.forEach(device => { %>
+                campaign.devices.slice(0, 3).forEach(device => { %>
                 <span class="device-badge-default"> <%= device.name %> </span>
-                <% }) %> <% } else { %> Nenhum <% } %>
-              </td>
-              <td class="break-word">
-                <% const uniqueSectors = [...new Set(campaign.devices.map(d =>
-                d.sector).filter(Boolean))]; %> <%= uniqueSectors.length > 0 ?
-                uniqueSectors.join(', ') : 'N/A' %>
+                <% }) %> <% if (campaign.devices.length > 3) { %>
+                <span class="device-badge-extra"
+                  >+<%= campaign.devices.length - 3 %></span
+                >
+                <% } %> <% } else { %> Nenhum <% } %>
               </td>
               <td class="actions-cell">
                 <button
@@ -139,25 +139,6 @@
       </div>
     </main>
 
-    <div id="confirmationModal" class="confirmation-modal-overlay">
-      <div class="confirmation-modal">
-        <div class="confirmation-modal-header">
-          <h3>Confirmar Exclusão</h3>
-        </div>
-        <div class="confirmation-modal-body">
-          <p>Esta ação não pode ser desfeita.</p>
-        </div>
-        <div class="confirmation-modal-actions">
-          <button id="cancelConfirmation" class="confirmation-modal-cancel">
-            Cancelar
-          </button>
-          <button id="confirmDeletion" class="confirmation-modal-confirm">
-            Excluir
-          </button>
-        </div>
-      </div>
-    </div>
-
     <div id="campaignModal" class="modal-overlay campaign-modal">
       <div class="modal-card">
         <div class="modal-header centered">
@@ -171,6 +152,7 @@
           novalidate
           enctype="multipart/form-data"
         >
+          <input type="hidden" id="campaignId" />
           <div class="form-group">
             <label for="campaignName" class="form-label"
               >Nome da Campanha</label
@@ -185,52 +167,53 @@
           </div>
 
           <div class="form-group">
-            <label for="start_date" class="form-label"
-              >Data e Hora de Início</label
-            >
-            <input
-              id="start_date"
-              type="text"
-              name="start_date"
-              required
+            <label for="campaignCompany" class="form-label">Empresa</label>
+            <select
+              id="campaignCompany"
+              name="company_id"
               class="modal-input"
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="end_date" class="form-label"
-              >Data e Hora de Término</label
-            >
-            <input
-              id="end_date"
-              type="text"
-              name="end_date"
               required
-              class="modal-input"
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="sectorFilter" class="form-label"
-              >Filtrar por Setor</label
             >
-            <select id="sectorFilter" class="modal-input">
-              <option value="all">Todos os Setores</option>
-              <% sectors.forEach(sector => { %>
-              <option value="<%= sector %>"><%= sector %></option>
+              <option value="" disabled selected>Selecione uma empresa</option>
+              <% companies.forEach(company => { %>
+              <option value="<%= company.id %>"><%= company.name %></option>
               <% }) %>
             </select>
           </div>
 
+          <div class="date-group">
+            <div class="form-group">
+              <label for="start_date" class="form-label">Início</label>
+              <input
+                id="start_date"
+                type="text"
+                name="start_date"
+                required
+                class="modal-input"
+                placeholder="Data de início"
+              />
+            </div>
+            <div class="form-group">
+              <label for="end_date" class="form-label">Término</label>
+              <input
+                id="end_date"
+                type="text"
+                name="end_date"
+                required
+                class="modal-input"
+                placeholder="Data de término"
+              />
+            </div>
+          </div>
+
           <div class="form-group">
-            <label for="device_ids" class="form-label"
-              >Selecione o(s) Dispositivo(s)</label
-            >
+            <label for="device_ids" class="form-label">Dispositivos</label>
             <select
               id="device_ids"
               name="device_ids"
               required
               multiple
+              disabled
             ></select>
           </div>
 
@@ -240,11 +223,12 @@
               id="file-upload"
               name="media"
               accept="image/*,video/*"
+              multiple
               hidden
             />
             <label for="file-upload" class="file-upload-button">
               <i class="bi bi-upload"></i>
-              <span>Escolher Mídia (Imagem/Vídeo)</span>
+              <span>Escolher Mídias (Imagens/Vídeos)</span>
             </label>
             <div class="file-preview-wrapper" id="file-preview-wrapper"></div>
           </div>
@@ -263,16 +247,31 @@
       </div>
     </div>
 
+    <div id="confirmationModal" class="confirmation-modal-overlay">
+      <div class="confirmation-modal">
+        <div class="confirmation-modal-header"><h3>Confirmar Exclusão</h3></div>
+        <div class="confirmation-modal-body">
+          <p>
+            Deseja realmente excluir esta campanha? Esta ação não pode ser
+            desfeita.
+          </p>
+        </div>
+        <div class="confirmation-modal-actions">
+          <button id="cancelConfirmation" class="confirmation-modal-cancel">
+            Cancelar
+          </button>
+          <button id="confirmDeletion" class="confirmation-modal-confirm">
+            Excluir
+          </button>
+        </div>
+      </div>
+    </div>
+
     <%- include('partials/footer') %>
-
-    <script>
-      const allDevices = <%- JSON.stringify(devices.map(d => ({id: d.id, name: d.name, sector: d.sector}))) %>;
-    </script>
-
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/pt.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
-    <script src="/js/main.js?v=<%= appVersion %>"></script>
+    <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>
   </body>
 </html>

@@ -1,6 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const notyf = new Notyf();
-  const MODAL_CLOSE_DELAY = 150;
+  const notyf = new Notyf({
+    duration: 3000,
+    position: { x: "right", y: "top" },
+    dismissible: true,
+  });
 
   const handleFetchError = async (response) => {
     try {
@@ -10,22 +13,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return `Erro ${response.status}: A resposta do servidor não é um JSON válido.`;
     }
   };
-
-  const truncateString = (str, startChars, endChars) => {
-    if (!str || str.length <= startChars + endChars) {
-      return str;
-    }
-    return (
-      str.substring(0, startChars) +
-      "..." +
-      str.substring(str.length - endChars)
-    );
-  };
-
-  const deviceModal = document.getElementById("deviceModal");
-  const confirmationModal = document.getElementById("confirmationModal");
-  const campaignModal = document.getElementById("campaignModal");
-  const detailsModal = document.getElementById("deviceDetailsModal");
 
   const loginForm = document.getElementById("loginForm");
   if (loginForm) {
@@ -50,65 +37,148 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  if (deviceModal) {
-    const openDeviceModalBtn = document.getElementById("openDeviceModal");
-    const cancelDeviceModalBtn = document.getElementById("cancelDeviceModal");
-    const deviceForm = document.getElementById("deviceForm");
-    const modalTitle = document.getElementById("deviceModalTitle");
-    const submitButton = document.getElementById("deviceSubmitButton");
+  const companyModal = document.getElementById("companyModal");
+  if (companyModal) {
+    const openBtn = document.getElementById("openCompanyModal");
+    const cancelBtn = document.getElementById("cancelCompanyModal");
+    const form = document.getElementById("companyForm");
+    const modalTitle = document.getElementById("companyModalTitle");
+    const submitButton = document.getElementById("companySubmitButton");
+    const sectorsSection = document.getElementById(
+      "sectors-management-section"
+    );
+    const sectorList = document.getElementById("sector-list");
+    const newSectorNameInput = document.getElementById("newSectorName");
+    const addSectorBtn = document.getElementById("addSectorBtn");
+    let currentCompanyId = null;
 
-    const openCreateDeviceModal = () => {
-      deviceForm.reset();
-      modalTitle.textContent = "Cadastrar Novo Dispositivo";
-      submitButton.textContent = "Adicionar";
-      deviceForm.action = "/devices";
-      deviceModal.style.display = "flex";
-      deviceModal.classList.add("active");
-    };
-
-    const openEditDeviceModal = async (deviceId) => {
-      try {
-        const response = await fetch(`/api/deviceDetails/${deviceId}`);
-        if (!response.ok) throw new Error(await handleFetchError(response));
-        const device = await response.json();
-        deviceForm.reset();
-        modalTitle.textContent = "Editar Dispositivo";
-        submitButton.textContent = "Salvar Alterações";
-        deviceForm.action = `/devices/${device.id}/edit`;
-        document.getElementById("newDeviceName").value = device.name;
-        document.getElementById("newDeviceType").value = device.device_type;
-        document.getElementById("newDeviceSector").value = device.sector;
-        deviceModal.style.display = "flex";
-        deviceModal.classList.add("active");
-      } catch (error) {
-        notyf.error(error.message || "Erro ao carregar dados do dispositivo.");
-      }
-    };
-
-    openDeviceModalBtn?.addEventListener("click", openCreateDeviceModal);
-
-    if (document.body.id === "devices-page") {
-      document.querySelectorAll(".action-icon-editar").forEach((btn) => {
-        btn.addEventListener("click", (e) =>
-          openEditDeviceModal(e.currentTarget.dataset.id)
-        );
+    const cnpjInput = document.getElementById("companyCnpj");
+    if (cnpjInput) {
+      IMask(cnpjInput, {
+        mask: "00.000.000/0000-00",
       });
     }
 
-    cancelDeviceModalBtn?.addEventListener("click", () => {
-      deviceModal.classList.remove("active");
-      setTimeout(() => (deviceModal.style.display = "none"), MODAL_CLOSE_DELAY);
+    const renderSectors = (sectors) => {
+      sectorList.innerHTML = "";
+      if (sectors.length === 0) {
+        sectorList.innerHTML =
+          '<p class="empty-sector-list">Nenhum setor cadastrado.</p>';
+        return;
+      }
+      sectors.forEach((sector) => {
+        const sectorEl = document.createElement("div");
+        sectorEl.className = "sector-item";
+        sectorEl.innerHTML = `
+                <span>${sector.name}</span>
+                <button type="button" class="delete-sector-btn" data-id="${sector.id}">X</button>
+            `;
+        sectorList.appendChild(sectorEl);
+      });
+    };
+
+    const fetchAndRenderSectors = async (companyId) => {
+      try {
+        const response = await fetch(`/api/companies/${companyId}/sectors`);
+        const sectors = await response.json();
+        renderSectors(sectors);
+      } catch (error) {
+        notyf.error("Erro ao carregar setores.");
+      }
+    };
+
+    addSectorBtn.addEventListener("click", async () => {
+      const name = newSectorNameInput.value.trim();
+      if (!name) {
+        notyf.error("O nome do setor não pode ser vazio.");
+        return;
+      }
+      try {
+        const res = await fetch("/api/sectors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ company_id: currentCompanyId, name: name }),
+        });
+        if (!res.ok) throw new Error(await handleFetchError(res));
+        newSectorNameInput.value = "";
+        notyf.success("Setor adicionado!");
+        fetchAndRenderSectors(currentCompanyId);
+      } catch (error) {
+        notyf.error(error.message || "Falha ao adicionar setor.");
+      }
     });
 
-    deviceForm.addEventListener("submit", async function (e) {
-      e.preventDefault();
-      if (
-        [...this.querySelectorAll("[required]")].some(
-          (el) => el.value.trim() === ""
-        )
-      ) {
-        return notyf.error("Preencha todos os campos obrigatórios.");
+    sectorList.addEventListener("click", async (e) => {
+      if (e.target.classList.contains("delete-sector-btn")) {
+        const sectorId = e.target.dataset.id;
+        if (confirm("Tem certeza que deseja excluir este setor?")) {
+          try {
+            const res = await fetch(`/api/sectors/${sectorId}/delete`, {
+              method: "POST",
+            });
+            if (!res.ok) throw new Error(await handleFetchError(res));
+            notyf.success("Setor excluído.");
+            fetchAndRenderSectors(currentCompanyId);
+          } catch (error) {
+            notyf.error(error.message || "Falha ao excluir setor.");
+          }
+        }
       }
+    });
+
+    const openCreateModal = () => {
+      form.reset();
+      currentCompanyId = null;
+      sectorsSection.style.display = "none";
+      modalTitle.textContent = "Cadastrar Nova Empresa";
+      submitButton.textContent = "Adicionar";
+      form.action = "/companies";
+      companyModal.style.display = "flex";
+    };
+
+    const openEditModal = async (companyId) => {
+      try {
+        const response = await fetch(`/api/companies/${companyId}`);
+        if (!response.ok) throw new Error(await handleFetchError(response));
+        const company = await response.json();
+
+        form.reset();
+        currentCompanyId = company.id;
+        sectorsSection.style.display = "block";
+
+        modalTitle.textContent = "Editar Empresa";
+        submitButton.textContent = "Salvar Alterações";
+        form.action = `/companies/${company.id}/edit`;
+
+        document.getElementById("companyName").value = company.name;
+        document.getElementById("companyCnpj").value = company.cnpj;
+        document.getElementById("companyCity").value = company.city || "";
+        document.getElementById("companyAddress").value = company.address || "";
+        document.getElementById("companyState").value = company.state || "";
+
+        await fetchAndRenderSectors(company.id);
+        companyModal.style.display = "flex";
+      } catch (error) {
+        notyf.error(error.message || "Erro ao carregar dados da empresa.");
+      }
+    };
+
+    openBtn?.addEventListener("click", openCreateModal);
+
+    cancelBtn?.addEventListener("click", () => {
+      companyModal.style.display = "none";
+    });
+
+    document.querySelectorAll(".action-icon-editar").forEach((btn) => {
+      if (document.body.id === "companies-page") {
+        btn.addEventListener("click", (e) =>
+          openEditModal(e.currentTarget.dataset.id)
+        );
+      }
+    });
+
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
       try {
         const res = await fetch(this.action, {
           method: "POST",
@@ -125,22 +195,145 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  const deviceModal = document.getElementById("deviceModal");
+  if (deviceModal) {
+    const openDeviceModalBtn = document.getElementById("openDeviceModal");
+    const cancelDeviceModalBtn = document.getElementById("cancelDeviceModal");
+    const deviceForm = document.getElementById("deviceForm");
+    const modalTitle = document.getElementById("deviceModalTitle");
+    const submitButton = document.getElementById("deviceSubmitButton");
+    const companySelect = document.getElementById("newDeviceCompany");
+    const sectorSelect = document.getElementById("newDeviceSector");
+
+    if (companySelect && companySelect.options.length <= 1) {
+      companySelect.disabled = true;
+      const defaultOption = companySelect.querySelector("option");
+      if (defaultOption) {
+        defaultOption.textContent = "Nenhuma empresa cadastrada";
+      }
+    }
+
+    const populateSectors = async (companyId, selectedSectorId = null) => {
+      sectorSelect.innerHTML =
+        '<option value="" disabled selected>Carregando...</option>';
+      sectorSelect.disabled = true;
+
+      if (!companyId) {
+        sectorSelect.innerHTML =
+          '<option value="" disabled selected>Selecione uma empresa primeiro</option>';
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/companies/${companyId}/sectors`);
+        if (!response.ok) throw new Error("Falha ao buscar setores");
+        const sectors = await response.json();
+
+        sectorSelect.innerHTML =
+          '<option value="" disabled selected>Selecione um setor</option>';
+        sectors.forEach((sector) => {
+          const option = document.createElement("option");
+          option.value = sector.id;
+          option.textContent = sector.name;
+          sectorSelect.appendChild(option);
+        });
+
+        if (selectedSectorId) {
+          sectorSelect.value = selectedSectorId;
+        }
+
+        sectorSelect.disabled = false;
+      } catch (error) {
+        notyf.error("Não foi possível carregar os setores.");
+        sectorSelect.innerHTML =
+          '<option value="" disabled selected>Erro ao carregar</option>';
+      }
+    };
+
+    companySelect?.addEventListener("change", () => {
+      populateSectors(companySelect.value);
+    });
+
+    const openCreateDeviceModal = () => {
+      deviceForm.reset();
+      sectorSelect.innerHTML =
+        '<option value="" disabled selected>Selecione uma empresa primeiro</option>';
+      sectorSelect.disabled = true;
+      modalTitle.textContent = "Cadastrar Novo Dispositivo";
+      submitButton.textContent = "Adicionar";
+      deviceForm.action = "/devices";
+      deviceModal.style.display = "flex";
+    };
+
+    const openEditDeviceModal = async (deviceId) => {
+      try {
+        const response = await fetch(`/api/deviceDetails/${deviceId}`);
+        if (!response.ok) throw new Error(await handleFetchError(response));
+        const device = await response.json();
+
+        deviceForm.reset();
+        modalTitle.textContent = "Editar Dispositivo";
+        submitButton.textContent = "Salvar Alterações";
+        deviceForm.action = `/devices/${device.id}/edit`;
+
+        document.getElementById("newDeviceName").value = device.name;
+        document.getElementById("newDeviceType").value = device.device_type;
+        companySelect.value = device.company_id;
+
+        await populateSectors(device.company_id, device.sector_id);
+
+        deviceModal.style.display = "flex";
+      } catch (error) {
+        notyf.error(error.message || "Erro ao carregar dados do dispositivo.");
+      }
+    };
+
+    openDeviceModalBtn?.addEventListener("click", openCreateDeviceModal);
+
+    document.querySelectorAll(".action-icon-editar").forEach((btn) => {
+      if (document.body.id === "devices-page") {
+        btn.addEventListener("click", (e) =>
+          openEditDeviceModal(e.currentTarget.dataset.id)
+        );
+      }
+    });
+
+    cancelDeviceModalBtn?.addEventListener("click", () => {
+      deviceModal.style.display = "none";
+    });
+
+    deviceForm.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      try {
+        const res = await fetch(this.action, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(Object.fromEntries(new FormData(this))),
+        });
+        const json = await res.json();
+        if (!res.ok) return notyf.error(json.message || `Erro ${res.status}`);
+        notyf.success(json.message);
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        notyf.error("Falha na comunicação com o servidor.");
+      }
+    });
+  }
+
+  const campaignModal = document.getElementById("campaignModal");
   if (campaignModal) {
     let tomSelect;
-    let selectedCampaignDeviceIds = new Set();
-    const placeholderText = "Selecione um ou mais dispositivos";
-
     const openCampaignModalBtn = document.getElementById("openCampaignModal");
     const cancelCampaignModalBtn = document.getElementById(
       "cancelCampaignModal"
     );
     const campaignForm = campaignModal.querySelector(".modal-form");
     const modalTitle = campaignModal.querySelector(".modal-title");
-    const submitButton = campaignForm.querySelector('button[type="submit"]');
-    const fileUploadInput = document.getElementById("file-upload");
     const filePreviewWrapper = document.getElementById("file-preview-wrapper");
-    const fileUploadLabel = document.querySelector('label[for="file-upload"]');
-    const sectorFilter = document.getElementById("sectorFilter");
+    const campaignCompanySelect = document.getElementById("campaignCompany");
+    const deviceSelectElement = document.getElementById("device_ids");
+    const campaignFileInput = document.getElementById("file-upload");
+    const fileUploadButton = document.querySelector(".file-upload-button");
 
     const startDatePicker = flatpickr("#start_date", {
       enableTime: true,
@@ -159,174 +352,173 @@ document.addEventListener("DOMContentLoaded", () => {
       defaultMinute: 59,
     });
 
-    const resetFileInput = () => {
-      if (fileUploadInput) fileUploadInput.value = "";
-      if (filePreviewWrapper) filePreviewWrapper.innerHTML = "";
-      if (fileUploadLabel) fileUploadLabel.style.display = "inline-flex";
-      const existingHiddenInput = campaignForm.querySelector(
-        'input[name="remove_media"]'
-      );
-      if (existingHiddenInput) existingHiddenInput.remove();
-    };
+    if (campaignCompanySelect && campaignCompanySelect.options.length <= 1) {
+      campaignCompanySelect.disabled = true;
+      const defaultOption = campaignCompanySelect.querySelector("option");
+      if (defaultOption) {
+        defaultOption.textContent = "Nenhuma empresa cadastrada";
+      }
+    }
 
-    const setPlaceholderVisibility = () => {
-      if (!tomSelect) return;
-      if (tomSelect.items.length > 0) {
-        tomSelect.wrapper.classList.add("has-items");
-      } else {
-        tomSelect.wrapper.classList.remove("has-items");
+    if (deviceSelectElement) {
+      tomSelect = new TomSelect(deviceSelectElement, {
+        plugins: ["remove_button"],
+        create: false,
+        placeholder: "Selecione uma empresa primeiro",
+        valueField: "id",
+        labelField: "name",
+        searchField: "name",
+      });
+    }
+
+    const populateDevicesForCampaign = async (companyId) => {
+      tomSelect.clear();
+      tomSelect.clearOptions();
+      tomSelect.disable();
+      tomSelect.settings.placeholder = "Carregando dispositivos...";
+      tomSelect.sync();
+
+      if (!companyId) {
+        tomSelect.settings.placeholder = "Selecione uma empresa primeiro";
+        tomSelect.sync();
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/companies/${companyId}/devices`);
+        if (!response.ok) throw new Error("Falha ao buscar dispositivos");
+        const devices = await response.json();
+
+        tomSelect.settings.placeholder = "Selecione o(s) dispositivo(s)";
+        tomSelect.addOptions(devices);
+        tomSelect.enable();
+        tomSelect.sync();
+      } catch (error) {
+        notyf.error("Não foi possível carregar os dispositivos.");
+        tomSelect.settings.placeholder = "Erro ao carregar dispositivos";
+        tomSelect.sync();
       }
     };
 
-    const updateDeviceOptions = () => {
-      if (!tomSelect) return;
+    campaignCompanySelect?.addEventListener("change", () => {
+      populateDevicesForCampaign(campaignCompanySelect.value);
+    });
 
-      const currentSector = sectorFilter.value;
+    const displayFilePreview = (file) => {
+      const fileName = file.name;
+      const fileType = file.type.split("/")[0];
+      const fileExtension = fileName.split(".").pop();
 
-      const devicesInSector =
-        currentSector === "all"
-          ? allDevices
-          : allDevices.filter((d) => d.sector === currentSector);
+      let iconClass = "bi-file-earmark";
+      if (fileType === "image") {
+        iconClass = "bi-image";
+      } else if (fileType === "video") {
+        iconClass = "bi-film";
+      }
 
-      const selectedDevices = [...selectedCampaignDeviceIds]
-        .map((id) => allDevices.find((d) => String(d.id) === id))
-        .filter(Boolean);
-
-      const combined = [...devicesInSector, ...selectedDevices];
-      const options = Array.from(
-        new Map(combined.map((d) => [d.id, d])).values()
-      );
-
-      tomSelect.clearOptions();
-      tomSelect.addOptions(options.map((d) => ({ value: d.id, text: d.name })));
-      tomSelect.setValue([...selectedCampaignDeviceIds]);
+      filePreviewWrapper.innerHTML = `
+            <div class="file-preview">
+                <div class="file-preview-icon">
+                    <i class="bi ${iconClass}"></i>
+                </div>
+                <div class="file-preview-details">
+                    <div class="file-preview-name" title="${fileName}">${fileName}</div>
+                    <div class="file-preview-extension">${fileExtension}</div>
+                </div>
+                <button type="button" class="file-preview-remove">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+        `;
+      fileUploadButton.style.display = "none";
     };
 
-    cancelCampaignModalBtn?.addEventListener("click", () => {
-      campaignModal.classList.remove("active");
-      setTimeout(() => {
-        campaignModal.style.display = "none";
-        resetFileInput();
-        if (tomSelect) tomSelect.clear();
-      }, MODAL_CLOSE_DELAY);
+    campaignFileInput?.addEventListener("change", () => {
+      const file = campaignFileInput.files[0];
+      if (file) {
+        displayFilePreview(file);
+      } else {
+        filePreviewWrapper.innerHTML = "";
+        fileUploadButton.style.display = "inline-flex";
+      }
+    });
+
+    filePreviewWrapper.addEventListener("click", (e) => {
+      if (e.target.closest(".file-preview-remove")) {
+        campaignFileInput.value = "";
+        filePreviewWrapper.innerHTML = "";
+        fileUploadButton.style.display = "inline-flex";
+      }
     });
 
     const openCreateCampaignModal = () => {
       campaignForm.reset();
-      resetFileInput();
+      filePreviewWrapper.innerHTML = "";
+      fileUploadButton.style.display = "inline-flex";
+      tomSelect.clear();
+      tomSelect.clearOptions();
+      tomSelect.disable();
+      tomSelect.settings.placeholder = "Selecione uma empresa primeiro";
+      tomSelect.sync();
       modalTitle.textContent = "Cadastrar Nova Campanha";
-      submitButton.textContent = "Adicionar";
       campaignForm.action = "/campaigns";
-
-      if (tomSelect) {
-        sectorFilter.value = "all";
-        updateDeviceOptions();
-        tomSelect.clear();
-      }
-
+      document.getElementById("campaignId").value = "";
       campaignModal.style.display = "flex";
-      campaignModal.classList.add("active");
     };
 
     const openEditCampaignModal = async (campaignId) => {
       try {
         const response = await fetch(`/api/campaigns/${campaignId}`);
         if (!response.ok) throw new Error(await handleFetchError(response));
-
-        const { campaign, associatedDevices } = await response.json();
+        const campaign = await response.json();
 
         campaignForm.reset();
-        resetFileInput();
+        filePreviewWrapper.innerHTML = "";
+        fileUploadButton.style.display = "inline-flex";
 
         modalTitle.textContent = "Editar Campanha";
-        submitButton.textContent = "Salvar Alterações";
         campaignForm.action = `/campaigns/${campaign.id}/edit`;
+        document.getElementById("campaignId").value = campaign.id;
         document.getElementById("campaignName").value = campaign.name;
+        campaignCompanySelect.value = campaign.company_id;
+
+        await populateDevicesForCampaign(campaign.company_id);
+        tomSelect.setValue(campaign.device_ids);
+
         startDatePicker.setDate(campaign.start_date, true);
         endDatePicker.setDate(campaign.end_date, true);
 
-        if (tomSelect) {
-          tomSelect.clear();
-          const associatedDeviceIds = associatedDevices.map((d) =>
-            String(d.id)
-          );
-          selectedCampaignDeviceIds = new Set(associatedDeviceIds);
-
-          const uniqueSectors = [
-            ...new Set(associatedDevices.map((d) => d.sector).filter(Boolean)),
-          ];
-
-          if (uniqueSectors.length === 1) {
-            sectorFilter.value = uniqueSectors[0];
-          } else {
-            sectorFilter.value = "all";
-          }
-
-          updateDeviceOptions();
+        if (campaign.file_path) {
+          const file = {
+            name: campaign.file_path.split("/").pop(),
+            type: campaign.mimetype,
+          };
+          displayFilePreview(file);
         }
 
-        if (campaign.midia) {
-          const fileName = campaign.midia.split("/").pop();
-          const isVideo = ["mp4", "webm", "mov"].some((ext) =>
-            fileName.toLowerCase().endsWith(ext)
-          );
-          fileUploadLabel.style.display = "none";
-          filePreviewWrapper.innerHTML = `<div class="file-preview"><div class="file-preview-icon"><i class="bi ${
-            isVideo ? "bi-camera-video-fill" : "bi-image-fill"
-          }"></i></div><div class="file-preview-details"><div class="file-preview-name">${fileName}</div></div><button type="button" class="file-preview-remove" id="remove-existing-media-btn"><i class="bi bi-x"></i></button></div>`;
-          document
-            .getElementById("remove-existing-media-btn")
-            .addEventListener("click", () => {
-              resetFileInput();
-              fileUploadLabel.style.display = "inline-flex";
-              const hiddenInput = document.createElement("input");
-              hiddenInput.type = "hidden";
-              hiddenInput.name = "remove_media";
-              hiddenInput.value = "true";
-              campaignForm.appendChild(hiddenInput);
-            });
-        } else {
-          fileUploadLabel.style.display = "inline-flex";
-        }
         campaignModal.style.display = "flex";
-        campaignModal.classList.add("active");
       } catch (error) {
         notyf.error(error.message || "Erro ao carregar dados da campanha.");
       }
     };
 
-    openCampaignModalBtn?.addEventListener("click", openCreateCampaignModal);
-
-    if (document.body.id === "campaigns-page") {
-      document.querySelectorAll(".action-icon-editar").forEach((btn) => {
+    document.querySelectorAll(".action-icon-editar").forEach((btn) => {
+      if (document.body.id === "campaigns-page") {
         btn.addEventListener("click", (e) =>
           openEditCampaignModal(e.currentTarget.dataset.id)
         );
-      });
-    }
+      }
+    });
+
+    openCampaignModalBtn?.addEventListener("click", openCreateCampaignModal);
+
+    cancelCampaignModalBtn?.addEventListener("click", () => {
+      campaignModal.style.display = "none";
+    });
 
     campaignForm.addEventListener("submit", async function (e) {
       e.preventDefault();
-
       const formData = new FormData(this);
-      const selectedDevices = tomSelect.getValue();
-
-      formData.delete("device_ids");
-      selectedDevices.forEach((deviceId) => {
-        formData.append("device_ids", deviceId);
-      });
-
-      if (
-        !formData.get("name") ||
-        !formData.get("start_date") ||
-        !formData.get("end_date") ||
-        selectedDevices.length === 0
-      ) {
-        return notyf.error(
-          "Preencha todos os campos obrigatórios, incluindo ao menos um dispositivo."
-        );
-      }
-
       try {
         const res = await fetch(this.action, {
           method: "POST",
@@ -337,211 +529,163 @@ document.addEventListener("DOMContentLoaded", () => {
         notyf.success(json.message);
         setTimeout(() => location.reload(), 1200);
       } catch (err) {
-        notyf.error("Falha de comunicação ou resposta inválida do servidor.");
+        notyf.error("Falha na comunicação com o servidor.");
       }
     });
-
-    fileUploadInput?.addEventListener("change", function () {
-      const file = this.files[0];
-      if (!file) return;
-      const fileName = file.name;
-      const fileExtension = fileName.split(".").pop();
-      const isVideo = file.type.includes("video");
-      const iconClass = isVideo ? "bi-camera-video-fill" : "bi-image-fill";
-      const previewHTML = `<div class="file-preview"><div class="file-preview-icon"><i class="bi ${iconClass}"></i></div><div class="file-preview-details"><div class="file-preview-name">${fileName}</div><div class="file-preview-extension">${fileExtension}</div></div><button type="button" class="file-preview-remove" id="remove-file-btn"><i class="bi bi-x"></i></button></div>`;
-      filePreviewWrapper.innerHTML = previewHTML;
-      fileUploadLabel.style.display = "none";
-      document
-        .getElementById("remove-file-btn")
-        .addEventListener("click", resetFileInput);
-    });
-
-    if (document.getElementById("device_ids")) {
-      tomSelect = new TomSelect("#device_ids", {
-        plugins: ["remove_button"],
-        create: false,
-        placeholder: placeholderText,
-        onChange: (value) => {
-          selectedCampaignDeviceIds = new Set(value);
-          setPlaceholderVisibility();
-        },
-      });
-
-      sectorFilter.addEventListener("change", updateDeviceOptions);
-      updateDeviceOptions();
-    }
   }
 
-  document.querySelectorAll(".action-icon-excluir").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      confirmationModal.style.display = "flex";
-      const confirmDeletionBtn = document.getElementById("confirmDeletion");
+  const detailsModal = document.getElementById("deviceDetailsModal");
+  if (detailsModal) {
+    const populateDetailsModal = (data) => {
+      document.getElementById("modalDeviceName").textContent = data.name;
+      document.getElementById(
+        "modalDeviceType"
+      ).textContent = `Dispositivo ${data.device_type}`;
+      document.getElementById("modalDeviceCompany").textContent =
+        data.company_name || "N/A";
+      document.getElementById("modalDeviceSector").textContent =
+        data.sector_name || "N/A";
 
-      const newConfirmBtn = confirmDeletionBtn.cloneNode(true);
-      confirmDeletionBtn.parentNode.replaceChild(
-        newConfirmBtn,
-        confirmDeletionBtn
+      const identifierEl = document.getElementById("modalDeviceIdentifier");
+      identifierEl.textContent =
+        data.device_identifier.substring(0, 16) + "...";
+      identifierEl.dataset.fullValue = data.device_identifier;
+
+      const authKeyEl = document.getElementById("modalAuthKey");
+      authKeyEl.textContent = data.authentication_key.substring(0, 16) + "...";
+      authKeyEl.dataset.fullValue = data.authentication_key;
+
+      const campaignsDiv = document.getElementById("modalActiveCampaigns");
+      if (data.active_campaigns && data.active_campaigns.length > 0) {
+        campaignsDiv.innerHTML = data.active_campaigns
+          .map(
+            (name) =>
+              `<p><span class="details-label">Campanha:</span><span>${name}</span></p>`
+          )
+          .join("");
+      } else {
+        campaignsDiv.innerHTML =
+          '<p class="details-subtitle">Nenhuma campanha ativa no momento.</p>';
+      }
+
+      const iconContainer = document.getElementById("modalDeviceIcon");
+      const icon = document.querySelector(
+        `.open-details-modal[data-device-id="${data.id}"] i`
+      );
+      if (icon) {
+        iconContainer.innerHTML = icon.outerHTML;
+      }
+
+      const revokeBtn = document.getElementById("modalRevokeButton");
+      const reactivateBtn = document.getElementById("modalReactivateButton");
+      const magicLinkBtn = document.getElementById(
+        "modalGenerateMagicLinkButton"
       );
 
-      newConfirmBtn.addEventListener("click", async () => {
-        const id = btn.dataset.id;
-        let url = "";
+      revokeBtn.dataset.identifier = data.device_identifier;
+      reactivateBtn.dataset.identifier = data.device_identifier;
+      magicLinkBtn.dataset.id = data.id;
 
-        if (document.body.id === "campaigns-page") {
-          url = `/campaigns/${id}/delete`;
-        } else {
-          url = `/devices/${id}/delete`;
-        }
+      if (data.is_active) {
+        revokeBtn.style.display = "inline-flex";
+        reactivateBtn.style.display = "none";
+        magicLinkBtn.style.display =
+          data.status.text === "Inativo" ? "inline-flex" : "none";
+      } else {
+        revokeBtn.style.display = "none";
+        reactivateBtn.style.display = "inline-flex";
+        magicLinkBtn.style.display = "none";
+      }
+    };
 
-        if (!url) return;
-
-        try {
-          const res = await fetch(url, { method: "POST" });
-          const json = await res.json();
-
-          if (!res.ok) {
-            return notyf.error(json.message || `Erro ${res.status}`);
-          }
-
-          confirmationModal.style.display = "none";
-          notyf.success(json.message);
-          setTimeout(() => location.reload(), 1200);
-        } catch (err) {
-          notyf.error("Falha na comunicação com o servidor.");
-        }
-      });
-    });
-  });
-
-  const cancelConfirmationBtn = document.getElementById("cancelConfirmation");
-  cancelConfirmationBtn?.addEventListener("click", () => {
-    confirmationModal.style.display = "none";
-  });
-
-  const closeDetailsModalBtn = document.getElementById("closeDetailsModal");
-  const detailsLoader = detailsModal?.querySelector(".details-modal-loader");
-  const detailsContent = detailsModal?.querySelector(".details-modal-content");
-
-  const populateDetailsModal = (data) => {
-    document.getElementById("modalDeviceName").textContent = data.name;
-    const deviceType = data.device_type || "desconhecido";
-    const capitalizedDeviceType =
-      deviceType.charAt(0).toUpperCase() + deviceType.slice(1);
-    document.getElementById(
-      "modalDeviceType"
-    ).textContent = `Dispositivo ${capitalizedDeviceType}`;
-    document.getElementById("modalDeviceSector").textContent = data.sector;
-    document.getElementById("modalRegisteredAt").textContent =
-      data.registered_at_formatted;
-    document.getElementById("modalLastSeen").textContent =
-      data.last_seen_formatted;
-
-    const identifierEl = document.getElementById("modalDeviceIdentifier");
-    const authKeyEl = document.getElementById("modalAuthKey");
-
-    if (identifierEl) {
-      identifierEl.textContent = truncateString(data.device_identifier, 8, 8);
-      identifierEl.dataset.fullValue = data.device_identifier;
-    }
-
-    if (authKeyEl) {
-      authKeyEl.textContent = truncateString(data.authentication_key, 8, 8);
-      authKeyEl.dataset.fullValue = data.authentication_key;
-    }
-
-    document.getElementById("modalDownlink").textContent =
-      data.network_downlink !== undefined && data.network_downlink !== null
-        ? `${data.network_downlink} Mbps`
-        : "N/A";
-
-    const campaignsDiv = document.getElementById("modalActiveCampaigns");
-    if (data.active_campaigns && data.active_campaigns.length > 0) {
-      let campaignsHtml = "";
-      data.active_campaigns.forEach((campaignName) => {
-        campaignsHtml += `<p><span class="details-label">Campanha:</span><span>${campaignName}</span></p>`;
-      });
-      campaignsDiv.innerHTML = campaignsHtml;
-    } else {
-      campaignsDiv.innerHTML =
-        '<p class="details-subtitle">Nenhuma campanha ativa no momento.</p>';
-    }
-
-    const iconContainer = document.getElementById("modalDeviceIcon");
-    const icon = document.querySelector(
-      `.open-details-modal[data-device-id="${data.id}"] i`
-    );
-    if (icon) {
-      iconContainer.innerHTML = icon.outerHTML;
-    }
-
-    const revokeBtn = document.getElementById("modalRevokeButton");
-    const reactivateBtn = document.getElementById("modalReactivateButton");
-    const magicLinkBtn = document.getElementById(
-      "modalGenerateMagicLinkButton"
-    );
-
-    revokeBtn.dataset.identifier = data.device_identifier;
-    reactivateBtn.dataset.identifier = data.device_identifier;
-    magicLinkBtn.dataset.id = data.id;
-
-    if (data.is_active) {
-      revokeBtn.style.display = "inline-flex";
-      reactivateBtn.style.display = "none";
-    } else {
-      revokeBtn.style.display = "none";
-      reactivateBtn.style.display = "inline-flex";
-    }
-
-    if (data.status && data.status.text === "Inativo") {
-      magicLinkBtn.style.display = "inline-flex";
-    } else {
-      magicLinkBtn.style.display = "none";
-    }
-  };
-
-  document.querySelectorAll(".open-details-modal").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const deviceId = btn.dataset.deviceId;
-      if (detailsModal) {
+    document.querySelectorAll(".open-details-modal").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const deviceId = btn.dataset.deviceId;
         detailsModal.style.display = "flex";
-        if (detailsContent) detailsContent.style.display = "none";
-        if (detailsLoader) detailsLoader.style.display = "flex";
+        detailsModal.querySelector(".details-modal-content").style.display =
+          "none";
+        detailsModal.querySelector(".details-modal-loader").style.display =
+          "flex";
         try {
           const res = await fetch(`/api/deviceDetails/${deviceId}`);
-          if (!res.ok) {
+          if (!res.ok)
             throw new Error("Falha ao carregar dados do dispositivo.");
-          }
           const data = await res.json();
           populateDetailsModal(data);
-          if (detailsLoader) detailsLoader.style.display = "none";
-          if (detailsContent) detailsContent.style.display = "block";
+          detailsModal.querySelector(".details-modal-loader").style.display =
+            "none";
+          detailsModal.querySelector(".details-modal-content").style.display =
+            "block";
         } catch (err) {
           notyf.error(err.message);
           detailsModal.style.display = "none";
         }
+      });
+    });
+
+    document
+      .getElementById("closeDetailsModal")
+      ?.addEventListener("click", () => {
+        detailsModal.style.display = "none";
+      });
+
+    detailsModal.addEventListener("click", function (e) {
+      const copyElement = e.target.closest(".copyable-code");
+      if (copyElement && copyElement.dataset.fullValue) {
+        navigator.clipboard
+          .writeText(copyElement.dataset.fullValue)
+          .then(() => notyf.success("Copiado para a área de transferência!"))
+          .catch(() => notyf.error("Falha ao copiar."));
       }
     });
-  });
 
-  if (document.body.id === "devices-page") {
-    const magicLinkBtn = document.getElementById(
-      "modalGenerateMagicLinkButton"
-    );
-    if (magicLinkBtn) {
-      magicLinkBtn.addEventListener("click", async (e) => {
+    document
+      .getElementById("modalRevokeButton")
+      ?.addEventListener("click", async function () {
+        const identifier = this.dataset.identifier;
+        try {
+          const res = await fetch(`/devices/${identifier}/revoke`, {
+            method: "POST",
+          });
+          if (!res.ok) throw new Error(await handleFetchError(res));
+          notyf.success("Dispositivo revogado com sucesso.");
+          setTimeout(() => location.reload(), 1200);
+        } catch (err) {
+          notyf.error(err.message || "Falha na comunicação com o servidor.");
+        }
+      });
+
+    document
+      .getElementById("modalReactivateButton")
+      ?.addEventListener("click", async function () {
+        const identifier = this.dataset.identifier;
+        try {
+          const res = await fetch(`/devices/${identifier}/reactivate`, {
+            method: "POST",
+          });
+          if (!res.ok) throw new Error(await handleFetchError(res));
+          const json = await res.json();
+          notyf.success(json.message);
+          setTimeout(() => location.reload(), 1200);
+        } catch (err) {
+          notyf.error(err.message || "Falha na comunicação com o servidor.");
+        }
+      });
+
+    document
+      .getElementById("modalGenerateMagicLinkButton")
+      ?.addEventListener("click", async function (e) {
         e.stopPropagation();
-        const deviceId = e.currentTarget.dataset.id;
+        const deviceId = this.dataset.id;
         try {
           const res = await fetch(`/devices/${deviceId}/magicLink`, {
             method: "POST",
           });
-
-          if (!res.ok) {
-            const error = await res.json();
-            throw new Error(error.message || "Falha ao gerar o link.");
-          }
-
+          if (!res.ok)
+            throw new Error(
+              (await res.json().message) || "Falha ao gerar link."
+            );
           const json = await res.json();
           await navigator.clipboard.writeText(json.magicLink);
           notyf.success("Link mágico copiado para a área de transferência!");
@@ -549,97 +693,68 @@ document.addEventListener("DOMContentLoaded", () => {
           notyf.error(err.message || "Não foi possível copiar o link.");
         }
       });
-    }
   }
 
-  detailsModal?.addEventListener("click", function (e) {
-    const copyElement = e.target.closest(".copyable-code");
-    if (copyElement) {
-      const fullValue = copyElement.dataset.fullValue;
-      if (fullValue) {
-        navigator.clipboard
-          .writeText(fullValue)
-          .then(() => {
-            notyf.success("Copiado para a área de transferência!");
-          })
-          .catch((err) => {
-            notyf.error("Falha ao copiar.");
+  const confirmationModal = document.getElementById("confirmationModal");
+  if (confirmationModal) {
+    document
+      .querySelectorAll(".action-icon-delete, .action-icon-excluir")
+      .forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const id = e.currentTarget.dataset.id;
+          let url = "";
+
+          if (document.body.id === "campaigns-page") {
+            url = `/campaigns/${id}/delete`;
+          } else if (document.body.id === "devices-page") {
+            url = `/devices/${id}/delete`;
+          } else if (document.body.id === "companies-page") {
+            url = `/companies/${id}/delete`;
+          } else {
+            return;
+          }
+
+          confirmationModal.style.display = "flex";
+
+          const confirmBtn = document.getElementById("confirmDeletion");
+          const newConfirmBtn = confirmBtn.cloneNode(true);
+          confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+          newConfirmBtn.addEventListener("click", async () => {
+            try {
+              const res = await fetch(url, { method: "POST" });
+              const json = await res.json();
+              if (!res.ok)
+                return notyf.error(json.message || `Erro ${res.status}`);
+
+              confirmationModal.style.display = "none";
+              notyf.success(json.message);
+              setTimeout(() => location.reload(), 1200);
+            } catch (err) {
+              notyf.error("Falha na comunicação com o servidor.");
+            }
           });
-      }
-    }
-  });
-
-  closeDetailsModalBtn?.addEventListener("click", () => {
-    if (detailsModal) detailsModal.style.display = "none";
-  });
-
-  document
-    .getElementById("modalRevokeButton")
-    ?.addEventListener("click", async function () {
-      const identifier = this.dataset.identifier;
-      try {
-        const res = await fetch(`/devices/${identifier}/revoke`, {
-          method: "POST",
         });
-        if (!res.ok) {
-          const msg = await handleFetchError(res);
-          return notyf.error(msg);
-        }
-        notyf.success("Dispositivo revogado com sucesso.");
-        setTimeout(() => location.reload(), 1200);
-      } catch (err) {
-        notyf.error("Falha na comunicação com o servidor.");
-      }
-    });
+      });
 
-  document
-    .getElementById("modalReactivateButton")
-    ?.addEventListener("click", async function () {
-      const identifier = this.dataset.identifier;
-      try {
-        const res = await fetch(`/devices/${identifier}/reactivate`, {
-          method: "POST",
-        });
-        if (!res.ok) {
-          const msg = await handleFetchError(res);
-          return notyf.error(msg);
-        }
-        const json = await res.json();
-        notyf.success(json.message);
-        setTimeout(() => location.reload(), 1200);
-      } catch (err) {
-        notyf.error("Falha na comunicação com o servidor.");
-      }
-    });
+    document
+      .getElementById("cancelConfirmation")
+      ?.addEventListener("click", () => {
+        confirmationModal.style.display = "none";
+      });
+  }
 
   window.addEventListener("click", (e) => {
-    if (e.target === deviceModal) {
-      deviceModal.classList.remove("active");
-      setTimeout(() => (deviceModal.style.display = "none"), MODAL_CLOSE_DELAY);
+    if (e.target.classList.contains("modal-overlay")) {
+      e.target.style.display = "none";
     }
-    if (e.target === campaignModal) {
-      campaignModal.classList.remove("active");
-      setTimeout(() => {
-        campaignModal.style.display = "none";
-        campaignModal.querySelector(".modal-form").reset();
-        campaignModal.querySelector("#file-preview-wrapper").innerHTML = "";
-        campaignModal.querySelector('label[for="file-upload"]').style.display =
-          "inline-flex";
-        if (tomSelect) tomSelect.clear();
-      }, MODAL_CLOSE_DELAY);
-    }
-    if (e.target === confirmationModal)
-      confirmationModal.style.display = "none";
-    if (e.target === detailsModal) detailsModal.style.display = "none";
   });
 
   document.querySelectorAll(".device-table tbody tr").forEach((row) => {
+    if (row.id && row.id.includes("no-")) return;
     row.addEventListener("click", function (event) {
-      if (
-        event.target.closest(
-          ".action-icon, .action-icon-excluir, .action-icon-editar, .details-icon-button"
-        )
-      ) {
+      if (event.target.closest(".actions-cell")) {
         return;
       }
       this.querySelector(".open-details-modal")?.click();
@@ -654,17 +769,16 @@ document.addEventListener("DOMContentLoaded", () => {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-
         if (data.type === "DEVICE_STATUS_UPDATE") {
           const { deviceId, status } = data.payload;
           const statusCell = document.querySelector(
             `tr[data-device-id="${deviceId}"] [data-status-cell]`
           );
           if (statusCell) {
-            const statusSpan = statusCell.querySelector("span:first-child");
+            const statusSpan = statusCell.querySelector("span");
             const statusText = statusCell.querySelector("[data-status-text]");
             if (statusSpan && statusText) {
-              statusSpan.className = status.class;
+              statusSpan.className = `online-status ${status.class}`;
               statusText.textContent = status.text;
             }
           }
@@ -675,14 +789,9 @@ document.addEventListener("DOMContentLoaded", () => {
           );
           if (campaignRow) {
             const statusCell = campaignRow.querySelector("[data-status-cell]");
-            const statusSpan = statusCell.querySelector("span:first-child");
+            const statusSpan = campaignRow.querySelector("span");
             const statusText = statusCell.querySelector("[data-status-text]");
-
-            if (
-              statusSpan &&
-              statusText &&
-              statusSpan.className !== status.class
-            ) {
+            if (statusSpan && statusText) {
               statusSpan.className = `online-status ${status.class}`;
               statusText.textContent = status.text;
             }
@@ -702,10 +811,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   };
 
-  if (
-    document.body.id === "devices-page" ||
-    document.body.id === "campaigns-page"
-  ) {
+  if (document.body.id.endsWith("-page")) {
     connectAdminWs();
   }
 });
