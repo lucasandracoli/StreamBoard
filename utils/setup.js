@@ -82,7 +82,8 @@ CREATE TABLE IF NOT EXISTS campaign_uploads (
     file_path VARCHAR(500) NOT NULL,
     file_type VARCHAR(50) NOT NULL,
     execution_order INTEGER DEFAULT 0,
-    uploaded_at TIMESTAMPTZ DEFAULT NOW()
+    uploaded_at TIMESTAMPTZ DEFAULT NOW(),
+    duration INTEGER DEFAULT 10
 );
 
 CREATE TABLE IF NOT EXISTS magic_links (

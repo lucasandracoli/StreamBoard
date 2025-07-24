@@ -101,15 +101,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const url = campaign.file_path;
-    const ext = url.split(".").pop().toLowerCase();
+    const isImage = campaign.file_type.startsWith("image/");
+    const isVideo = campaign.file_type.startsWith("video/");
     const cached = mediaCache[url];
 
-    if (cached && ["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
+    if (cached && isImage) {
       const img = cached.cloneNode();
       img.onerror = playNextMedia;
       offerContainer.appendChild(img);
-      mediaTimer = setTimeout(playNextMedia, 10000);
-    } else if (cached && ["mp4", "webm", "mov"].includes(ext)) {
+      const duration = (campaign.duration || 10) * 1000;
+      mediaTimer = setTimeout(playNextMedia, duration);
+    } else if (cached && isVideo) {
       const vid = cached.cloneNode();
       vid.autoplay = true;
       vid.muted = true;

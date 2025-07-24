@@ -1105,7 +1105,8 @@ app.get("/pair/magic", async (req, res) => {
 app.get("/api/device/playlist", deviceAuth, async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT up.* FROM campaign_uploads up
+      `SELECT up.id, up.file_path, up.file_type, up.duration 
+       FROM campaign_uploads up
        JOIN campaign_device cd ON up.campaign_id = cd.campaign_id
        JOIN campaigns c ON up.campaign_id = c.id
        WHERE cd.device_id = $1
@@ -1216,87 +1217,81 @@ app.post(
   isAdmin,
   upload.array("media", 5),
   async (req, res) => {
-    let { name, start_date, end_date, device_ids, company_id } = req.body;
-    if (!name || !start_date || !end_date || !device_ids || !company_id) {
+    let { name, start_date, end_date, device_ids, company_id, media_metadata } =
+      req.body;
+
+    if (!name || !start_date || !end_date || !company_id) {
       return res
         .status(400)
         .json({ message: "Todos os campos são obrigatórios." });
     }
 
-    if (!device_ids) {
-      device_ids = [];
-    } else if (!Array.isArray(device_ids)) {
-      device_ids = [device_ids];
-    }
+    device_ids = device_ids
+      ? Array.isArray(device_ids)
+        ? device_ids
+        : [device_ids]
+      : [];
+    const mediaMetadata = media_metadata ? JSON.parse(media_metadata) : [];
 
-    let parsedStartDate, parsedEndDate;
-    try {
-      parsedStartDate = DateTime.fromFormat(
-        start_date,
-        "dd/MM/yyyy HH:mm"
-      ).toJSDate();
-      parsedEndDate = DateTime.fromFormat(
-        end_date,
-        "dd/MM/yyyy HH:mm"
-      ).toJSDate();
-      if (parsedEndDate < parsedStartDate) {
-        return res.status(400).json({
-          message: "A data de término não pode ser anterior à data de início.",
-        });
-      }
-    } catch (err) {
-      logger.error("Formato de data inválido na criação de campanha.", err);
-      return res.status(400).json({
-        message: "Formato de data ou hora inválido. Use DD/MM/AAAA HH:MM.",
-      });
-    }
+    const parsedStartDate = DateTime.fromFormat(
+      start_date,
+      "dd/MM/yyyy HH:mm"
+    ).toJSDate();
+    const parsedEndDate = DateTime.fromFormat(
+      end_date,
+      "dd/MM/yyyy HH:mm"
+    ).toJSDate();
 
     const client = await db.connect();
     try {
       await client.query("BEGIN");
       const campaignResult = await client.query(
-        `INSERT INTO campaigns (name, start_date, end_date, company_id)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
+        `INSERT INTO campaigns (name, start_date, end_date, company_id) VALUES ($1, $2, $3, $4) RETURNING *`,
         [name, parsedStartDate, parsedEndDate, company_id]
       );
       const newCampaign = campaignResult.rows[0];
 
       if (req.files && req.files.length > 0) {
         for (const [index, file] of req.files.entries()) {
+          const metadata = mediaMetadata[index] || {};
           const filePath = `/uploads/${file.filename}`;
           await client.query(
-            `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [newCampaign.id, file.filename, filePath, file.mimetype, index]
+            `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order, duration) VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              newCampaign.id,
+              file.originalname,
+              filePath,
+              file.mimetype,
+              metadata.order,
+              metadata.duration,
+            ]
           );
         }
       }
 
       for (const device_id of device_ids) {
         await client.query(
-          `INSERT INTO campaign_device (campaign_id, device_id)
-           VALUES ($1, $2)`,
+          `INSERT INTO campaign_device (campaign_id, device_id) VALUES ($1, $2)`,
           [newCampaign.id, device_id]
         );
       }
+
       await client.query("COMMIT");
-      device_ids.forEach((device_id) => {
-        sendUpdateToDevice(device_id, {
+
+      device_ids.forEach((deviceId) => {
+        sendUpdateToDevice(deviceId, {
           type: "NEW_CAMPAIGN",
           payload: newCampaign,
         });
       });
-      res.status(200).json({
-        message: "Campanha criada.",
-        campaign: newCampaign,
-      });
+
+      res
+        .status(200)
+        .json({ message: "Campanha criada.", campaign: newCampaign });
     } catch (err) {
       await client.query("ROLLBACK");
       logger.error("Erro interno ao criar campanha.", err);
-      res.status(500).json({
-        message: "Erro interno ao criar campanha.",
-        error: err.message,
-      });
+      res.status(500).json({ message: "Erro interno ao criar campanha." });
     } finally {
       client.release();
     }
@@ -1497,7 +1492,11 @@ app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     const campaignResult = await db.query(
-      `SELECT c.*, (SELECT json_agg(cd.device_id) FROM campaign_device cd WHERE cd.campaign_id = c.id) as device_ids
+      `SELECT c.*,
+        (SELECT json_agg(json_build_object('id', d.id, 'name', d.name))
+         FROM campaign_device cd
+         JOIN devices d ON cd.device_id = d.id
+         WHERE cd.campaign_id = c.id) as devices
        FROM campaigns c
        WHERE c.id = $1`,
       [id]
@@ -1508,10 +1507,10 @@ app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
     }
 
     const campaign = campaignResult.rows[0];
-    campaign.device_ids = campaign.device_ids || [];
+    campaign.devices = campaign.devices || [];
 
     const uploadsResult = await db.query(
-      "SELECT id, file_name, file_path, file_type FROM campaign_uploads WHERE campaign_id = $1 ORDER BY execution_order ASC",
+      "SELECT id, file_name, file_path, file_type, duration FROM campaign_uploads WHERE campaign_id = $1 ORDER BY execution_order ASC",
       [id]
     );
     campaign.uploads = uploadsResult.rows;
@@ -1530,15 +1529,8 @@ app.post(
   upload.array("media", 5),
   async (req, res) => {
     const { id } = req.params;
-    let {
-      name,
-      start_date,
-      end_date,
-      device_ids,
-      company_id,
-      media_touched,
-      keep_media_ids,
-    } = req.body;
+    let { name, start_date, end_date, device_ids, company_id, media_touched } =
+      req.body;
 
     if (!name || !start_date || !end_date || !company_id) {
       return res
@@ -1546,15 +1538,10 @@ app.post(
         .json({ message: "Todos os campos são obrigatórios." });
     }
 
-    device_ids = device_ids
+    const newDeviceIds = device_ids
       ? Array.isArray(device_ids)
         ? device_ids
         : [device_ids]
-      : [];
-    keep_media_ids = keep_media_ids
-      ? Array.isArray(keep_media_ids)
-        ? keep_media_ids.map(Number)
-        : [Number(keep_media_ids)]
       : [];
 
     const parsedStartDate = DateTime.fromFormat(
@@ -1568,21 +1555,33 @@ app.post(
 
     const client = await db.connect();
     try {
-      await client.query("BEGIN");
+      const oldDevicesResult = await client.query(
+        "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
+        [id]
+      );
+      const oldDeviceIds = oldDevicesResult.rows.map((r) => r.device_id);
 
+      await client.query("BEGIN");
       await client.query(
         "UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, company_id = $4 WHERE id = $5",
         [name, parsedStartDate, parsedEndDate, company_id, id]
       );
 
       if (media_touched === "true") {
+        const mediaMetadata = req.body.media_metadata
+          ? JSON.parse(req.body.media_metadata)
+          : [];
+        const keptMediaIds = mediaMetadata
+          .filter((m) => m.id !== null)
+          .map((m) => m.id);
+        const newFilesMetadata = mediaMetadata.filter((m) => m.id === null);
+
         const existingUploads = await client.query(
           "SELECT id, file_path FROM campaign_uploads WHERE campaign_id = $1",
           [id]
         );
-
         const uploadsToDelete = existingUploads.rows.filter(
-          (upload) => !keep_media_ids.includes(upload.id)
+          (upload) => !keptMediaIds.includes(upload.id)
         );
 
         if (uploadsToDelete.length > 0) {
@@ -1596,62 +1595,91 @@ app.post(
                 )
               );
           }
-          const idsToDelete = uploadsToDelete.map((u) => u.id);
           await client.query(
             "DELETE FROM campaign_uploads WHERE id = ANY($1::int[])",
-            [idsToDelete]
+            [uploadsToDelete.map((u) => u.id)]
           );
         }
 
-        const filesToUpload = req.files || [];
-        for (const [index, file] of filesToUpload.entries()) {
-          const newFilePath = `/uploads/${file.filename}`;
-          await client.query(
-            `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order) VALUES ($1, $2, $3, $4, $5)`,
-            [id, file.filename, newFilePath, file.mimetype, 99 + index]
-          );
+        for (const meta of mediaMetadata) {
+          if (meta.id !== null) {
+            await client.query(
+              "UPDATE campaign_uploads SET execution_order = $1, duration = $2 WHERE id = $3",
+              [meta.order, meta.duration, meta.id]
+            );
+          }
+        }
+
+        let fileIndex = 0;
+        for (const meta of newFilesMetadata) {
+          const file = req.files[fileIndex++];
+          if (file) {
+            const newFilePath = `/uploads/${file.filename}`;
+            await client.query(
+              `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order, duration) VALUES ($1, $2, $3, $4, $5, $6)`,
+              [
+                id,
+                file.originalname,
+                newFilePath,
+                file.mimetype,
+                meta.order,
+                meta.duration,
+              ]
+            );
+          }
         }
       }
 
       await client.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
         id,
       ]);
-      for (const device_id of device_ids) {
+      for (const device_id of newDeviceIds) {
         await client.query(
           "INSERT INTO campaign_device (campaign_id, device_id) VALUES ($1, $2)",
           [id, device_id]
         );
       }
 
-      const updatedCampaignResult = await client.query(
-        `SELECT c.*, co.name as company_name,
-          (SELECT JSON_AGG(json_build_object('id', d.id, 'name', d.name)) FROM campaign_device cd JOIN devices d ON cd.device_id = d.id WHERE cd.campaign_id = c.id) as devices,
+      await client.query("COMMIT");
+
+      const finalResult = await client.query(
+        `SELECT c.*,
+          co.name as company_name,
+          (
+            SELECT JSON_AGG(json_build_object('id', d.id, 'name', d.name))
+            FROM campaign_device cd
+            JOIN devices d ON cd.device_id = d.id
+            WHERE cd.campaign_id = c.id
+          ) as devices,
           (SELECT COUNT(*) FROM campaign_uploads cu WHERE cu.campaign_id = c.id) as uploads_count,
           (SELECT cu.file_type FROM campaign_uploads cu WHERE cu.campaign_id = c.id ORDER BY cu.execution_order ASC LIMIT 1) as first_upload_type
         FROM campaigns c
-        LEFT JOIN companies co ON c.company_id = co.id
+        JOIN companies co ON c.company_id = co.id
         WHERE c.id = $1`,
         [id]
       );
 
-      await client.query("COMMIT");
-
-      const campaignData = updatedCampaignResult.rows[0];
-      if (!campaignData) {
-        throw new Error("Falha ao recarregar campanha após edição.");
+      if (finalResult.rows.length === 0) {
+        throw new Error("Falha ao recarregar a campanha após a edição.");
       }
+
+      const campaignData = finalResult.rows[0];
 
       let campaign_type = "Sem Mídia";
       const uploadsCount = parseInt(campaignData.uploads_count, 10);
       if (uploadsCount > 1) {
         campaign_type = "Playlist";
       } else if (uploadsCount === 1) {
-        campaign_type = campaignData.first_upload_type?.startsWith("image/")
-          ? "Imagem"
-          : "Vídeo";
+        if (campaignData.first_upload_type?.startsWith("image/")) {
+          campaign_type = "Imagem";
+        } else if (campaignData.first_upload_type?.startsWith("video/")) {
+          campaign_type = "Vídeo";
+        } else {
+          campaign_type = "Arquivo";
+        }
       }
 
-      const campaign = {
+      const campaignForResponse = {
         ...campaignData,
         devices: campaignData.devices || [],
         periodo_formatado: formatarPeriodo(
@@ -1661,13 +1689,20 @@ app.post(
         campaign_type,
       };
 
-      device_ids.forEach((deviceId) =>
+      const allAffectedDeviceIds = [
+        ...new Set([...oldDeviceIds, ...newDeviceIds.map(Number)]),
+      ];
+      allAffectedDeviceIds.forEach((deviceId) => {
         sendUpdateToDevice(deviceId, {
           type: "UPDATE_CAMPAIGN",
           payload: { campaignId: id },
-        })
-      );
-      res.status(200).json({ message: "Campanha atualizada.", campaign });
+        });
+      });
+
+      res.status(200).json({
+        message: "Campanha atualizada com sucesso.",
+        campaign: campaignForResponse,
+      });
     } catch (err) {
       await client.query("ROLLBACK");
       logger.error(`Erro ao editar campanha ${id}.`, err);

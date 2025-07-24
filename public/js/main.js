@@ -325,6 +325,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let tomSelect;
     let stagedFiles = [];
+    let sortableInstance = null;
     let mediaHasBeenTouched = false;
 
     const elements = {
@@ -410,39 +411,73 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     const renderStagedFiles = () => {
-      elements.filePreviewWrapper.innerHTML = "";
-      elements.fileUploadButton.style.display = "flex";
-      if (stagedFiles.length > 0) {
-        const list = document.createElement("ul");
-        list.className = "file-preview-list";
-        stagedFiles.forEach((file, index) => {
-          const fileName = file.name || file.file_name;
-          const fileType = file.type || file.file_type || "";
-          const iconClass = fileType.startsWith("image")
-            ? "bi-image"
-            : fileType.startsWith("video")
-            ? "bi-film"
-            : "bi-file-earmark";
-          const item = document.createElement("li");
-          item.className = "file-preview-item";
-          item.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
-              <i class="bi ${iconClass}"></i>
-              <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${fileName}">${fileName}</span>
-            </div>
-            <button type="button" class="remove-file-btn" data-index="${index}">&times;</button>
-          `;
-          list.appendChild(item);
-        });
-        elements.filePreviewWrapper.appendChild(list);
+      if (sortableInstance) {
+        sortableInstance.destroy();
+        sortableInstance = null;
       }
+      elements.filePreviewWrapper.innerHTML = "";
+      if (stagedFiles.length === 0) return;
+
+      const list = document.createElement("ul");
+      list.className = "file-preview-list";
+      stagedFiles.forEach((file, index) => {
+        const fileName = file.name || file.file_name;
+        const fileType = file.type || file.file_type || "";
+        const isImage = fileType.startsWith("image/");
+        const isVideo = fileType.startsWith("video/");
+        let thumbnailHtml = `<i class="bi bi-file-earmark"></i>`;
+
+        if (isImage) {
+          const src =
+            file instanceof File ? URL.createObjectURL(file) : file.file_path;
+          thumbnailHtml = `<img src="${src}" alt="preview">`;
+        } else if (isVideo) {
+          thumbnailHtml = `<i class="bi bi-film"></i>`;
+        }
+
+        const durationInputHtml = isImage
+          ? `<div class="media-duration-group">
+               <input type="number" class="media-duration-input" data-index="${index}" value="${
+              file.duration || 10
+            }" min="1">
+               <label>segundos</label>
+             </div>`
+          : "";
+
+        const item = document.createElement("li");
+        item.className = "file-preview-item";
+        item.dataset.id = file.id || `new-${index}`;
+        item.innerHTML = `
+          <div class="media-thumbnail">${thumbnailHtml}</div>
+          <div class="media-details">
+            <span class="file-preview-name" title="${fileName}">${fileName}</span>
+            ${durationInputHtml}
+          </div>
+          <button type="button" class="remove-file-btn" data-index="${index}">&times;</button>`;
+        list.appendChild(item);
+      });
+      elements.filePreviewWrapper.appendChild(list);
+
+      sortableInstance = new Sortable(list, {
+        animation: 150,
+        onEnd: (evt) => {
+          mediaHasBeenTouched = true;
+          const [movedItem] = stagedFiles.splice(evt.oldIndex, 1);
+          stagedFiles.splice(evt.newIndex, 0, movedItem);
+          renderStagedFiles();
+        },
+      });
     };
 
-    const resetModalState = () => {
+    const resetModal = () => {
       elements.form.reset();
       stagedFiles = [];
       mediaHasBeenTouched = false;
-      renderStagedFiles();
+      if (sortableInstance) {
+        sortableInstance.destroy();
+        sortableInstance = null;
+      }
+      elements.filePreviewWrapper.innerHTML = "";
       tomSelect.clear();
       tomSelect.clearOptions();
       tomSelect.disable();
@@ -453,7 +488,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const openCreateCampaignModal = () => {
-      resetModalState();
+      resetModal();
       elements.modalTitle.textContent = "Cadastrar Campanha";
       elements.form.action = "/campaigns";
       elements.idInput.value = "";
@@ -468,9 +503,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!response.ok) throw new Error(await handleFetchError(response));
         const campaign = await response.json();
 
-        console.log("[DEBUG] Dados recebidos para edição:", campaign);
-
-        resetModalState();
+        resetModal();
 
         elements.modalTitle.textContent = "Editar Campanha";
         elements.form.action = `/campaigns/${campaign.id}/edit`;
@@ -486,21 +519,13 @@ document.addEventListener("DOMContentLoaded", () => {
         stagedFiles = (campaign.uploads || []).map((file) => ({
           ...file,
           name: file.file_name,
-          id: file.id,
+          type: file.file_type,
         }));
-        console.log(
-          "[DEBUG] Mídias existentes carregadas:",
-          JSON.parse(JSON.stringify(stagedFiles))
-        );
         renderStagedFiles();
 
         await populateDevicesForCampaign(campaign.company_id);
-
-        console.log(
-          "[DEBUG] Tentando selecionar devices:",
-          campaign.device_ids
-        );
-        tomSelect.setValue(campaign.device_ids);
+        const deviceIds = (campaign.devices || []).map((d) => d.id);
+        tomSelect.setValue(deviceIds);
 
         campaignModal.style.display = "flex";
       } catch (error) {
@@ -510,9 +535,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     elements.fileInput?.addEventListener("change", (e) => {
       mediaHasBeenTouched = true;
-      const newFiles = Array.from(e.target.files);
-      console.log("[DEBUG] Novos arquivos selecionados:", newFiles);
-
+      const newFiles = Array.from(e.target.files).map((f) =>
+        Object.assign(f, { duration: 10 })
+      );
       const combinedFiles = [...stagedFiles, ...newFiles];
 
       if (combinedFiles.length > 5) {
@@ -522,30 +547,24 @@ document.addEventListener("DOMContentLoaded", () => {
         stagedFiles = combinedFiles;
       }
 
-      console.log(
-        "[DEBUG] Mídias após adicionar:",
-        JSON.parse(JSON.stringify(stagedFiles))
-      );
       renderStagedFiles();
       elements.fileInput.value = "";
+    });
+
+    elements.filePreviewWrapper.addEventListener("input", (e) => {
+      if (e.target.classList.contains("media-duration-input")) {
+        mediaHasBeenTouched = true;
+        const index = parseInt(e.target.dataset.index, 10);
+        if (stagedFiles[index]) {
+          stagedFiles[index].duration = parseInt(e.target.value, 10) || 10;
+        }
+      }
     });
 
     elements.filePreviewWrapper.addEventListener("click", (e) => {
       if (e.target.classList.contains("remove-file-btn")) {
         mediaHasBeenTouched = true;
-        const indexToRemove = parseInt(e.target.dataset.index, 10);
-        console.log(`[DEBUG] Removendo mídia no índice: ${indexToRemove}`);
-        console.log(
-          "[DEBUG] Mídias ANTES de remover:",
-          JSON.parse(JSON.stringify(stagedFiles))
-        );
-
-        stagedFiles.splice(indexToRemove, 1);
-
-        console.log(
-          "[DEBUG] Mídias DEPOIS de remover:",
-          JSON.parse(JSON.stringify(stagedFiles))
-        );
+        stagedFiles.splice(parseInt(e.target.dataset.index, 10), 1);
         renderStagedFiles();
       }
     });
@@ -555,10 +574,12 @@ document.addEventListener("DOMContentLoaded", () => {
         `tr[data-campaign-id="${campaign.id}"]`
       );
       if (!row) return;
+
       row.querySelector(".col-name").textContent = campaign.name;
       row.querySelector(".col-company").textContent = campaign.company_name;
       row.querySelector(".col-type").textContent = campaign.campaign_type;
       row.querySelector(".col-period").textContent = campaign.periodo_formatado;
+
       const deviceCell = row.querySelector(".col-devices");
       let deviceText = "Nenhum";
       if (campaign.devices && campaign.devices.length > 0) {
@@ -594,8 +615,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const formData = new FormData();
       const campaignId = elements.idInput.value;
 
-      console.log("[DEBUG] Iniciando submit do formulário.");
-
       formData.append("name", elements.nameInput.value);
       formData.append("company_id", elements.companySelect.value);
       formData.append("start_date", elements.startDateInput.value);
@@ -608,22 +627,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (mediaHasBeenTouched) {
         formData.append("media_touched", "true");
-
-        const filesToUpload = stagedFiles.filter(
-          (file) => file instanceof File
-        );
-        const keptFileIds = stagedFiles
-          .filter((file) => !(file instanceof File) && file.id)
-          .map((file) => file.id);
-
-        console.log(
-          "[DEBUG] Mídias NOVAS para upload:",
-          filesToUpload.map((f) => f.name)
-        );
-        console.log("[DEBUG] IDs de mídias antigas para MANTER:", keptFileIds);
-
-        filesToUpload.forEach((file) => formData.append("media", file));
-        keptFileIds.forEach((id) => formData.append("keep_media_ids", id));
+        const mediaMetadata = stagedFiles.map((file, index) => ({
+          id: file instanceof File ? null : file.id,
+          name: file.name,
+          order: index,
+          duration: file.duration || 10,
+        }));
+        formData.append("media_metadata", JSON.stringify(mediaMetadata));
+        stagedFiles
+          .filter((file) => file instanceof File)
+          .forEach((file) => formData.append("media", file));
       }
 
       try {

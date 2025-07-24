@@ -45,15 +45,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const url = campaign.file_path;
-    const ext = url.split(".").pop().toLowerCase();
+    const isImage = campaign.file_type.startsWith("image/");
+    const isVideo = campaign.file_type.startsWith("video/");
 
-    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
+    if (isImage) {
       const img = document.createElement("img");
       img.src = url;
       img.onerror = () => playNext();
       campaignContainer.appendChild(img);
-      mediaTimer = setTimeout(playNext, 10000);
-    } else if (["mp4", "webm", "mov"].includes(ext)) {
+      const duration = (campaign.duration || 10) * 1000;
+      mediaTimer = setTimeout(playNext, duration);
+    } else if (isVideo) {
       const video = document.createElement("video");
       video.src = url;
       video.autoplay = true;
