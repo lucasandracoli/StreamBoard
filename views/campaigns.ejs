@@ -52,6 +52,7 @@
               <th class="col-name">Nome</th>
               <th class="col-status">Status</th>
               <th class="col-company">Empresa</th>
+              <th class="col-type">Tipo</th>
               <th class="col-period">Período</th>
               <th class="col-devices">Dispositivos</th>
               <th class="col-actions">Ações</th>
@@ -60,22 +61,27 @@
           <tbody id="campaigns-table-body">
             <% if (campaigns.length === 0) { %>
             <tr id="no-campaigns-row">
-              <td colspan="6" style="text-align: center">
+              <td colspan="7" style="text-align: center">
                 Nenhuma campanha cadastrada.
               </td>
             </tr>
             <% } else { %> <% campaigns.forEach(campaign => { %>
             <tr data-campaign-id="<%= campaign.id %>">
-              <td class="break-word"><%= campaign.name %></td>
-              <td data-status-cell>
+              <td class="break-word col-name"><%= campaign.name %></td>
+              <td data-status-cell class="col-status">
                 <span class="online-status <%= campaign.status.class %>">
                   <span class="online-dot"></span>
                   <span data-status-text><%= campaign.status.text %></span>
                 </span>
               </td>
-              <td class="break-word"><%= campaign.company_name %></td>
-              <td class="period-cell"><%= campaign.periodo_formatado %></td>
-              <td class="device-badges-cell">
+              <td class="break-word col-company">
+                <%= campaign.company_name %>
+              </td>
+              <td class="break-word col-type"><%= campaign.campaign_type %></td>
+              <td class="period-cell col-period">
+                <%= campaign.periodo_formatado %>
+              </td>
+              <td class="device-badges-cell col-devices">
                 <% if (campaign.devices && campaign.devices.length > 0) { %> <%
                 campaign.devices.slice(0, 3).forEach((device, index, arr) => {
                 %> <%= device.name %><% if (index < arr.length - 1) { %>, <% }
@@ -85,7 +91,7 @@
                 >
                 <% } %> <% } else { %> Nenhum <% } %>
               </td>
-              <td class="actions-cell">
+              <td class="actions-cell col-actions">
                 <button
                   class="action-icon action-icon-editar"
                   data-id="<%= campaign.id %>"
