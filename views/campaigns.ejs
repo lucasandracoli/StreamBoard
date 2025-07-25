@@ -160,58 +160,62 @@
           enctype="multipart/form-data"
         >
           <input type="hidden" id="campaignId" />
-          <div class="form-group">
-            <label for="campaignName" class="form-label"
-              >Nome da Campanha</label
-            >
-            <input
-              id="campaignName"
-              type="text"
-              name="name"
-              required
-              class="modal-input"
-            />
-          </div>
 
-          <div class="form-group">
-            <label for="campaignCompany" class="form-label">Empresa</label>
-            <select
-              id="campaignCompany"
-              name="company_id"
-              class="modal-input"
-              required
-            >
-              <option value="" disabled selected>Selecione uma empresa</option>
-              <% companies.forEach(company => { %>
-              <option value="<%= company.id %>"><%= company.name %></option>
-              <% }) %>
-            </select>
-          </div>
-
-          <div class="date-group">
+          <fieldset class="form-fieldset">
+            <legend class="fieldset-legend">Informações da Campanha</legend>
             <div class="form-group">
-              <label for="start_date" class="form-label">Início</label>
+              <label for="campaignName" class="form-label"
+                >Nome da Campanha</label
+              >
               <input
-                id="start_date"
+                id="campaignName"
                 type="text"
-                name="start_date"
+                name="name"
                 required
                 class="modal-input"
-                placeholder="Data de início"
               />
             </div>
             <div class="form-group">
-              <label for="end_date" class="form-label">Término</label>
-              <input
-                id="end_date"
-                type="text"
-                name="end_date"
-                required
+              <label for="campaignCompany" class="form-label">Empresa</label>
+              <select
+                id="campaignCompany"
+                name="company_id"
                 class="modal-input"
-                placeholder="Data de término"
-              />
+                required
+              >
+                <option value="" disabled selected>
+                  Selecione uma empresa
+                </option>
+                <% companies.forEach(company => { %>
+                <option value="<%= company.id %>"><%= company.name %></option>
+                <% }) %>
+              </select>
             </div>
-          </div>
+            <div class="date-group">
+              <div class="form-group">
+                <label for="start_date" class="form-label">Início</label>
+                <input
+                  id="start_date"
+                  type="text"
+                  name="start_date"
+                  required
+                  class="modal-input"
+                  placeholder="Data de início"
+                />
+              </div>
+              <div class="form-group">
+                <label for="end_date" class="form-label">Término</label>
+                <input
+                  id="end_date"
+                  type="text"
+                  name="end_date"
+                  required
+                  class="modal-input"
+                  placeholder="Data de término"
+                />
+              </div>
+            </div>
+          </fieldset>
 
           <fieldset class="form-fieldset">
             <legend class="fieldset-legend">Segmentação</legend>

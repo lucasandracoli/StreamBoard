@@ -306,39 +306,54 @@ body {
 .device-table-wrapper {
   width: 100%;
   overflow-x: auto;
-  background-color: var(--color-surface);
+  background-color: transparent;
   border-radius: var(--radius);
-  box-shadow: var(--shadow-xl);
   border: none;
   margin: 0 auto;
+  padding: 8px 0;
 }
 
 .device-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0 8px;
   table-layout: fixed;
+  margin-top: 8px;
 }
 
 .device-table thead {
-  background-color: var(--color-gray-extra-light);
-}
-
-.device-table thead tr {
-  font-size: var(--text-sm);
-  color: var(--color-muted);
+  background-color: transparent;
 }
 
 .device-table thead th {
-  font-weight: 600;
-  padding: 16px;
-  text-align: left;
+  background-color: var(--color-input-bg);
+  padding: 12px 24px;
   border-bottom: 1px solid var(--color-border);
-  vertical-align: middle;
-  white-space: nowrap;
+  text-align: left;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.device-table thead tr th:first-child {
+  border-top-left-radius: var(--radius);
+}
+
+.device-table thead tr th:last-child {
+  border-top-right-radius: var(--radius);
 }
 
 .device-table tbody tr {
-  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  border-radius: var(--radius);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.device-table tbody tr:hover {
+  cursor: pointer;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .device-table tbody tr:last-child {
@@ -346,21 +361,22 @@ body {
 }
 
 .device-table tbody td {
-  padding: 14px 16px;
   text-align: left;
   vertical-align: middle;
   font-size: var(--text-base);
   color: var(--color-text);
   font-weight: 500;
-  border-bottom: none;
+  padding: 20px 24px;
+  border: none;
 }
 
 .device-table tbody tr:nth-child(even) {
-  background-color: var(--color-input-bg);
+  background-color: var(--color-surface);
 }
 
-.device-table tbody tr:hover {
-  cursor: pointer;
+.device-table .col-name {
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .action-icon {
@@ -573,6 +589,10 @@ body {
   white-space: nowrap;
 }
 
+.device-table .actions-cell {
+  text-align: right;
+}
+
 .action-icon-editar {
   background-color: rgba(0, 200, 111, 0.12);
   border-radius: var(--radius);
@@ -582,10 +602,11 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform var(--transition-normal),
-    background-color var(--transition-normal);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
   margin-right: 8px;
   vertical-align: middle;
+  opacity: 0.7;
+  transform: scale(0.95);
 }
 
 .action-icon-editar svg {
@@ -608,9 +629,10 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform var(--transition-normal),
-    background-color var(--transition-normal);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
   vertical-align: middle;
+  opacity: 0.7;
+  transform: scale(0.95);
 }
 
 .action-icon-excluir svg {
@@ -624,8 +646,10 @@ body {
   background-color: rgba(239, 68, 68, 0.3);
 }
 
-.action-icon-excluir:hover svg {
-  stroke: var(--color-surface);
+.device-table tbody tr:hover .action-icon-editar,
+.device-table tbody tr:hover .action-icon-excluir {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .confirmation-modal-overlay {
@@ -1916,4 +1940,53 @@ select.modal-input:disabled {
   padding: 0;
   margin: 0;
   border: none;
+}
+
+@media (max-width: 768px) {
+  .device-table thead {
+    display: none;
+  }
+
+  .device-table,
+  .device-table tbody,
+  .device-table tr,
+  .device-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .device-table tbody tr {
+    margin-bottom: 16px;
+    padding: 16px;
+    box-shadow: var(--shadow-md);
+  }
+
+  .device-table tbody td {
+    padding: 8px 0;
+    text-align: right;
+    position: relative;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .device-table tbody td:last-child {
+    border-bottom: none;
+  }
+
+  .device-table tbody td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    font-weight: 600;
+    color: var(--color-muted);
+    text-align: left;
+  }
+
+  .device-table .actions-cell {
+    text-align: center;
+    padding-top: 20px;
+  }
+
+  .device-table .actions-cell::before {
+    display: none;
+  }
 }

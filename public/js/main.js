@@ -440,22 +440,22 @@ document.addEventListener("DOMContentLoaded", () => {
       tomSelectDevices.clear();
       tomSelectDevices.clearOptions();
       tomSelectDevices.disable();
-      tomSelectDevices.settings.placeholder = "Carregando...";
-      tomSelectDevices.sync();
-
       tomSelectSectors.clear();
       tomSelectSectors.clearOptions();
       tomSelectSectors.disable();
-      tomSelectSectors.settings.placeholder = "Carregando...";
-      tomSelectSectors.sync();
 
       if (!companyId) {
         tomSelectDevices.settings.placeholder = "Selecione uma empresa";
-        tomSelectDevices.sync();
         tomSelectSectors.settings.placeholder = "Selecione uma empresa";
+        tomSelectDevices.sync();
         tomSelectSectors.sync();
         return;
       }
+
+      tomSelectDevices.settings.placeholder = "Carregando...";
+      tomSelectSectors.settings.placeholder = "Carregando...";
+      tomSelectDevices.sync();
+      tomSelectSectors.sync();
 
       try {
         const [devicesRes, sectorsRes] = await Promise.all([
@@ -469,11 +469,17 @@ document.addEventListener("DOMContentLoaded", () => {
         const devices = await devicesRes.json();
         const sectors = await sectorsRes.json();
 
-        tomSelectDevices.settings.placeholder = "Selecione para adicionar";
+        tomSelectDevices.settings.placeholder =
+          devices.length > 0
+            ? "Selecione para adicionar"
+            : "Nenhum dispositivo encontrado";
         tomSelectDevices.addOptions(devices);
         tomSelectDevices.enable();
 
-        tomSelectSectors.settings.placeholder = "Selecione para adicionar";
+        tomSelectSectors.settings.placeholder =
+          sectors.length > 0
+            ? "Selecione para adicionar"
+            : "Nenhum setor encontrado";
         tomSelectSectors.addOptions(sectors);
         tomSelectSectors.enable();
       } catch (error) {
@@ -540,7 +546,7 @@ document.addEventListener("DOMContentLoaded", () => {
                       <input type="number" class="media-duration-input" data-index="${index}" value="${
               file.duration || 10
             }" min="1">
-                      <label>segundos</label>
+                      <label>Segundos</label>
                     </div>`
           : "";
 
