@@ -323,7 +323,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const campaignModal = document.getElementById("campaignModal");
     if (!campaignModal) return;
 
-    let tomSelect;
+    let tomSelectDevices, tomSelectSectors;
     let stagedFiles = [];
     let sortableInstance = null;
     let mediaHasBeenTouched = false;
@@ -336,12 +336,17 @@ document.addEventListener("DOMContentLoaded", () => {
       filePreviewWrapper: document.getElementById("file-preview-wrapper"),
       companySelect: document.getElementById("campaignCompany"),
       deviceSelect: document.getElementById("device_ids"),
+      sectorSelect: document.getElementById("sector_ids"),
       fileInput: document.getElementById("file-upload"),
-      fileUploadButton: document.querySelector(".file-upload-button"),
       idInput: document.getElementById("campaignId"),
       nameInput: document.getElementById("campaignName"),
       startDateInput: document.getElementById("start_date"),
       endDateInput: document.getElementById("end_date"),
+      segmentationRadios: document.querySelectorAll(
+        'input[name="segmentation_type"]'
+      ),
+      sectorsContainer: document.getElementById("sectors-selection-container"),
+      devicesContainer: document.getElementById("devices-selection-container"),
     };
 
     const fpStart = flatpickr(elements.startDateInput, {
@@ -368,10 +373,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (elements.deviceSelect) {
-      tomSelect = new TomSelect(elements.deviceSelect, {
+      tomSelectDevices = new TomSelect(elements.deviceSelect, {
         plugins: ["remove_button"],
         create: false,
-        placeholder: "Selecione uma empresa",
+        placeholder: "Selecione uma empresa primeiro",
+        valueField: "id",
+        labelField: "name",
+        searchField: "name",
+      });
+    }
+
+    if (elements.sectorSelect) {
+      tomSelectSectors = new TomSelect(elements.sectorSelect, {
+        plugins: ["remove_button"],
+        create: false,
+        placeholder: "Selecione uma empresa primeiro",
         valueField: "id",
         labelField: "name",
         searchField: "name",
@@ -383,10 +399,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const video = document.createElement("video");
         video.setAttribute("crossorigin", "anonymous");
         video.preload = "metadata";
-
         const source =
           file instanceof File ? URL.createObjectURL(file) : file.file_path;
-
         const onSeeked = () => {
           video.removeEventListener("seeked", onSeeked);
           window.setTimeout(() => {
@@ -406,12 +420,10 @@ document.addEventListener("DOMContentLoaded", () => {
             resolve(dataUrl);
           }, 100);
         };
-
         const onLoadedData = () => {
           video.removeEventListener("loadeddata", onLoadedData);
           video.currentTime = 1;
         };
-
         video.addEventListener("loadeddata", onLoadedData);
         video.addEventListener("seeked", onSeeked);
         video.addEventListener("error", () => {
@@ -420,41 +432,86 @@ document.addEventListener("DOMContentLoaded", () => {
           }
           resolve(null);
         });
-
         video.src = source;
       });
     };
 
-    const populateDevicesForCampaign = async (companyId) => {
-      tomSelect.clear();
-      tomSelect.clearOptions();
-      tomSelect.disable();
-      tomSelect.settings.placeholder = "Carregando...";
-      tomSelect.sync();
+    const populateCampaignSelectors = async (companyId) => {
+      tomSelectDevices.clear();
+      tomSelectDevices.clearOptions();
+      tomSelectDevices.disable();
+      tomSelectDevices.settings.placeholder = "Carregando...";
+      tomSelectDevices.sync();
+
+      tomSelectSectors.clear();
+      tomSelectSectors.clearOptions();
+      tomSelectSectors.disable();
+      tomSelectSectors.settings.placeholder = "Carregando...";
+      tomSelectSectors.sync();
 
       if (!companyId) {
-        tomSelect.settings.placeholder = "Selecione uma empresa";
-        tomSelect.sync();
+        tomSelectDevices.settings.placeholder = "Selecione uma empresa";
+        tomSelectDevices.sync();
+        tomSelectSectors.settings.placeholder = "Selecione uma empresa";
+        tomSelectSectors.sync();
         return;
       }
 
       try {
-        const response = await fetch(`/api/companies/${companyId}/devices`);
-        if (!response.ok) throw new Error("Falha ao buscar dispositivos");
-        const devices = await response.json();
-        tomSelect.settings.placeholder = "Selecione o(s) dispositivo(s)";
-        tomSelect.addOptions(devices);
-        tomSelect.enable();
+        const [devicesRes, sectorsRes] = await Promise.all([
+          fetch(`/api/companies/${companyId}/devices`),
+          fetch(`/api/companies/${companyId}/sectors`),
+        ]);
+
+        if (!devicesRes.ok || !sectorsRes.ok)
+          throw new Error("Falha ao buscar dados da empresa");
+
+        const devices = await devicesRes.json();
+        const sectors = await sectorsRes.json();
+
+        tomSelectDevices.settings.placeholder = "Selecione para adicionar";
+        tomSelectDevices.addOptions(devices);
+        tomSelectDevices.enable();
+
+        tomSelectSectors.settings.placeholder = "Selecione para adicionar";
+        tomSelectSectors.addOptions(sectors);
+        tomSelectSectors.enable();
       } catch (error) {
-        notyf.error("Não foi possível carregar dispositivos.");
-        tomSelect.settings.placeholder = "Erro ao carregar";
+        notyf.error("Não foi possível carregar dispositivos e setores.");
+        tomSelectDevices.settings.placeholder = "Erro ao carregar";
+        tomSelectSectors.settings.placeholder = "Erro ao carregar";
       } finally {
-        tomSelect.sync();
+        tomSelectDevices.sync();
+        tomSelectSectors.sync();
       }
     };
 
+    const handleSegmentationChange = () => {
+      const selectedValue = document.querySelector(
+        'input[name="segmentation_type"]:checked'
+      ).value;
+      if (selectedValue === "sectors") {
+        elements.sectorsContainer.classList.remove("hidden");
+        elements.devicesContainer.classList.add("hidden");
+        tomSelectDevices.clear();
+      } else if (selectedValue === "devices") {
+        elements.sectorsContainer.classList.add("hidden");
+        elements.devicesContainer.classList.remove("hidden");
+        tomSelectSectors.clear();
+      } else {
+        elements.sectorsContainer.classList.add("hidden");
+        elements.devicesContainer.classList.add("hidden");
+        tomSelectDevices.clear();
+        tomSelectSectors.clear();
+      }
+    };
+
+    elements.segmentationRadios.forEach((radio) => {
+      radio.addEventListener("change", handleSegmentationChange);
+    });
+
     elements.companySelect?.addEventListener("change", () =>
-      populateDevicesForCampaign(elements.companySelect.value)
+      populateCampaignSelectors(elements.companySelect.value)
     );
 
     const renderStagedFiles = () => {
@@ -480,11 +537,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const durationInputHtml = isImage
           ? `<div class="media-duration-group">
-               <input type="number" class="media-duration-input" data-index="${index}" value="${
+                      <input type="number" class="media-duration-input" data-index="${index}" value="${
               file.duration || 10
             }" min="1">
-               <label>segundos</label>
-             </div>`
+                      <label>segundos</label>
+                    </div>`
           : "";
 
         item.innerHTML = `
@@ -553,13 +610,20 @@ document.addEventListener("DOMContentLoaded", () => {
         sortableInstance = null;
       }
       elements.filePreviewWrapper.innerHTML = "";
-      tomSelect.clear();
-      tomSelect.clearOptions();
-      tomSelect.disable();
-      tomSelect.settings.placeholder = "Selecione uma empresa";
-      tomSelect.sync();
+      tomSelectDevices.clear();
+      tomSelectDevices.clearOptions();
+      tomSelectDevices.disable();
+      tomSelectDevices.settings.placeholder = "Selecione uma empresa";
+      tomSelectDevices.sync();
+      tomSelectSectors.clear();
+      tomSelectSectors.clearOptions();
+      tomSelectSectors.disable();
+      tomSelectSectors.settings.placeholder = "Selecione uma empresa";
+      tomSelectSectors.sync();
       fpStart.clear();
       fpEnd.clear();
+      document.getElementById("seg-all").checked = true;
+      handleSegmentationChange();
     };
 
     const openCreateCampaignModal = () => {
@@ -595,9 +659,21 @@ document.addEventListener("DOMContentLoaded", () => {
         }));
         renderStagedFiles();
 
-        await populateDevicesForCampaign(campaign.company_id);
+        await populateCampaignSelectors(campaign.company_id);
+
         const deviceIds = (campaign.devices || []).map((d) => d.id);
-        tomSelect.setValue(deviceIds);
+        const sectorIds = campaign.sector_ids || [];
+
+        if (sectorIds.length > 0) {
+          document.getElementById("seg-sectors").checked = true;
+          tomSelectSectors.setValue(sectorIds);
+        } else if (deviceIds.length > 0) {
+          document.getElementById("seg-devices").checked = true;
+          tomSelectDevices.setValue(deviceIds);
+        } else {
+          document.getElementById("seg-all").checked = true;
+        }
+        handleSegmentationChange();
 
         campaignModal.style.display = "flex";
       } catch (error) {
@@ -651,16 +727,24 @@ document.addEventListener("DOMContentLoaded", () => {
       row.querySelector(".col-company").textContent = campaign.company_name;
       row.querySelector(".col-type").textContent = campaign.campaign_type;
       row.querySelector(".col-period").textContent = campaign.periodo_formatado;
+
+      const statusCell = row.querySelector("[data-status-cell]");
+      if (statusCell && campaign.status) {
+        const statusSpan = statusCell.querySelector(".online-status");
+        const statusText = statusCell.querySelector("[data-status-text]");
+        if (statusSpan && statusText) {
+          statusSpan.className = `online-status ${campaign.status.class}`;
+          statusText.textContent = campaign.status.text;
+        }
+      }
+
       const deviceCell = row.querySelector(".col-devices");
-      let deviceText = "Nenhum";
-      if (campaign.devices && campaign.devices.length > 0) {
-        deviceText = campaign.devices
-          .slice(0, 3)
-          .map((d) => d.name)
-          .join(", ");
-        if (campaign.devices.length > 3) {
+      let deviceText = "Todos";
+      if (campaign.target_names && campaign.target_names.length > 0) {
+        deviceText = campaign.target_names.slice(0, 2).join(", ");
+        if (campaign.target_names.length > 2) {
           deviceText += ` <span class="device-badge-extra">+${
-            campaign.devices.length - 3
+            campaign.target_names.length - 2
           }</span>`;
         }
       }
@@ -691,9 +775,20 @@ document.addEventListener("DOMContentLoaded", () => {
       formData.append("start_date", elements.startDateInput.value);
       formData.append("end_date", elements.endDateInput.value);
 
-      const selectedDevices = tomSelect.getValue();
-      if (Array.isArray(selectedDevices)) {
-        selectedDevices.forEach((id) => formData.append("device_ids", id));
+      const segmentationType = document.querySelector(
+        'input[name="segmentation_type"]:checked'
+      ).value;
+
+      if (segmentationType === "sectors") {
+        const selectedSectors = tomSelectSectors.getValue();
+        if (Array.isArray(selectedSectors)) {
+          selectedSectors.forEach((id) => formData.append("sector_ids", id));
+        }
+      } else if (segmentationType === "devices") {
+        const selectedDevices = tomSelectDevices.getValue();
+        if (Array.isArray(selectedDevices)) {
+          selectedDevices.forEach((id) => formData.append("device_ids", id));
+        }
       }
 
       if (mediaHasBeenTouched) {

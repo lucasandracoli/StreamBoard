@@ -909,7 +909,7 @@ app.get("/price", deviceAuth, async (req, res) => {
   }
   try {
     const deviceResult = await db.query(
-      "SELECT id, name FROM devices WHERE id = $1",
+      "SELECT id, name, sector_id FROM devices WHERE id = $1",
       [req.device.id]
     );
     if (deviceResult.rows.length === 0) {
@@ -918,11 +918,11 @@ app.get("/price", deviceAuth, async (req, res) => {
     const device = deviceResult.rows[0];
     const campaignsResult = await db.query(
       `SELECT c.* FROM campaigns c
-       JOIN campaign_device cd ON c.id = cd.campaign_id
-       WHERE cd.device_id = $1
-       AND c.start_date <= NOW() 
-       AND c.end_date >= NOW()`,
-      [device.id]
+        LEFT JOIN campaign_device cd ON c.id = cd.campaign_id
+        LEFT JOIN campaign_sector cs ON c.id = cs.campaign_id
+        WHERE c.start_date <= NOW() AND c.end_date >= NOW()
+        AND (cd.device_id = $1 OR cs.sector_id = $2)`,
+      [device.id, device.sector_id]
     );
     const offers = campaignsResult.rows;
     res.render("price", { deviceName: device.name, offers });
@@ -977,12 +977,16 @@ app.get(
         return res.status(404).json({ message: "Dispositivo não encontrado." });
       }
       const device = deviceResult.rows[0];
+
       const activeCampaignsResult = await db.query(
         `SELECT c.name FROM campaigns c
-         JOIN campaign_device cd ON c.id = cd.campaign_id
-         WHERE cd.device_id = $1 AND NOW() BETWEEN c.start_date AND c.end_date`,
-        [id]
+         LEFT JOIN campaign_device cd ON c.id = cd.campaign_id
+         LEFT JOIN campaign_sector cs ON c.id = cs.campaign_id
+         WHERE (cd.device_id = $1 OR cs.sector_id = $2)
+          AND NOW() BETWEEN c.start_date AND c.end_date`,
+        [id, device.sector_id]
       );
+
       const activeCampaigns = activeCampaignsResult.rows.map((c) => c.name);
       const isOnline = clients.hasOwnProperty(device.id);
       let status;
@@ -1102,123 +1106,21 @@ app.get("/pair/magic", async (req, res) => {
   }
 });
 
-app.get("/api/device/playlist", deviceAuth, async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT up.id, up.file_path, up.file_type, up.duration 
-       FROM campaign_uploads up
-       JOIN campaign_device cd ON up.campaign_id = cd.campaign_id
-       JOIN campaigns c ON up.campaign_id = c.id
-       WHERE cd.device_id = $1
-       AND c.start_date <= NOW() 
-       AND c.end_date >= NOW()
-       ORDER BY up.execution_order ASC`,
-      [req.device.id]
-    );
-    res.setHeader(
-      "Cache-Control",
-      "no-store, no-cache, must-revalidate, private"
-    );
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
-    res.json(result.rows);
-  } catch (err) {
-    logger.error("Erro ao buscar playlist do dispositivo.", err);
-    res.status(500).json({ message: "Erro ao buscar playlist." });
-  }
-});
-
-app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
-  try {
-    const campaignsResult = await db.query(`SELECT 
-        c.*,
-        co.name as company_name,
-        (
-          SELECT JSON_AGG(json_build_object('id', d.id, 'name', d.name))
-          FROM campaign_device cd
-          JOIN devices d ON cd.device_id = d.id
-          WHERE cd.campaign_id = c.id
-        ) as devices,
-        (
-          SELECT COUNT(*) FROM campaign_uploads cu WHERE cu.campaign_id = c.id
-        ) as uploads_count,
-        (
-          SELECT cu.file_type 
-          FROM campaign_uploads cu 
-          WHERE cu.campaign_id = c.id 
-          ORDER BY cu.execution_order ASC 
-          LIMIT 1
-        ) as first_upload_type
-      FROM campaigns c
-      JOIN companies co ON c.company_id = co.id
-      ORDER BY c.created_at DESC`);
-
-    const now = DateTime.now().setZone("America/Sao_Paulo");
-    const campaigns = campaignsResult.rows.map((campaign) => {
-      const formatOptions = {
-        zone: "America/Sao_Paulo",
-        locale: "pt-BR",
-      };
-      const startDate = DateTime.fromJSDate(campaign.start_date, formatOptions);
-      const endDate = DateTime.fromJSDate(campaign.end_date, formatOptions);
-      let status;
-      if (now < startDate) {
-        status = { text: "Agendada", class: "scheduled" };
-      } else if (now > endDate) {
-        status = { text: "Finalizada", class: "offline" };
-      } else {
-        status = { text: "Ativa", class: "online" };
-      }
-
-      let campaign_type = "Sem Mídia";
-      const uploadsCount = parseInt(campaign.uploads_count, 10);
-      if (uploadsCount > 1) {
-        campaign_type = "Playlist";
-      } else if (uploadsCount === 1) {
-        if (campaign.first_upload_type?.startsWith("image/")) {
-          campaign_type = "Imagem";
-        } else if (campaign.first_upload_type?.startsWith("video/")) {
-          campaign_type = "Vídeo";
-        } else {
-          campaign_type = "Arquivo";
-        }
-      }
-
-      return {
-        ...campaign,
-        status,
-        devices: campaign.devices || [],
-        periodo_formatado: formatarPeriodo(
-          campaign.start_date,
-          campaign.end_date
-        ),
-        campaign_type,
-      };
-    });
-
-    const companiesResult = await db.query(
-      "SELECT id, name FROM companies ORDER BY name"
-    );
-
-    res.render("campaigns", {
-      campaigns,
-      companies: companiesResult.rows,
-      sectors: [],
-    });
-  } catch (err) {
-    logger.error("Erro ao carregar campanhas.", err);
-    res.status(500).send("Erro ao carregar campanhas.");
-  }
-});
-
 app.post(
   "/campaigns",
   isAuthenticated,
   isAdmin,
   upload.array("media", 5),
   async (req, res) => {
-    let { name, start_date, end_date, device_ids, company_id, media_metadata } =
-      req.body;
+    let {
+      name,
+      start_date,
+      end_date,
+      device_ids,
+      sector_ids,
+      company_id,
+      media_metadata,
+    } = req.body;
 
     if (!name || !start_date || !end_date || !company_id) {
       return res
@@ -1226,10 +1128,15 @@ app.post(
         .json({ message: "Todos os campos são obrigatórios." });
     }
 
-    device_ids = device_ids
+    const newDeviceIds = device_ids
       ? Array.isArray(device_ids)
         ? device_ids
         : [device_ids]
+      : [];
+    const newSectorIds = sector_ids
+      ? Array.isArray(sector_ids)
+        ? sector_ids
+        : [sector_ids]
       : [];
     const mediaMetadata = media_metadata ? JSON.parse(media_metadata) : [];
 
@@ -1269,17 +1176,30 @@ app.post(
         }
       }
 
-      for (const device_id of device_ids) {
+      for (const device_id of newDeviceIds) {
         await client.query(
           `INSERT INTO campaign_device (campaign_id, device_id) VALUES ($1, $2)`,
           [newCampaign.id, device_id]
         );
       }
 
+      for (const sector_id of newSectorIds) {
+        await client.query(
+          `INSERT INTO campaign_sector (campaign_id, sector_id) VALUES ($1, $2)`,
+          [newCampaign.id, sector_id]
+        );
+      }
+
       await client.query("COMMIT");
 
-      device_ids.forEach((deviceId) => {
-        sendUpdateToDevice(deviceId, {
+      const allAffectedDevices = await db.query(
+        `SELECT id FROM devices 
+         WHERE id = ANY($1::uuid[]) OR sector_id = ANY($2::int[])`,
+        [newDeviceIds, newSectorIds]
+      );
+
+      allAffectedDevices.rows.forEach((row) => {
+        sendUpdateToDevice(row.id, {
           type: "NEW_CAMPAIGN",
           payload: newCampaign,
         });
@@ -1313,14 +1233,20 @@ app.post(
       );
 
       const affectedDevicesResult = await db.query(
-        "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
+        `
+        SELECT DISTINCT d.id FROM devices d
+        LEFT JOIN campaign_device cd ON d.id = cd.device_id
+        LEFT JOIN campaign_sector cs ON d.sector_id = cs.sector_id
+        WHERE cd.campaign_id = $1 OR cs.campaign_id = $1
+      `,
         [id]
       );
-      const affectedDeviceIds = affectedDevicesResult.rows.map(
-        (row) => row.device_id
-      );
+      const affectedDeviceIds = affectedDevicesResult.rows.map((row) => row.id);
 
       await client.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
+        id,
+      ]);
+      await client.query("DELETE FROM campaign_sector WHERE campaign_id = $1", [
         id,
       ]);
       await client.query(
@@ -1488,37 +1414,126 @@ async function gqlRequest(body) {
   }
 }
 
-app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
-  const { id } = req.params;
+app.get("/api/device/playlist", deviceAuth, async (req, res) => {
   try {
-    const campaignResult = await db.query(
-      `SELECT c.*,
-        (SELECT json_agg(json_build_object('id', d.id, 'name', d.name))
-         FROM campaign_device cd
-         JOIN devices d ON cd.device_id = d.id
-         WHERE cd.campaign_id = c.id) as devices
-       FROM campaigns c
-       WHERE c.id = $1`,
-      [id]
+    const result = await db.query(
+      `SELECT up.id, up.file_path, up.file_type, up.duration
+       FROM campaign_uploads up
+       JOIN campaigns c ON up.campaign_id = c.id
+       JOIN devices d ON d.id = $1
+       LEFT JOIN campaign_device cd ON c.id = cd.campaign_id
+       LEFT JOIN campaign_sector cs ON c.id = cs.campaign_id
+       WHERE
+         c.company_id = d.company_id AND
+         c.start_date <= NOW() AND
+         c.end_date >= NOW() AND
+         (
+           (cd.campaign_id IS NULL AND cs.campaign_id IS NULL) OR
+           cd.device_id = d.id OR
+           cs.sector_id = d.sector_id
+         )
+       ORDER BY up.execution_order ASC`,
+      [req.device.id]
     );
-
-    if (campaignResult.rows.length === 0) {
-      return res.status(404).json({ message: "Campanha não encontrada." });
-    }
-
-    const campaign = campaignResult.rows[0];
-    campaign.devices = campaign.devices || [];
-
-    const uploadsResult = await db.query(
-      "SELECT id, file_name, file_path, file_type, duration FROM campaign_uploads WHERE campaign_id = $1 ORDER BY execution_order ASC",
-      [id]
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, private"
     );
-    campaign.uploads = uploadsResult.rows;
-
-    res.json(campaign);
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.json(result.rows);
   } catch (err) {
-    logger.error(`Erro ao buscar detalhes da campanha ${id}.`, err);
-    res.status(500).json({ message: "Erro interno do servidor." });
+    logger.error("Erro ao buscar playlist do dispositivo.", err);
+    res.status(500).json({ message: "Erro ao buscar playlist." });
+  }
+});
+
+app.get("/campaigns", isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const campaignsResult = await db.query(`
+      SELECT
+        c.*,
+        co.name as company_name,
+        (
+          SELECT json_agg(s.name)
+          FROM sectors s
+          JOIN campaign_sector cs ON s.id = cs.sector_id
+          WHERE cs.campaign_id = c.id
+        ) as sector_names,
+        (
+          SELECT json_agg(d.name)
+          FROM devices d
+          JOIN campaign_device cd ON d.id = cd.device_id
+          WHERE cd.campaign_id = c.id
+        ) as device_names,
+        (SELECT COUNT(*) FROM campaign_uploads cu WHERE cu.campaign_id = c.id) as uploads_count,
+        (SELECT cu.file_type FROM campaign_uploads cu WHERE cu.campaign_id = c.id ORDER BY cu.execution_order ASC LIMIT 1) as first_upload_type
+      FROM campaigns c
+      JOIN companies co ON c.company_id = co.id
+      ORDER BY c.created_at DESC`);
+
+    const now = DateTime.now().setZone("America/Sao_Paulo");
+    const campaigns = campaignsResult.rows.map((campaign) => {
+      const formatOptions = {
+        zone: "America/Sao_Paulo",
+        locale: "pt-BR",
+      };
+      const startDate = DateTime.fromJSDate(campaign.start_date, formatOptions);
+      const endDate = DateTime.fromJSDate(campaign.end_date, formatOptions);
+      let status;
+      if (now < startDate) {
+        status = { text: "Agendada", class: "scheduled" };
+      } else if (now > endDate) {
+        status = { text: "Finalizada", class: "offline" };
+      } else {
+        status = { text: "Ativa", class: "online" };
+      }
+
+      let campaign_type = "Sem Mídia";
+      const uploadsCount = parseInt(campaign.uploads_count, 10);
+      if (uploadsCount > 1) {
+        campaign_type = "Playlist";
+      } else if (uploadsCount === 1) {
+        if (campaign.first_upload_type?.startsWith("image/")) {
+          campaign_type = "Imagem";
+        } else if (campaign.first_upload_type?.startsWith("video/")) {
+          campaign_type = "Vídeo";
+        } else {
+          campaign_type = "Arquivo";
+        }
+      }
+
+      let target_names = [];
+      if (campaign.sector_names && campaign.sector_names.length > 0) {
+        target_names = campaign.sector_names;
+      } else if (campaign.device_names && campaign.device_names.length > 0) {
+        target_names = campaign.device_names;
+      }
+
+      return {
+        ...campaign,
+        status,
+        target_names,
+        periodo_formatado: formatarPeriodo(
+          campaign.start_date,
+          campaign.end_date
+        ),
+        campaign_type,
+      };
+    });
+
+    const companiesResult = await db.query(
+      "SELECT id, name FROM companies ORDER BY name"
+    );
+
+    res.render("campaigns", {
+      campaigns,
+      companies: companiesResult.rows,
+      sectors: [],
+    });
+  } catch (err) {
+    logger.error("Erro ao carregar campanhas.", err);
+    res.status(500).send("Erro ao carregar campanhas.");
   }
 });
 
@@ -1529,8 +1544,15 @@ app.post(
   upload.array("media", 5),
   async (req, res) => {
     const { id } = req.params;
-    let { name, start_date, end_date, device_ids, company_id, media_touched } =
-      req.body;
+    let {
+      name,
+      start_date,
+      end_date,
+      device_ids,
+      sector_ids,
+      company_id,
+      media_touched,
+    } = req.body;
 
     if (!name || !start_date || !end_date || !company_id) {
       return res
@@ -1542,6 +1564,11 @@ app.post(
       ? Array.isArray(device_ids)
         ? device_ids
         : [device_ids]
+      : [];
+    const newSectorIds = sector_ids
+      ? Array.isArray(sector_ids)
+        ? sector_ids
+        : [sector_ids]
       : [];
 
     const parsedStartDate = DateTime.fromFormat(
@@ -1555,11 +1582,18 @@ app.post(
 
     const client = await db.connect();
     try {
-      const oldDevicesResult = await client.query(
-        "SELECT device_id FROM campaign_device WHERE campaign_id = $1",
+      const oldAffectedDevicesResult = await client.query(
+        `
+        SELECT DISTINCT d.id FROM devices d
+        LEFT JOIN campaign_device cd ON d.id = cd.device_id
+        LEFT JOIN campaign_sector cs ON d.sector_id = cs.sector_id
+        WHERE cd.campaign_id = $1 OR cs.campaign_id = $1
+      `,
         [id]
       );
-      const oldDeviceIds = oldDevicesResult.rows.map((r) => r.device_id);
+      const oldAffectedDeviceIds = oldAffectedDevicesResult.rows.map(
+        (r) => r.id
+      );
 
       await client.query("BEGIN");
       await client.query(
@@ -1633,6 +1667,10 @@ app.post(
       await client.query("DELETE FROM campaign_device WHERE campaign_id = $1", [
         id,
       ]);
+      await client.query("DELETE FROM campaign_sector WHERE campaign_id = $1", [
+        id,
+      ]);
+
       for (const device_id of newDeviceIds) {
         await client.query(
           "INSERT INTO campaign_device (campaign_id, device_id) VALUES ($1, $2)",
@@ -1640,17 +1678,40 @@ app.post(
         );
       }
 
+      for (const sector_id of newSectorIds) {
+        await client.query(
+          "INSERT INTO campaign_sector (campaign_id, sector_id) VALUES ($1, $2)",
+          [id, sector_id]
+        );
+      }
+
       await client.query("COMMIT");
+
+      const newAffectedDevicesResult = await client.query(
+        `SELECT id FROM devices
+         WHERE id = ANY($1::uuid[]) OR sector_id = ANY($2::int[])`,
+        [newDeviceIds, newSectorIds]
+      );
+      const newAffectedDeviceIds = newAffectedDevicesResult.rows.map(
+        (r) => r.id
+      );
+
+      const allAffectedDeviceIds = [
+        ...new Set([...oldAffectedDeviceIds, ...newAffectedDeviceIds]),
+      ];
+
+      allAffectedDeviceIds.forEach((deviceId) => {
+        sendUpdateToDevice(deviceId, {
+          type: "UPDATE_CAMPAIGN",
+          payload: { campaignId: id },
+        });
+      });
 
       const finalResult = await client.query(
         `SELECT c.*,
           co.name as company_name,
-          (
-            SELECT JSON_AGG(json_build_object('id', d.id, 'name', d.name))
-            FROM campaign_device cd
-            JOIN devices d ON cd.device_id = d.id
-            WHERE cd.campaign_id = c.id
-          ) as devices,
+          (SELECT json_agg(s.name) FROM sectors s JOIN campaign_sector cs ON s.id = cs.sector_id WHERE cs.campaign_id = c.id) as sector_names,
+          (SELECT json_agg(d.name) FROM devices d JOIN campaign_device cd ON d.id = cd.device_id WHERE cd.campaign_id = c.id) as device_names,
           (SELECT COUNT(*) FROM campaign_uploads cu WHERE cu.campaign_id = c.id) as uploads_count,
           (SELECT cu.file_type FROM campaign_uploads cu WHERE cu.campaign_id = c.id ORDER BY cu.execution_order ASC LIMIT 1) as first_upload_type
         FROM campaigns c
@@ -1659,11 +1720,28 @@ app.post(
         [id]
       );
 
-      if (finalResult.rows.length === 0) {
-        throw new Error("Falha ao recarregar a campanha após a edição.");
+      const campaignData = finalResult.rows[0];
+      if (!campaignData) {
+        return res
+          .status(404)
+          .json({ message: "Campanha não encontrada após a edição." });
       }
 
-      const campaignData = finalResult.rows[0];
+      const now = DateTime.now().setZone("America/Sao_Paulo");
+      const startDate = DateTime.fromJSDate(campaignData.start_date, {
+        zone: "America/Sao_Paulo",
+      });
+      const endDate = DateTime.fromJSDate(campaignData.end_date, {
+        zone: "America/Sao_Paulo",
+      });
+      let status;
+      if (now < startDate) {
+        status = { text: "Agendada", class: "scheduled" };
+      } else if (now > endDate) {
+        status = { text: "Finalizada", class: "offline" };
+      } else {
+        status = { text: "Ativa", class: "online" };
+      }
 
       let campaign_type = "Sem Mídia";
       const uploadsCount = parseInt(campaignData.uploads_count, 10);
@@ -1679,25 +1757,26 @@ app.post(
         }
       }
 
+      let target_names = [];
+      if (campaignData.sector_names && campaignData.sector_names.length > 0) {
+        target_names = campaignData.sector_names;
+      } else if (
+        campaignData.device_names &&
+        campaignData.device_names.length > 0
+      ) {
+        target_names = campaignData.device_names;
+      }
+
       const campaignForResponse = {
         ...campaignData,
-        devices: campaignData.devices || [],
+        target_names,
         periodo_formatado: formatarPeriodo(
           campaignData.start_date,
           campaignData.end_date
         ),
         campaign_type,
+        status: status,
       };
-
-      const allAffectedDeviceIds = [
-        ...new Set([...oldDeviceIds, ...newDeviceIds.map(Number)]),
-      ];
-      allAffectedDeviceIds.forEach((deviceId) => {
-        sendUpdateToDevice(deviceId, {
-          type: "UPDATE_CAMPAIGN",
-          payload: { campaignId: id },
-        });
-      });
 
       res.status(200).json({
         message: "Campanha atualizada com sucesso.",
@@ -1712,6 +1791,44 @@ app.post(
     }
   }
 );
+
+app.get("/api/campaigns/:id", isAuthenticated, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const campaignResult = await db.query(
+      `SELECT c.*,
+        (SELECT json_agg(json_build_object('id', d.id, 'name', d.name))
+         FROM campaign_device cd
+         JOIN devices d ON cd.device_id = d.id
+         WHERE cd.campaign_id = c.id) as devices,
+        (SELECT json_agg(cs.sector_id)
+         FROM campaign_sector cs
+         WHERE cs.campaign_id = c.id) as sector_ids
+       FROM campaigns c
+       WHERE c.id = $1`,
+      [id]
+    );
+
+    if (campaignResult.rows.length === 0) {
+      return res.status(404).json({ message: "Campanha não encontrada." });
+    }
+
+    const campaign = campaignResult.rows[0];
+    campaign.devices = campaign.devices || [];
+    campaign.sector_ids = campaign.sector_ids || [];
+
+    const uploadsResult = await db.query(
+      "SELECT id, file_name, file_path, file_type, duration FROM campaign_uploads WHERE campaign_id = $1 ORDER BY execution_order ASC",
+      [id]
+    );
+    campaign.uploads = uploadsResult.rows;
+
+    res.json(campaign);
+  } catch (err) {
+    logger.error(`Erro ao buscar detalhes da campanha ${id}.`, err);
+    res.status(500).json({ message: "Erro interno do servidor." });
+  }
+});
 
 app.post("/api/sectors", isAuthenticated, isAdmin, async (req, res) => {
   const { company_id, name } = req.body;

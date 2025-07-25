@@ -75,6 +75,13 @@ CREATE TABLE IF NOT EXISTS campaign_device (
     PRIMARY KEY (campaign_id, device_id)
 );
 
+CREATE TABLE IF NOT EXISTS campaign_sector (
+    id SERIAL PRIMARY KEY,
+    campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    sector_id INTEGER NOT NULL REFERENCES sectors(id) ON DELETE CASCADE,
+    UNIQUE(campaign_id, sector_id)
+);
+
 CREATE TABLE IF NOT EXISTS campaign_uploads (
     id SERIAL PRIMARY KEY,
     campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
@@ -101,6 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_devices_company_id ON devices (company_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_company_id ON campaigns (company_id);
 CREATE INDEX IF NOT EXISTS idx_users_company_id ON users (company_id);
 CREATE INDEX IF NOT EXISTS idx_sectors_company_id ON sectors (company_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_sector_links ON campaign_sector (campaign_id, sector_id);
 `;
 
 const resetDatabase = async () => {
