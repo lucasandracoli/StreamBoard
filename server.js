@@ -478,24 +478,47 @@ app.get("/companies", isAuthenticated, isAdmin, async (req, res) => {
 });
 
 app.post("/companies", isAuthenticated, isAdmin, async (req, res) => {
-  const { name, cnpj, city, address, state } = req.body;
+  const { sectors, ...companyData } = req.body;
+  const { name, cnpj, city, address, state } = companyData;
+
   if (!name || !cnpj) {
     return res.status(400).json({
       message: "Nome e CNPJ da empresa são obrigatórios.",
     });
   }
+
+  const client = await db.connect();
   try {
-    await db.query(
-      "INSERT INTO companies (name, cnpj, city, address, state) VALUES ($1, $2, $3, $4, $5)",
+    await client.query("BEGIN");
+
+    const companyResult = await client.query(
+      "INSERT INTO companies (name, cnpj, city, address, state) VALUES ($1, $2, $3, $4, $5) RETURNING id",
       [name, cnpj, city, address, state]
     );
+    const newCompanyId = companyResult.rows[0].id;
+
+    if (sectors && Array.isArray(sectors) && sectors.length > 0) {
+      for (const sectorName of sectors) {
+        await client.query(
+          "INSERT INTO sectors (name, company_id) VALUES ($1, $2)",
+          [sectorName, newCompanyId]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
     res.status(201).json({ message: "Empresa cadastrada com sucesso." });
   } catch (err) {
+    await client.query("ROLLBACK");
     logger.error("Erro ao cadastrar empresa.", err);
     if (err.code === "23505") {
-      return res.status(409).json({ message: "CNPJ já cadastrado." });
+      return res
+        .status(409)
+        .json({ message: "CNPJ ou setor já cadastrado para esta empresa." });
     }
     res.status(500).json({ message: "Erro ao cadastrar empresa." });
+  } finally {
+    client.release();
   }
 });
 

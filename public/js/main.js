@@ -60,7 +60,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const sectorList = document.getElementById("sector-list");
     const newSectorNameInput = document.getElementById("newSectorName");
     const addSectorBtn = document.getElementById("addSectorBtn");
+
     let currentCompanyId = null;
+    let stagedSectors = [];
 
     if (document.getElementById("companyCnpj")) {
       IMask(document.getElementById("companyCnpj"), {
@@ -68,7 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
-    const renderSectors = (sectors) => {
+    const renderExistingSectors = (sectors) => {
       sectorList.innerHTML =
         sectors.length === 0
           ? '<p class="empty-sector-list">Nenhum setor cadastrado.</p>'
@@ -84,11 +86,26 @@ document.addEventListener("DOMContentLoaded", () => {
               .join("");
     };
 
+    const renderStagedSectors = () => {
+      sectorList.innerHTML =
+        stagedSectors.length === 0
+          ? '<p class="empty-sector-list">Nenhum setor adicionado.</p>'
+          : stagedSectors
+              .map(
+                (name, index) => `
+                <div class="sector-item">
+                  <span>${name}</span>
+                  <button type="button" class="delete-sector-btn" data-index="${index}">X</button>
+                </div>`
+              )
+              .join("");
+    };
+
     const fetchAndRenderSectors = async (companyId) => {
       try {
         const response = await fetch(`/api/companies/${companyId}/sectors`);
         const sectors = await response.json();
-        renderSectors(sectors);
+        renderExistingSectors(sectors);
       } catch (error) {
         notyf.error("Erro ao carregar setores.");
       }
@@ -97,24 +114,39 @@ document.addEventListener("DOMContentLoaded", () => {
     addSectorBtn.addEventListener("click", async () => {
       const name = newSectorNameInput.value.trim();
       if (!name) return notyf.error("O nome do setor é obrigatório.");
-      try {
-        const res = await fetch("/api/sectors", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ company_id: currentCompanyId, name }),
-        });
-        if (!res.ok) throw new Error(await handleFetchError(res));
+
+      if (currentCompanyId) {
+        try {
+          const res = await fetch("/api/sectors", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ company_id: currentCompanyId, name }),
+          });
+          if (!res.ok) throw new Error(await handleFetchError(res));
+          newSectorNameInput.value = "";
+          notyf.success("Setor adicionado.");
+          fetchAndRenderSectors(currentCompanyId);
+        } catch (error) {
+          notyf.error(error.message || "Falha ao adicionar setor.");
+        }
+      } else {
+        if (stagedSectors.includes(name)) {
+          return notyf.error("Este setor já foi adicionado.");
+        }
+        stagedSectors.push(name);
         newSectorNameInput.value = "";
-        notyf.success("Setor adicionado.");
-        fetchAndRenderSectors(currentCompanyId);
-      } catch (error) {
-        notyf.error(error.message || "Falha ao adicionar setor.");
+        renderStagedSectors();
       }
     });
 
     sectorList.addEventListener("click", (e) => {
-      if (e.target.classList.contains("delete-sector-btn")) {
-        const sectorId = e.target.dataset.id;
+      const deleteButton = e.target.closest(".delete-sector-btn");
+      if (!deleteButton) return;
+
+      const sectorId = deleteButton.dataset.id;
+      const stagedIndex = deleteButton.dataset.index;
+
+      if (sectorId) {
         const confirmationModal = document.getElementById("confirmationModal");
         const confirmButton = document.getElementById("confirmDeletion");
         const newConfirmButton = confirmButton.cloneNode(true);
@@ -142,13 +174,18 @@ document.addEventListener("DOMContentLoaded", () => {
         newConfirmButton.addEventListener("click", handleConfirm, {
           once: true,
         });
+      } else if (stagedIndex !== undefined) {
+        stagedSectors.splice(parseInt(stagedIndex, 10), 1);
+        renderStagedSectors();
       }
     });
 
     const openCreateModal = () => {
       form.reset();
       currentCompanyId = null;
-      sectorsSection.style.display = "none";
+      stagedSectors = [];
+      sectorsSection.style.display = "block";
+      renderStagedSectors();
       modalTitle.textContent = "Cadastrar Empresa";
       submitButton.textContent = "Adicionar";
       form.action = "/companies";
@@ -162,6 +199,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const company = await response.json();
         form.reset();
         currentCompanyId = company.id;
+        stagedSectors = [];
         sectorsSection.style.display = "block";
         modalTitle.textContent = "Editar Empresa";
         submitButton.textContent = "Salvar";
@@ -193,11 +231,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     form.addEventListener("submit", async function (e) {
       e.preventDefault();
+      const body = Object.fromEntries(new FormData(this));
+      if (!currentCompanyId) {
+        body.sectors = stagedSectors;
+      }
+
       try {
         const res = await fetch(this.action, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(Object.fromEntries(new FormData(this))),
+          body: JSON.stringify(body),
         });
         const json = await res.json();
         if (!res.ok) return notyf.error(json.message || `Erro ${res.status}`);
