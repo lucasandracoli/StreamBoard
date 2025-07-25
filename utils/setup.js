@@ -46,8 +46,6 @@ CREATE TABLE IF NOT EXISTS devices (
     last_seen TIMESTAMPTZ,
     registered_at TIMESTAMPTZ DEFAULT NOW(),
     device_type VARCHAR(30) DEFAULT 'unknown',
-    network_effective_type VARCHAR(20),
-    network_downlink REAL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
