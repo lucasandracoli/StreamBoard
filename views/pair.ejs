@@ -2,6 +2,7 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Emparelhar Dispositivo</title>
     <link rel="stylesheet" href="/css/styles.css?v=<%= appVersion %>" />
     <link
@@ -14,38 +15,30 @@
     />
   </head>
   <body class="login-body">
-    <form method="POST" action="/pair/" class="login-form">
-      <div class="login-input-icon">
-        <i class="bi bi-cpu"></i>
-        <input
-          type="text"
-          name="device_identifier"
-          placeholder="Identificador"
-          required
-          class="login-input"
-        />
-      </div>
+    <div class="pair-container">
+      <form method="POST" action="/pair" class="login-form">
+        <div class="login-input-icon">
+          <i class="bi bi-shield-check"></i>
+          <input
+            type="text"
+            name="otp_code"
+            placeholder="------"
+            required
+            class="login-input otp-input"
+            maxlength="6"
+            pattern="[0-9]{6}"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            oninput="this.value = this.value.replace(/[^0-9]/g, '');"
+            autofocus
+          />
+        </div>
 
-      <div class="login-input-icon">
-        <i class="bi bi-key"></i>
-        <input
-          type="text"
-          name="authentication_key"
-          placeholder="Chave de Autenticação"
-          required
-          class="login-input"
-        />
-      </div>
-
-      <button type="submit" class="login-button">Emparelhar</button>
-    </form>
+        <button type="submit" class="login-button">Conectar</button>
+      </form>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
-    <script>
-      <% if (typeof error !== 'undefined' && error) { %>
-        const notyf = new Notyf();
-        notyf.error('<%= error %>');
-      <% } %>
-    </script>
+    <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>
   </body>
 </html>

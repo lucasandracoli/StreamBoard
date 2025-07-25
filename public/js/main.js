@@ -11,6 +11,32 @@ document.addEventListener("DOMContentLoaded", () => {
     default: "Tipo Desconhecido",
   };
 
+  const statusCacheManager = {
+    _cacheKey: "deviceStatusCache",
+    getCache: function () {
+      try {
+        const cached = sessionStorage.getItem(this._cacheKey);
+        return cached ? JSON.parse(cached) : {};
+      } catch (e) {
+        console.error("Erro ao ler cache de status:", e);
+        return {};
+      }
+    },
+    getStatus: function (deviceId) {
+      const cache = this.getCache();
+      return cache[deviceId] || null;
+    },
+    setStatus: function (deviceId, statusText) {
+      const cache = this.getCache();
+      cache[deviceId] = statusText;
+      try {
+        sessionStorage.setItem(this._cacheKey, JSON.stringify(cache));
+      } catch (e) {
+        console.error("Erro ao salvar cache de status:", e);
+      }
+    },
+  };
+
   const handleFetchError = async (response) => {
     try {
       const errorJson = await response.json();
@@ -880,6 +906,53 @@ document.addEventListener("DOMContentLoaded", () => {
     const detailsModal = document.getElementById("deviceDetailsModal");
     if (!detailsModal) return;
 
+    let otpCountdownInterval = null;
+    const otpView = document.getElementById("otpView");
+    const otpCodeEl = document.getElementById("otpCode");
+    const otpExpiryEl = document.getElementById("otpExpiry");
+
+    const hideOtpView = () => {
+      if (otpCountdownInterval) {
+        clearInterval(otpCountdownInterval);
+        otpCountdownInterval = null;
+      }
+      if (otpView) {
+        otpView.style.display = "none";
+      }
+    };
+
+    const displayOtp = (otp, expiresAt) => {
+      if (!otpView || !otpCodeEl || !otpExpiryEl) {
+        notyf.error("Elementos da OTP não encontrados no HTML.");
+        return;
+      }
+
+      hideOtpView();
+
+      otpView.style.display = "flex";
+      otpCodeEl.textContent = otp.match(/.{1,3}/g).join(" ");
+
+      const expiryTime = new Date(expiresAt).getTime();
+
+      otpCountdownInterval = setInterval(() => {
+        const now = new Date().getTime();
+        const distance = expiryTime - now;
+
+        if (distance < 0) {
+          hideOtpView();
+          otpExpiryEl.textContent = "Expirado";
+        } else {
+          const minutes = Math.floor(
+            (distance % (1000 * 60 * 60)) / (1000 * 60)
+          );
+          const seconds = Math.floor((distance % (1000 * 60)) / 1000)
+            .toString()
+            .padStart(2, "0");
+          otpExpiryEl.textContent = `Expira em ${minutes}:${seconds}`;
+        }
+      });
+    };
+
     const populateDetailsModal = (device) => {
       const getEl = (id) => document.getElementById(id);
       const deviceIcons = {
@@ -903,75 +976,54 @@ document.addEventListener("DOMContentLoaded", () => {
           ? device.active_campaigns.join(", ")
           : "Nenhuma campanha ativa.";
 
-      const identifierEl = getEl("modalDeviceIdentifier");
-      identifierEl.textContent = `${device.device_identifier.substring(
-        0,
-        16
-      )}...`;
-      identifierEl.dataset.fullValue = device.device_identifier;
-
-      const authKeyEl = getEl("modalAuthKey");
-      authKeyEl.textContent = `${device.authentication_key.substring(
-        0,
-        16
-      )}...`;
-      authKeyEl.dataset.fullValue = device.authentication_key;
-
       const revokeBtn = getEl("modalRevokeButton");
       const reactivateBtn = getEl("modalReactivateButton");
       const magicLinkBtn = getEl("modalGenerateMagicLinkButton");
+      const otpBtn = getEl("modalGenerateOtpButton");
 
-      revokeBtn.dataset.identifier = device.device_identifier;
-      reactivateBtn.dataset.identifier = device.device_identifier;
+      revokeBtn.dataset.id = device.id;
+      reactivateBtn.dataset.id = device.id;
       magicLinkBtn.dataset.id = device.id;
+      otpBtn.dataset.id = device.id;
 
+      const isInactive = device.status.text === "Inativo";
       revokeBtn.style.display = device.is_active ? "inline-flex" : "none";
       reactivateBtn.style.display = device.is_active ? "none" : "inline-flex";
       magicLinkBtn.style.display =
-        device.is_active && device.status.text === "Inativo"
-          ? "inline-flex"
-          : "none";
+        device.is_active && isInactive ? "inline-flex" : "none";
+      otpBtn.style.display =
+        device.is_active && isInactive ? "inline-flex" : "none";
     };
 
-    document.querySelectorAll(".open-details-modal").forEach((btn) => {
-      btn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const deviceId = btn.dataset.deviceId;
-        detailsModal.style.display = "flex";
-        detailsModal.querySelector(".details-modal-content").style.display =
-          "none";
+    const openDetailsModal = async (deviceId) => {
+      hideOtpView();
+      detailsModal.dataset.showingDeviceId = deviceId;
+      detailsModal.style.display = "flex";
+      detailsModal.querySelector(".details-modal-content").style.display =
+        "none";
+      detailsModal.querySelector(".details-modal-loader").style.display =
+        "flex";
+      try {
+        const res = await fetch(`/api/deviceDetails/${deviceId}`);
+        if (!res.ok) throw new Error("Falha ao carregar dados do dispositivo.");
+        populateDetailsModal(await res.json());
+      } catch (err) {
+        notyf.error(err.message);
+        detailsModal.style.display = "none";
+      } finally {
         detailsModal.querySelector(".details-modal-loader").style.display =
-          "flex";
-        try {
-          const res = await fetch(`/api/deviceDetails/${deviceId}`);
-          if (!res.ok)
-            throw new Error("Falha ao carregar dados do dispositivo.");
-          populateDetailsModal(await res.json());
-        } catch (err) {
-          notyf.error(err.message);
-          detailsModal.style.display = "none";
-        } finally {
-          detailsModal.querySelector(".details-modal-loader").style.display =
-            "none";
-          detailsModal.querySelector(".details-modal-content").style.display =
-            "block";
-        }
-      });
-    });
+          "none";
+        detailsModal.querySelector(".details-modal-content").style.display =
+          "block";
+      }
+    };
 
     document
       .getElementById("closeDetailsModal")
-      ?.addEventListener("click", () => (detailsModal.style.display = "none"));
-
-    detailsModal.addEventListener("click", (e) => {
-      const copyElement = e.target.closest(".copyable-code");
-      if (copyElement?.dataset.fullValue) {
-        navigator.clipboard
-          .writeText(copyElement.dataset.fullValue)
-          .then(() => notyf.success("Copiado!"))
-          .catch(() => notyf.error("Falha ao copiar."));
-      }
-    });
+      ?.addEventListener("click", () => {
+        hideOtpView();
+        detailsModal.style.display = "none";
+      });
 
     const handleDeviceAction = async (url, successMessage) => {
       try {
@@ -988,22 +1040,47 @@ document.addEventListener("DOMContentLoaded", () => {
       .getElementById("modalRevokeButton")
       ?.addEventListener("click", function () {
         handleDeviceAction(
-          `/devices/${this.dataset.identifier}/revoke`,
+          `/devices/${this.dataset.id}/revoke`,
           "Dispositivo revogado."
         );
       });
+
     document
       .getElementById("modalReactivateButton")
       ?.addEventListener("click", function () {
         handleDeviceAction(
-          `/devices/${this.dataset.identifier}/reactivate`,
+          `/devices/${this.dataset.id}/reactivate`,
           "Dispositivo reativado."
         );
       });
+
+    document
+      .getElementById("modalGenerateOtpButton")
+      ?.addEventListener("click", async function (e) {
+        e.stopPropagation();
+        this.disabled = true;
+        try {
+          const res = await fetch(`/devices/${this.dataset.id}/otp`, {
+            method: "POST",
+          });
+          if (!res.ok)
+            throw new Error(
+              (await res.json()).message || "Falha ao gerar OTP."
+            );
+          const { otp, expiresAt } = await res.json();
+          displayOtp(otp, expiresAt);
+        } catch (err) {
+          notyf.error(err.message || "Não foi possível gerar o OTP.");
+        } finally {
+          this.disabled = false;
+        }
+      });
+
     document
       .getElementById("modalGenerateMagicLinkButton")
       ?.addEventListener("click", async function (e) {
         e.stopPropagation();
+        this.disabled = true;
         try {
           const res = await fetch(`/devices/${this.dataset.id}/magicLink`, {
             method: "POST",
@@ -1012,78 +1089,80 @@ document.addEventListener("DOMContentLoaded", () => {
             throw new Error(
               (await res.json()).message || "Falha ao gerar link."
             );
-          const json = await res.json();
-          await navigator.clipboard.writeText(json.magicLink);
+          const { magicLink } = await res.json();
+          await navigator.clipboard.writeText(magicLink);
           notyf.success("Link mágico copiado!");
         } catch (err) {
           notyf.error(err.message || "Não foi possível copiar o link.");
+        } finally {
+          this.disabled = false;
         }
       });
+
+    return { openDetailsModal, hideOtpView, element: detailsModal };
   };
 
   const setupConfirmationModal = () => {
     const confirmationModal = document.getElementById("confirmationModal");
     if (!confirmationModal) return;
 
-    document
-      .querySelectorAll(".action-icon-delete, .action-icon-excluir")
-      .forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const { id } = e.currentTarget.dataset;
-          const pageId = document.body.id;
-          let config = {};
+    document.querySelectorAll(".action-icon-excluir").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const { id } = e.currentTarget.dataset;
+        const pageId = document.body.id;
+        let config = {};
 
-          if (pageId === "campaigns-page") {
-            config = {
-              url: `/campaigns/${id}/delete`,
-              msg: "Deseja realmente excluir esta campanha?",
-              success: "Campanha excluída.",
-            };
-          } else if (pageId === "devices-page") {
-            config = {
-              url: `/devices/${id}/delete`,
-              msg: "Deseja realmente excluir este dispositivo?",
-              success: "Dispositivo excluído.",
-            };
-          } else if (pageId === "companies-page") {
-            config = {
-              url: `/companies/${id}/delete`,
-              msg: "Excluir esta empresa removerá todos os dados associados. Confirma?",
-              success: "Empresa excluída.",
-            };
-          } else return;
+        if (pageId === "campaigns-page") {
+          config = {
+            url: `/campaigns/${id}/delete`,
+            msg: "Deseja realmente excluir esta campanha?",
+            success: "Campanha excluída.",
+          };
+        } else if (pageId === "devices-page") {
+          config = {
+            url: `/devices/${id}/delete`,
+            msg: "Deseja realmente excluir este dispositivo?",
+            success: "Dispositivo excluído.",
+          };
+        } else if (pageId === "companies-page") {
+          config = {
+            url: `/companies/${id}/delete`,
+            msg: "Excluir esta empresa removerá todos os dados associados. Confirma?",
+            success: "Empresa excluída.",
+          };
+        } else return;
 
-          confirmationModal.querySelector(
-            ".confirmation-modal-body p"
-          ).textContent = config.msg;
-          confirmationModal.style.display = "flex";
+        confirmationModal.querySelector(
+          ".confirmation-modal-body p"
+        ).textContent = config.msg;
+        confirmationModal.style.display = "flex";
 
-          const confirmBtn = document.getElementById("confirmDeletion");
-          const newConfirmBtn = confirmBtn.cloneNode(true);
-          confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        const confirmBtn = document.getElementById("confirmDeletion");
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
-          newConfirmBtn.addEventListener(
-            "click",
-            async () => {
-              try {
-                const res = await fetch(config.url, { method: "POST" });
-                if (!res.ok)
-                  throw new Error(
-                    (await res.json()).message || `Erro ${res.status}`
-                  );
-                notyf.success(config.success);
-                setTimeout(() => location.reload(), 1200);
-              } catch (err) {
-                notyf.error(err.message || "Falha na comunicação.");
-              } finally {
-                confirmationModal.style.display = "none";
-              }
-            },
-            { once: true }
-          );
-        });
+        newConfirmBtn.addEventListener(
+          "click",
+          async () => {
+            try {
+              const res = await fetch(config.url, { method: "POST" });
+              if (!res.ok)
+                throw new Error(
+                  (await res.json()).message || `Erro ${res.status}`
+                );
+              notyf.success(config.success);
+              setTimeout(() => location.reload(), 1200);
+            } catch (err) {
+              notyf.error(err.message || "Falha na comunicação.");
+            } finally {
+              confirmationModal.style.display = "none";
+            }
+          },
+          { once: true }
+        );
       });
+    });
 
     document
       .getElementById("cancelConfirmation")
@@ -1093,26 +1172,31 @@ document.addEventListener("DOMContentLoaded", () => {
       );
   };
 
-  const setupGlobalListeners = () => {
+  const setupGlobalListeners = (detailsModalHandler) => {
     window.addEventListener("click", (e) => {
       if (e.target.classList.contains("modal-overlay")) {
         e.target.style.display = "none";
+        if (e.target.id === "deviceDetailsModal" && detailsModalHandler) {
+          detailsModalHandler.hideOtpView();
+        }
       }
     });
 
     document.querySelectorAll(".device-table tbody tr").forEach((row) => {
-      if (row.id?.includes("no-")) return;
+      if (!row.dataset.deviceId) return;
       row.addEventListener("click", function (event) {
         if (event.target.closest(".actions-cell")) return;
-        this.querySelector(".open-details-modal")?.click();
+        if (detailsModalHandler) {
+          detailsModalHandler.openDetailsModal(this.dataset.deviceId);
+        }
       });
     });
   };
 
-  const connectAdminWs = () => {
+  const connectAdminWs = (detailsModalHandler, statusCache) => {
     if (!document.body.id.endsWith("-page")) return;
 
-    const protocol = window.location.protocol === "https" ? "wss:" : "ws:";
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/admin-ws`;
     const ws = new WebSocket(wsUrl);
 
@@ -1121,17 +1205,45 @@ document.addEventListener("DOMContentLoaded", () => {
         const data = JSON.parse(event.data);
         if (data.type === "DEVICE_STATUS_UPDATE") {
           const { deviceId, status } = data.payload;
-          const statusCell = document.querySelector(
-            `tr[data-device-id="${deviceId}"] [data-status-cell]`
+          const newStatusText = status.text;
+          const previousStatusText = statusCache.getStatus(deviceId);
+
+          const row = document.querySelector(
+            `tr[data-device-id="${deviceId}"]`
           );
-          if (statusCell) {
-            const statusSpan = statusCell.querySelector(".online-status");
-            const statusText = statusCell.querySelector("[data-status-text]");
-            if (statusSpan && statusText) {
-              statusSpan.className = `online-status ${status.class}`;
-              statusText.textContent = status.text;
+          if (row) {
+            const statusCell = row.querySelector("[data-status-cell]");
+            if (statusCell) {
+              const statusSpan = statusCell.querySelector(".online-status");
+              const statusText = statusCell.querySelector("[data-status-text]");
+              if (statusSpan && statusText) {
+                statusSpan.className = `online-status ${status.class}`;
+                statusText.textContent = status.text;
+              }
             }
           }
+
+          if (newStatusText === "Online" && previousStatusText !== "Online") {
+            if (detailsModalHandler && row) {
+              const deviceName = row
+                .querySelector('td[data-label="Nome"]')
+                ?.textContent.trim();
+              notyf.success(
+                `Dispositivo "${deviceName || deviceId}" conectado.`
+              );
+
+              const modal = detailsModalHandler.element;
+              if (
+                modal.style.display === "flex" &&
+                modal.dataset.showingDeviceId === deviceId
+              ) {
+                detailsModalHandler.hideOtpView();
+                modal.style.display = "none";
+              }
+            }
+          }
+
+          statusCache.setStatus(deviceId, newStatusText);
         } else if (data.type === "CAMPAIGN_STATUS_UPDATE") {
           const { campaignId, status } = data.payload;
           const campaignRow = document.querySelector(
@@ -1154,7 +1266,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
 
-    ws.onclose = () => setTimeout(connectAdminWs, 5000);
+    ws.onclose = () =>
+      setTimeout(() => connectAdminWs(detailsModalHandler, statusCache), 5000);
     ws.onerror = () => ws.close();
   };
 
@@ -1162,8 +1275,8 @@ document.addEventListener("DOMContentLoaded", () => {
   setupCompanyModal();
   setupDeviceModal();
   setupCampaignModal();
-  setupDetailsModal();
+  const detailsModalHandler = setupDetailsModal();
   setupConfirmationModal();
-  setupGlobalListeners();
-  connectAdminWs();
+  setupGlobalListeners(detailsModalHandler);
+  connectAdminWs(detailsModalHandler, statusCacheManager);
 });

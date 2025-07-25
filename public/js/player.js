@@ -126,7 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
       case "TYPE_CHANGED":
         wsManager.disconnect(false);
         window.location.href =
-          data.payload.newType === "busca_preco" ? "/price" : "/player";
+          data.payload.newType === "terminal_consulta" ? "/price" : "/player";
         break;
     }
   };

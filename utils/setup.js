@@ -40,8 +40,6 @@ CREATE TABLE IF NOT EXISTS devices (
     company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     sector_id INTEGER REFERENCES sectors(id) ON DELETE SET NULL,
     name VARCHAR(100) NOT NULL,
-    device_identifier VARCHAR(100) UNIQUE NOT NULL,
-    authentication_key TEXT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     last_seen TIMESTAMPTZ,
     registered_at TIMESTAMPTZ DEFAULT NOW(),
@@ -87,8 +85,8 @@ CREATE TABLE IF NOT EXISTS campaign_uploads (
     file_path VARCHAR(500) NOT NULL,
     file_type VARCHAR(50) NOT NULL,
     execution_order INTEGER DEFAULT 0,
-    uploaded_at TIMESTAMPTZ DEFAULT NOW(),
-    duration INTEGER DEFAULT 10
+    duration INTEGER DEFAULT 10,
+    uploaded_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS magic_links (
@@ -100,13 +98,26 @@ CREATE TABLE IF NOT EXISTS magic_links (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS otp_pairing (
+    id SERIAL PRIMARY KEY,
+    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    otp_hash VARCHAR(256) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Índices para otimização de consultas
 CREATE INDEX IF NOT EXISTS idx_tokens_refresh_token ON tokens (refresh_token);
 CREATE INDEX IF NOT EXISTS idx_campaigns_active_period ON campaigns (start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_devices_company_id ON devices (company_id);
+CREATE INDEX IF NOT EXISTS idx_devices_sector_id ON devices (sector_id);
 CREATE INDEX IF NOT EXISTS idx_campaigns_company_id ON campaigns (company_id);
 CREATE INDEX IF NOT EXISTS idx_users_company_id ON users (company_id);
 CREATE INDEX IF NOT EXISTS idx_sectors_company_id ON sectors (company_id);
 CREATE INDEX IF NOT EXISTS idx_campaign_sector_links ON campaign_sector (campaign_id, sector_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_uploads_campaign_id ON campaign_uploads (campaign_id);
+CREATE INDEX IF NOT EXISTS idx_otp_pairing_expires_at ON otp_pairing (expires_at);
 `;
 
 const resetDatabase = async () => {

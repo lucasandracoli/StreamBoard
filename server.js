@@ -18,6 +18,7 @@ const fs = require("fs");
 const fsPromises = require("fs").promises;
 const url = require("url");
 const axios = require("axios");
+const { body, validationResult } = require("express-validator");
 
 const logger = {
   info: (message) => {
@@ -64,11 +65,9 @@ let campeaoToken = null;
 let campeaoTokenExp = 0;
 
 function generateAccessToken(device) {
-  return jwt.sign(
-    { id: device.id, device_identifier: device.device_identifier },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRATION }
-  );
+  return jwt.sign({ id: device.id }, JWT_SECRET, {
+    expiresIn: JWT_EXPIRATION,
+  });
 }
 
 function formatarPeriodo(dataInicio, dataFim) {
@@ -109,11 +108,9 @@ function formatarPeriodo(dataInicio, dataFim) {
 }
 
 function generateRefreshToken(device) {
-  return jwt.sign(
-    { id: device.id, device_identifier: device.device_identifier },
-    JWT_SECRET,
-    { expiresIn: JWT_REFRESH_EXPIRATION }
-  );
+  return jwt.sign({ id: device.id }, JWT_SECRET, {
+    expiresIn: JWT_REFRESH_EXPIRATION,
+  });
 }
 
 function verifyToken(token) {
@@ -122,6 +119,34 @@ function verifyToken(token) {
   } catch (err) {
     return null;
   }
+}
+
+function setAuthCookies(res, accessToken, refreshToken) {
+  res.cookie("access_token", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 900000,
+  });
+  res.cookie("refresh_token", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: JWT_REFRESH_COOKIE_MAX_AGE,
+  });
+}
+
+function getDeviceStatus(device, onlineClients) {
+  const isOnline = onlineClients.hasOwnProperty(device.id);
+
+  if (!device.is_active) {
+    return { text: "Revogado", class: "revoked" };
+  }
+  if (isOnline) {
+    return { text: "Online", class: "online" };
+  }
+  if (device.has_tokens) {
+    return { text: "Offline", class: "offline" };
+  }
+  return { text: "Inativo", class: "inactive" };
 }
 
 async function deviceAuth(req, res, next) {
@@ -195,16 +220,7 @@ async function deviceAuth(req, res, next) {
     );
     await client.query("COMMIT");
 
-    res.cookie("access_token", newAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 900000,
-    });
-    res.cookie("refresh_token", newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: JWT_REFRESH_COOKIE_MAX_AGE,
-    });
+    setAuthCookies(res, newAccessToken, newRefreshToken);
 
     req.device = device;
     next();
@@ -294,32 +310,23 @@ wss.on("connection", async (ws, req) => {
     adminClients.add(ws);
     ws.on("close", () => adminClients.delete(ws));
 
-    const allDevices = await db.query("SELECT id, is_active FROM devices");
-    for (const { id, is_active } of allDevices.rows) {
-      const isOnline = Boolean(clients[id]);
-      const tokenCountResult = await db.query(
-        "SELECT COUNT(*) AS cnt FROM tokens WHERE device_id = $1 AND is_revoked = false",
-        [id]
-      );
-      const tokenCount = parseInt(tokenCountResult.rows[0].cnt, 10);
-      let status;
-      if (!is_active) {
-        status = { text: "Revogado", class: "revoked" };
-      } else if (isOnline) {
-        status = { text: "Online", class: "online" };
-      } else if (tokenCount > 0) {
-        status = { text: "Offline", class: "offline" };
-      } else {
-        status = { text: "Inativo", class: "inactive" };
-      }
+    const allDevicesResult = await db.query(`
+      SELECT
+        id,
+        is_active,
+        (SELECT COUNT(*) FROM tokens t WHERE t.device_id = devices.id AND t.is_revoked = false) > 0 as has_tokens
+      FROM devices
+    `);
+
+    for (const device of allDevicesResult.rows) {
+      const status = getDeviceStatus(device, clients);
       ws.send(
         JSON.stringify({
           type: "DEVICE_STATUS_UPDATE",
-          payload: { deviceId: id, status },
+          payload: { deviceId: device.id, status },
         })
       );
     }
-
     return;
   }
 
@@ -477,50 +484,73 @@ app.get("/companies", isAuthenticated, isAdmin, async (req, res) => {
   }
 });
 
-app.post("/companies", isAuthenticated, isAdmin, async (req, res) => {
-  const { sectors, ...companyData } = req.body;
-  const { name, cnpj, city, address, state } = companyData;
+app.post(
+  "/companies",
+  isAuthenticated,
+  isAdmin,
+  body("name")
+    .trim()
+    .notEmpty()
+    .withMessage("O nome da empresa é obrigatório."),
+  body("cnpj")
+    .trim()
+    .customSanitizer((value) => value.replace(/[^\d]/g, ""))
+    .notEmpty()
+    .withMessage("O CNPJ é obrigatório.")
+    .isLength({ min: 14, max: 14 })
+    .withMessage("O CNPJ deve ter 14 dígitos."),
+  body("city").trim().optional(),
+  body("address").trim().optional(),
+  body("state").trim().optional(),
+  body("sectors.*")
+    .trim()
+    .notEmpty()
+    .withMessage("O nome do setor não pode ser vazio."),
 
-  if (!name || !cnpj) {
-    return res.status(400).json({
-      message: "Nome e CNPJ da empresa são obrigatórios.",
-    });
-  }
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
 
-  const client = await db.connect();
-  try {
-    await client.query("BEGIN");
+    const { sectors, ...companyData } = req.body;
+    const { name, cnpj, city, address, state } = companyData;
 
-    const companyResult = await client.query(
-      "INSERT INTO companies (name, cnpj, city, address, state) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-      [name, cnpj, city, address, state]
-    );
-    const newCompanyId = companyResult.rows[0].id;
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
 
-    if (sectors && Array.isArray(sectors) && sectors.length > 0) {
-      for (const sectorName of sectors) {
-        await client.query(
-          "INSERT INTO sectors (name, company_id) VALUES ($1, $2)",
-          [sectorName, newCompanyId]
-        );
+      const companyResult = await client.query(
+        "INSERT INTO companies (name, cnpj, city, address, state) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+        [name, cnpj, city, address, state]
+      );
+      const newCompanyId = companyResult.rows[0].id;
+
+      if (sectors && Array.isArray(sectors) && sectors.length > 0) {
+        for (const sectorName of sectors) {
+          await client.query(
+            "INSERT INTO sectors (name, company_id) VALUES ($1, $2)",
+            [sectorName, newCompanyId]
+          );
+        }
       }
-    }
 
-    await client.query("COMMIT");
-    res.status(201).json({ message: "Empresa cadastrada com sucesso." });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    logger.error("Erro ao cadastrar empresa.", err);
-    if (err.code === "23505") {
-      return res
-        .status(409)
-        .json({ message: "CNPJ ou setor já cadastrado para esta empresa." });
+      await client.query("COMMIT");
+      res.status(201).json({ message: "Empresa cadastrada com sucesso." });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      logger.error("Erro ao cadastrar empresa.", err);
+      if (err.code === "23505") {
+        return res
+          .status(409)
+          .json({ message: "CNPJ ou setor já cadastrado para esta empresa." });
+      }
+      res.status(500).json({ message: "Erro ao cadastrar empresa." });
+    } finally {
+      client.release();
     }
-    res.status(500).json({ message: "Erro ao cadastrar empresa." });
-  } finally {
-    client.release();
   }
-});
+);
 
 app.post("/companies/:id/edit", isAuthenticated, isAdmin, async (req, res) => {
   const { id } = req.params;
@@ -559,15 +589,15 @@ app.post(
 app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
   try {
     const devicesResult = await db.query(`
-        SELECT 
-            d.*,
-            c.name as company_name,
-            s.name as sector_name,
-            (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id AND t.is_revoked = false) > 0 as has_tokens
-        FROM devices d
-        LEFT JOIN companies c ON d.company_id = c.id
-        LEFT JOIN sectors s ON d.sector_id = s.id
-        ORDER BY d.registered_at DESC
+      SELECT
+        d.*,
+        c.name as company_name,
+        s.name as sector_name,
+        (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id AND t.is_revoked = false) > 0 as has_tokens
+      FROM devices d
+      LEFT JOIN companies c ON d.company_id = c.id
+      LEFT JOIN sectors s ON d.sector_id = s.id
+      ORDER BY d.registered_at DESC
     `);
 
     const devices = devicesResult.rows.map((device) => {
@@ -577,24 +607,10 @@ app.get("/devices", isAuthenticated, isAdmin, async (req, res) => {
             .toFormat("dd/MM/yyyy HH:mm:ss")
         : "Nunca";
 
-      const isOnline = clients.hasOwnProperty(device.id);
-
-      let status;
-      if (!device.is_active) {
-        status = { text: "Revogado", class: "revoked" };
-      } else if (isOnline) {
-        status = { text: "Online", class: "online" };
-      } else if (device.has_tokens) {
-        status = { text: "Offline", class: "offline" };
-      } else {
-        status = { text: "Inativo", class: "inactive" };
-      }
-
       return {
         ...device,
         last_seen_formatted: lastSeenFormatted,
-        is_online: isOnline,
-        status: status,
+        status: getDeviceStatus(device, clients),
       };
     });
 
@@ -619,20 +635,11 @@ app.post("/devices", isAuthenticated, isAdmin, async (req, res) => {
       message: "Todos os campos são obrigatórios.",
     });
   }
-  const device_identifier = uuidv4();
-  const authentication_key = crypto.randomBytes(32).toString("hex");
   try {
     await db.query(
-      `INSERT INTO devices (name, device_identifier, authentication_key, device_type, company_id, sector_id, is_active)
-        VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
-      [
-        name,
-        device_identifier,
-        authentication_key,
-        device_type,
-        company_id,
-        sector_id,
-      ]
+      `INSERT INTO devices (name, device_type, company_id, sector_id, is_active)
+       VALUES ($1, $2, $3, $4, TRUE)`,
+      [name, device_type, company_id, sector_id]
     );
     res.json({
       message: "Dispositivo cadastrado com sucesso.",
@@ -688,30 +695,14 @@ app.post("/devices/:id/delete", isAuthenticated, isAdmin, async (req, res) => {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-
-    const deviceResult = await client.query(
-      "SELECT device_identifier FROM devices WHERE id = $1",
-      [id]
-    );
-
-    if (deviceResult.rowCount === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ message: "Dispositivo não encontrado." });
-    }
-    const deviceIdentifier = deviceResult.rows[0].device_identifier;
-
     await client.query("DELETE FROM campaign_device WHERE device_id = $1", [
       id,
     ]);
     await client.query("DELETE FROM tokens WHERE device_id = $1", [id]);
     await client.query("DELETE FROM devices WHERE id = $1", [id]);
-
     await client.query("COMMIT");
 
-    sendUpdateToDevice(id, {
-      type: "DEVICE_REVOKED",
-      payload: { identifier: deviceIdentifier },
-    });
+    sendUpdateToDevice(id, { type: "DEVICE_REVOKED" });
 
     res.status(200).json({
       message: "Dispositivo excluído e sessão encerrada com sucesso.",
@@ -722,6 +713,27 @@ app.post("/devices/:id/delete", isAuthenticated, isAdmin, async (req, res) => {
     res.status(500).json({ message: "Erro ao excluir o dispositivo." });
   } finally {
     client.release();
+  }
+});
+
+app.post("/devices/:id/otp", isAuthenticated, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  const otp = crypto.randomInt(100000, 999999).toString();
+  const expiresAt = DateTime.now().plus({ minutes: 5 }).toJSDate();
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    const otpHash = await bcrypt.hash(otp, salt);
+
+    await db.query(
+      "INSERT INTO otp_pairing (device_id, otp_hash, expires_at) VALUES ($1, $2, $3)",
+      [id, otpHash, expiresAt]
+    );
+
+    res.status(200).json({ otp, expiresAt });
+  } catch (err) {
+    logger.error(`Erro ao gerar OTP para o dispositivo ${id}.`, err);
+    res.status(500).json({ message: "Erro ao gerar OTP." });
   }
 });
 
@@ -750,62 +762,45 @@ app.post(
   }
 );
 
-app.post(
-  "/devices/:identifier/revoke",
-  isAuthenticated,
-  isAdmin,
-  async (req, res) => {
-    const { identifier } = req.params;
-    const client = await db.connect();
-    try {
-      await client.query("BEGIN");
-      const result = await client.query(
-        "SELECT id FROM devices WHERE device_identifier = $1",
-        [identifier]
-      );
-      if (result.rows.length === 0) {
-        await client.query("ROLLBACK");
-        return res.status(404).json({ message: "Dispositivo não encontrado." });
-      }
-      const deviceId = result.rows[0].id;
-      await client.query(
-        "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
-        [deviceId]
-      );
-      await client.query("UPDATE devices SET is_active = FALSE WHERE id = $1", [
-        deviceId,
-      ]);
-      await client.query("COMMIT");
-      sendUpdateToDevice(deviceId, {
-        type: "DEVICE_REVOKED",
-        payload: { identifier: identifier },
-      });
-      res.status(200).json({
-        message:
-          "Acesso do dispositivo revogado e status atualizado com sucesso.",
-      });
-    } catch (err) {
-      await client.query("ROLLBACK");
-      logger.error("Erro ao revogar acesso do dispositivo.", err);
-      res
-        .status(500)
-        .json({ message: "Erro ao revogar acesso do dispositivo." });
-    } finally {
-      client.release();
-    }
+app.post("/devices/:id/revoke", isAuthenticated, isAdmin, async (req, res) => {
+  const { id } = req.params;
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
+      [id]
+    );
+    await client.query("UPDATE devices SET is_active = FALSE WHERE id = $1", [
+      id,
+    ]);
+
+    await client.query("COMMIT");
+    sendUpdateToDevice(id, { type: "DEVICE_REVOKED" });
+    res.status(200).json({
+      message:
+        "Acesso do dispositivo revogado e status atualizado com sucesso.",
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    logger.error("Erro ao revogar acesso do dispositivo.", err);
+    res.status(500).json({ message: "Erro ao revogar acesso do dispositivo." });
+  } finally {
+    client.release();
   }
-);
+});
 
 app.post(
-  "/devices/:identifier/reactivate",
+  "/devices/:id/reactivate",
   isAuthenticated,
   isAdmin,
   async (req, res) => {
-    const { identifier } = req.params;
+    const { id } = req.params;
     try {
       const result = await db.query(
-        "UPDATE devices SET is_active = TRUE WHERE device_identifier = $1",
-        [identifier]
+        "UPDATE devices SET is_active = TRUE WHERE id = $1",
+        [id]
       );
       if (result.rowCount === 0) {
         return res.status(404).json({ message: "Dispositivo não encontrado." });
@@ -845,35 +840,58 @@ app.get("/pair", (req, res) => {
 });
 
 app.post("/pair", async (req, res) => {
-  const { device_identifier, authentication_key } = req.body;
-  if (!device_identifier || !authentication_key) {
-    return res.render("pair", {
-      error: "ID do Dispositivo e Chave de Autenticação são obrigatórios.",
-    });
+  const { otp_code } = req.body;
+  if (!otp_code) {
+    return res.render("pair", { error: "O código OTP é obrigatório." });
   }
+
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-    const result = await client.query(
-      "SELECT * FROM devices WHERE device_identifier = $1 AND is_active = true",
-      [device_identifier]
+
+    const otpResult = await client.query(
+      "SELECT * FROM otp_pairing WHERE expires_at > NOW() AND used_at IS NULL"
     );
-    if (
-      result.rows.length === 0 ||
-      result.rows[0].authentication_key !== authentication_key
-    ) {
+
+    let validOtpRecord = null;
+    for (const record of otpResult.rows) {
+      const match = await bcrypt.compare(otp_code, record.otp_hash);
+      if (match) {
+        validOtpRecord = record;
+        break;
+      }
+    }
+
+    if (!validOtpRecord) {
+      await client.query("ROLLBACK");
+      return res.render("pair", { error: "Código OTP inválido ou expirado." });
+    }
+
+    await client.query("UPDATE otp_pairing SET used_at = NOW() WHERE id = $1", [
+      validOtpRecord.id,
+    ]);
+
+    const deviceResult = await client.query(
+      "SELECT * FROM devices WHERE id = $1 AND is_active = true",
+      [validOtpRecord.device_id]
+    );
+
+    if (deviceResult.rows.length === 0) {
       await client.query("ROLLBACK");
       return res.render("pair", {
-        error: "ID do Dispositivo ou Chave de Autenticação inválidos.",
+        error: "Dispositivo associado não está ativo.",
       });
     }
-    const device = result.rows[0];
+    const device = deviceResult.rows[0];
+
     await client.query(
       "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
       [device.id]
     );
+
     const accessToken = generateAccessToken(device);
     const refreshToken = generateRefreshToken(device);
+
     await client.query(
       "INSERT INTO tokens (device_id, token, refresh_token) VALUES ($1, $2, $3)",
       [device.id, accessToken, refreshToken]
@@ -881,17 +899,11 @@ app.post("/pair", async (req, res) => {
     await client.query("UPDATE devices SET last_seen = NOW() WHERE id = $1", [
       device.id,
     ]);
+
+    setAuthCookies(res, accessToken, refreshToken);
+
     await client.query("COMMIT");
-    res.cookie("access_token", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 900000,
-    });
-    res.cookie("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: JWT_REFRESH_COOKIE_MAX_AGE,
-    });
+
     if (device.device_type === "terminal_consulta") {
       return res.redirect("/price");
     } else {
@@ -899,8 +911,8 @@ app.post("/pair", async (req, res) => {
     }
   } catch (err) {
     await client.query("ROLLBACK");
-    logger.error("Erro ao autenticar dispositivo no pareamento.", err);
-    res.render("pair", { error: "Erro ao autenticar dispositivo." });
+    logger.error("Erro ao autenticar dispositivo com OTP.", err);
+    res.render("pair", { error: "Erro interno ao validar OTP." });
   } finally {
     client.release();
   }
@@ -941,10 +953,10 @@ app.get("/price", deviceAuth, async (req, res) => {
     const device = deviceResult.rows[0];
     const campaignsResult = await db.query(
       `SELECT c.* FROM campaigns c
-        LEFT JOIN campaign_device cd ON c.id = cd.campaign_id
-        LEFT JOIN campaign_sector cs ON c.id = cs.campaign_id
-        WHERE c.start_date <= NOW() AND c.end_date >= NOW()
-        AND (cd.device_id = $1 OR cs.sector_id = $2)`,
+       LEFT JOIN campaign_device cd ON c.id = cd.campaign_id
+       LEFT JOIN campaign_sector cs ON c.id = cs.campaign_id
+       WHERE c.start_date <= NOW() AND c.end_date >= NOW()
+       AND (cd.device_id = $1 OR cs.sector_id = $2)`,
       [device.id, device.sector_id]
     );
     const offers = campaignsResult.rows;
@@ -990,7 +1002,7 @@ app.get(
         c.name as company_name,
         s.name as sector_name,
         (SELECT COUNT(*) FROM tokens t WHERE t.device_id = d.id AND t.is_revoked = false) > 0 as has_tokens
-         FROM devices d 
+         FROM devices d
          LEFT JOIN companies c ON d.company_id = c.id
          LEFT JOIN sectors s ON d.sector_id = s.id
          WHERE d.id = $1`,
@@ -1006,22 +1018,12 @@ app.get(
          LEFT JOIN campaign_device cd ON c.id = cd.campaign_id
          LEFT JOIN campaign_sector cs ON c.id = cs.campaign_id
          WHERE (cd.device_id = $1 OR cs.sector_id = $2)
-          AND NOW() BETWEEN c.start_date AND c.end_date`,
+         AND NOW() BETWEEN c.start_date AND c.end_date`,
         [id, device.sector_id]
       );
 
       const activeCampaigns = activeCampaignsResult.rows.map((c) => c.name);
-      const isOnline = clients.hasOwnProperty(device.id);
-      let status;
-      if (!device.is_active) {
-        status = { text: "Revogado", class: "revoked" };
-      } else if (isOnline) {
-        status = { text: "Online", class: "online" };
-      } else if (device.has_tokens) {
-        status = { text: "Offline", class: "offline" };
-      } else {
-        status = { text: "Inativo", class: "inactive" };
-      }
+      const status = getDeviceStatus(device, clients);
       const formatOptions = { zone: "America/Sao_Paulo", locale: "pt-BR" };
       const registeredAtFormatted = DateTime.fromJSDate(
         device.registered_at,
@@ -1034,7 +1036,6 @@ app.get(
         : "Nunca";
       res.json({
         ...device,
-        is_online: isOnline,
         registered_at_formatted: registeredAtFormatted,
         last_seen_formatted: lastSeenFormatted,
         active_campaigns: activeCampaigns,
@@ -1105,16 +1106,7 @@ app.get("/pair/magic", async (req, res) => {
       device.id,
     ]);
     await client.query("COMMIT");
-    res.cookie("access_token", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 900000,
-    });
-    res.cookie("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: JWT_REFRESH_COOKIE_MAX_AGE,
-    });
+    setAuthCookies(res, accessToken, refreshToken);
     if (device.device_type === "terminal_consulta") {
       return res.redirect("/price");
     } else {
@@ -1216,7 +1208,7 @@ app.post(
       await client.query("COMMIT");
 
       const allAffectedDevices = await db.query(
-        `SELECT id FROM devices 
+        `SELECT id FROM devices
          WHERE id = ANY($1::uuid[]) OR sector_id = ANY($2::int[])`,
         [newDeviceIds, newSectorIds]
       );
@@ -1447,14 +1439,14 @@ app.get("/api/device/playlist", deviceAuth, async (req, res) => {
        LEFT JOIN campaign_device cd ON c.id = cd.campaign_id
        LEFT JOIN campaign_sector cs ON c.id = cs.campaign_id
        WHERE
-         c.company_id = d.company_id AND
-         c.start_date <= NOW() AND
-         c.end_date >= NOW() AND
-         (
-           (cd.campaign_id IS NULL AND cs.campaign_id IS NULL) OR
-           cd.device_id = d.id OR
-           cs.sector_id = d.sector_id
-         )
+        c.company_id = d.company_id AND
+        c.start_date <= NOW() AND
+        c.end_date >= NOW() AND
+        (
+         (cd.campaign_id IS NULL AND cs.campaign_id IS NULL) OR
+         cd.device_id = d.id OR
+         cs.sector_id = d.sector_id
+        )
        ORDER BY up.execution_order ASC`,
       [req.device.id]
     );
