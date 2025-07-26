@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StreamBoard - Documentação Técnica</title>
+    <style>
+      :root {
+        --color-background: #1e1e1e;
+        --color-surface: #2a2a2a;
+        --color-primary: #00aeff;
+        --color-text: #d4d4d4;
+        --color-text-muted: #888888;
+        --color-border: #444444;
+        --color-success: #28a745;
+        --color-code-bg: #1a1a1a;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        background-color: var(--color-background);
+        color: var(--color-text);
+        margin: 0;
+        display: flex;
+        line-height: 1.6;
+      }
+
+      nav.sidebar {
+        width: 260px;
+        background-color: var(--color-surface);
+        border-right: 1px solid var(--color-border);
+        padding: 2rem 0;
+        height: 100vh;
+        position: sticky;
+        top: 0;
+        flex-shrink: 0;
+        overflow-y: auto;
+      }
+
+      .sidebar h1 {
+        font-size: 1.5rem;
+        padding: 0 1.5rem;
+        margin: 0 0 1rem 0;
+        color: white;
+      }
+
+      .sidebar h1 .version {
+        font-size: 0.8rem;
+        font-weight: normal;
+        background-color: var(--color-primary);
+        color: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+        vertical-align: middle;
+        margin-left: 8px;
+      }
+
+      .sidebar ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      .sidebar ul li a {
+        display: block;
+        padding: 0.75rem 1.5rem;
+        color: var(--color-text);
+        text-decoration: none;
+        transition: background-color 0.2s;
+        border-left: 3px solid transparent;
+      }
+
+      .sidebar ul li a:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+      }
+
+      .sidebar ul li a.active {
+        color: white;
+        font-weight: 600;
+        border-left-color: var(--color-primary);
+      }
+
+      main {
+        flex-grow: 1;
+        padding: 2rem 3rem;
+        max-width: 900px;
+      }
+
+      section {
+        padding-top: 2rem;
+        margin-top: -2rem;
+        margin-bottom: 3rem;
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      section:last-child {
+        border-bottom: none;
+      }
+
+      h2 {
+        font-size: 2.5rem;
+        color: white;
+        border-bottom: 2px solid var(--color-primary);
+        padding-bottom: 0.5rem;
+        margin-bottom: 1.5rem;
+      }
+
+      h3 {
+        font-size: 1.75rem;
+        color: #e0e0e0;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+      }
+
+      p,
+      li {
+        font-size: 1rem;
+      }
+
+      code {
+        background-color: var(--color-code-bg);
+        border: 1px solid var(--color-border);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: "Fira Code", "Courier New", monospace;
+        color: #ce9178;
+      }
+
+      pre {
+        background-color: var(--color-code-bg);
+        border: 1px solid var(--color-border);
+        padding: 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        white-space: pre-wrap;
+      }
+
+      pre code {
+        border: none;
+        padding: 0;
+        background-color: transparent;
+      }
+
+      a {
+        color: var(--color-primary);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+      }
+
+      th,
+      td {
+        border: 1px solid var(--color-border);
+        padding: 0.75rem;
+        text-align: left;
+      }
+
+      th {
+        background-color: var(--color-surface);
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <h1>StreamBoard <span class="version">v1.0</span></h1>
+      <ul>
+        <li><a href="#visao-geral">Visão Geral</a></li>
+        <li><a href="#tecnologias">Tecnologias</a></li>
+        <li><a href="#como-executar">Como Executar o Projeto</a></li>
+        <li><a href="#backend">Estrutura do Backend</a></li>
+        <li><a href="#frontend">Estrutura do Frontend</a></li>
+        <li><a href="#fluxo">Fluxo de uma Requisição</a></li>
+        <li><a href="#database">Banco de Dados</a></li>
+        <li><a href="#env">Variáveis de Ambiente (.env)</a></li>
+      </ul>
+    </nav>
+
+    <main>
+      <section id="visao-geral">
+        <h2>Visão Geral</h2>
+        <p>
+          O <strong>StreamBoard</strong> é um sistema de gerenciamento de
+          conteúdo para sinalização digital (Digital Signage). Ele permite que
+          administradores gerenciem empresas, setores e dispositivos, criando e
+          agendando campanhas de mídia (imagens e vídeos) para serem exibidas em
+          diferentes telas.
+        </p>
+        <p>A plataforma é dividida em duas partes principais:</p>
+        <ul>
+          <li>
+            <strong>Painel Administrativo:</strong> Uma interface web onde os
+            administradores configuram todo o sistema.
+          </li>
+          <li>
+            <strong>Clientes Dispositivo:</strong> As telas que rodam a
+            aplicação do player, seja para exibir mídias (Mídia Indoor) ou para
+            funcionar como um terminal de consulta de preços.
+          </li>
+        </ul>
+      </section>
+
+      <section id="tecnologias">
+        <h2>Tecnologias</h2>
+        <ul>
+          <li><strong>Backend:</strong> Node.js, Express.js, WebSocket (ws)</li>
+          <li>
+            <strong>Frontend (Admin):</strong> EJS (Templates), JavaScript (ES6
+            Modules), Notyf, Flatpickr, TomSelect, SortableJS
+          </li>
+          <li><strong>Frontend (Device):</strong> JavaScript (ES6 Modules)</li>
+          <li><strong>Banco de Dados:</strong> PostgreSQL</li>
+          <li>
+            <strong>Autenticação:</strong> Sessões (Admin), JWT (Dispositivos)
+          </li>
+        </ul>
+      </section>
+
+      <section id="como-executar">
+        <h2>Como Executar o Projeto</h2>
+        <p>
+          Siga os passos abaixo para configurar e rodar o ambiente de
+          desenvolvimento local.
+        </p>
+        <h3>1. Pré-requisitos</h3>
+        <ul>
+          <li>Node.js (versão 18 ou superior)</li>
+          <li>NPM (geralmente instalado com o Node.js)</li>
+          <li>PostgreSQL instalado e rodando</li>
+        </ul>
+
+        <h3>2. Instalação</h3>
+        <pre><code># Clone o repositório (se aplicável)
+git clone [URL_DO_REPOSITORIO]
+cd StreamBoard
+
+# Instale as dependências
+npm install</code></pre>
+
+        <h3>3. Configuração do Ambiente</h3>
+        <p>
+          Crie um arquivo chamado <code>.env</code> na raiz do projeto e
+          preencha com as suas configurações, usando o
+          <code>.env.example</code> como base.
+        </p>
+
+        <h3>4. Banco de Dados</h3>
+        <p>
+          Com o PostgreSQL rodando e as variáveis no
+          <code>.env</code> configuradas, execute o script de setup para criar o
+          banco de dados e as tabelas.
+        </p>
+        <pre><code>node setup.js</code></pre>
+
+        <h3>5. Iniciando o Servidor</h3>
+        <p>Após a configuração, inicie a aplicação.</p>
+        <pre><code>npm start</code></pre>
+        <p>
+          O servidor estará rodando em <code>http://127.0.0.1:3000</code> (ou na
+          porta que você definiu no <code>.env</code>).
+        </p>
+      </section>
+
+      <section id="backend">
+        <h2>Estrutura do Backend</h2>
+        <p>
+          O backend segue uma arquitetura em camadas (<strong
+            >Monolito Modular</strong
+          >) para garantir a separação de responsabilidades.
+        </p>
+        <ul>
+          <li>
+            <code>/config/</code>: Contém as configurações de conexão com
+            serviços externos, como bancos de dados.
+          </li>
+          <li>
+            <code>/src/routes/</code>: Define todas as rotas da API e as conecta
+            aos seus respectivos controladores. É o mapa de URLs da aplicação.
+          </li>
+          <li>
+            <code>/src/middlewares/</code>: Funções que são executadas antes de
+            uma requisição chegar ao seu controlador final. Usado para
+            autenticação, autorização e validação.
+          </li>
+          <li>
+            <code>/src/controllers/</code>: Orquestra o fluxo da requisição.
+            Recebe a requisição, chama os serviços necessários para executar a
+            lógica e envia a resposta final.
+          </li>
+          <li>
+            <code>/src/services/</code>: Onde a lógica de negócio principal
+            reside. Manipula dados, interage com o banco de dados e executa as
+            regras da aplicação.
+          </li>
+          <li>
+            <code>/src/utils/</code>: Funções auxiliares e reutilizáveis sem
+            lógica de negócio (ex: logger).
+          </li>
+        </ul>
+      </section>
+
+      <section id="frontend">
+        <h2>Estrutura do Frontend</h2>
+        <p>
+          Os arquivos do frontend ficam na pasta <code>/public</code>, a única
+          acessível publicamente pelo navegador.
+        </p>
+        <ul>
+          <li><code>/public/css/</code>: Arquivos de estilo (CSS).</li>
+          <li>
+            <code>/public/uploads/</code>: Mídias carregadas pelas campanhas.
+          </li>
+          <li>
+            <code>/public/js/</code>: Onde o código JavaScript do lado do
+            cliente é organizado:
+            <ul>
+              <li>
+                <code>/admin/</code>: Módulos exclusivos para o painel de
+                administração.
+              </li>
+              <li>
+                <code>/player/</code>: Scripts para os dispositivos finais
+                (player e consulta-preços).
+              </li>
+              <li><code>/utils/</code>: Módulos utilitários compartilhados.</li>
+              <li>
+                <code>main.js</code>: O ponto de entrada que carrega os scripts
+                do painel de administração.
+              </li>
+            </ul>
+          </li>
+          <li>
+            <code>/views/</code>: Contém os templates EJS que o servidor usa
+            para renderizar as páginas HTML dinâmicas.
+          </li>
+        </ul>
+      </section>
+
+      <section id="fluxo">
+        <h2>Fluxo de uma Requisição</h2>
+        <p>
+          Para entender como as camadas interagem, veja o fluxo de uma
+          requisição <code>POST /companies</code>:
+        </p>
+        <ol>
+          <li>
+            A requisição chega ao <strong><code>server.js</code></strong> e é
+            passada para o roteador principal.
+          </li>
+          <li>
+            O roteador em
+            <strong><code>/src/routes/index.js</code></strong> delega para
+            <strong><code>/src/routes/company.routes.js</code></strong
+            >.
+          </li>
+          <li>
+            A rota correspondente é encontrada, e os
+            <strong>Middlewares</strong> (`isAuthenticated`, `isAdmin`) são
+            executados.
+          </li>
+          <li>
+            Se os middlewares autorizarem, a função
+            <code>createCompany</code> no
+            <strong><code>/src/controllers/company.controller.js</code></strong>
+            é chamada.
+          </li>
+          <li>
+            O Controlador extrai os dados do corpo da requisição e chama o
+            <strong>Serviço</strong>
+            <code>companyService.createCompanyWithSectors(...)</code>.
+          </li>
+          <li>
+            O Serviço em
+            <strong><code>/src/services/company.service.js</code></strong>
+            executa a lógica de negócio, iniciando uma transação no banco de
+            dados para inserir a empresa e seus setores.
+          </li>
+          <li>
+            O Serviço retorna o resultado (sucesso ou erro) para o Controlador.
+          </li>
+          <li>
+            O Controlador formata a resposta e a envia de volta ao cliente com
+            <code>res.status(201).json(...)</code>.
+          </li>
+        </ol>
+      </section>
+
+      <section id="database">
+        <h2>Banco de Dados</h2>
+        <p>
+          O projeto utiliza PostgreSQL. O arquivo <code>setup.js</code> é um
+          script utilitário para criar e resetar o banco de dados do zero,
+          aplicando todo o schema. Isso é útil para configurar o ambiente de
+          desenvolvimento rapidamente.
+        </p>
+        <h3>Schema Principal</h3>
+        <pre><code>-- Exemplo de algumas tabelas principais
+CREATE TABLE companies (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    cnpj VARCHAR(18) NOT NULL UNIQUE
+);
+
+CREATE TABLE devices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    device_type VARCHAR(30)
+);
+
+CREATE TABLE campaigns (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    start_date TIMESTAMPTZ,
+    end_date TIMESTAMPTZ
+);</code></pre>
+      </section>
+
+      <section id="env">
+        <h2>Variáveis de Ambiente (.env)</h2>
+        <p>
+          Estas são as variáveis necessárias no arquivo <code>.env</code> para
+          que a aplicação funcione corretamente.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Variável</th>
+              <th>Descrição</th>
+              <th>Exemplo</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>PORT</code></td>
+              <td>Porta em que o servidor web irá rodar.</td>
+              <td><code>3000</code></td>
+            </tr>
+            <tr>
+              <td><code>DB_USER</code></td>
+              <td>Usuário do banco de dados PostgreSQL.</td>
+              <td><code>postgres</code></td>
+            </tr>
+            <tr>
+              <td><code>DB_PASSWORD</code></td>
+              <td>Senha do usuário do PostgreSQL.</td>
+              <td><code>admin</code></td>
+            </tr>
+            <tr>
+              <td><code>DB_HOST</code></td>
+              <td>Endereço do servidor de banco de dados.</td>
+              <td><code>localhost</code></td>
+            </tr>
+            <tr>
+              <td><code>DB_PORT</code></td>
+              <td>Porta do servidor de banco de dados.</td>
+              <td><code>5432</code></td>
+            </tr>
+            <tr>
+              <td><code>DB_NAME</code></td>
+              <td>Nome do banco de dados a ser usado/criado.</td>
+              <td><code>streamboard_db</code></td>
+            </tr>
+            <tr>
+              <td><code>SESSION_SECRET</code></td>
+              <td>Uma string aleatória e longa para proteger as sessões.</td>
+              <td><code>seu_segredo_de_sessao_muito_longo</code></td>
+            </tr>
+            <tr>
+              <td><code>JWT_SECRET</code></td>
+              <td>
+                Uma string aleatória e longa para assinar os tokens JWT dos
+                dispositivos.
+              </td>
+              <td><code>seu_segredo_jwt_muito_longo</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <script>
+      // Script simples para highlighting da barra lateral
+      document.addEventListener("DOMContentLoaded", () => {
+        const sections = document.querySelectorAll("section");
+        const navLinks = document.querySelectorAll(".sidebar a");
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                navLinks.forEach((link) => {
+                  link.classList.remove("active");
+                  if (
+                    link.getAttribute("href").substring(1) === entry.target.id
+                  ) {
+                    link.classList.add("active");
+                  }
+                });
+              }
+            });
+          },
+          { rootMargin: "-50% 0px -50% 0px" }
+        );
+
+        sections.forEach((section) => {
+          observer.observe(section);
+        });
+      });
+    </script>
+  </body>
+</html>

@@ -1,4 +1,4 @@
-import DeviceConnector from "./utils/connector.js";
+import DeviceConnector from "../utils/connector.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const viewWrapper = document.getElementById("price-view-wrapper");

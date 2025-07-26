@@ -72,10 +72,9 @@ CREATE TABLE IF NOT EXISTS campaign_device (
 );
 
 CREATE TABLE IF NOT EXISTS campaign_sector (
-    id SERIAL PRIMARY KEY,
     campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
     sector_id INTEGER NOT NULL REFERENCES sectors(id) ON DELETE CASCADE,
-    UNIQUE(campaign_id, sector_id)
+    PRIMARY KEY (campaign_id, sector_id)
 );
 
 CREATE TABLE IF NOT EXISTS campaign_uploads (
@@ -108,16 +107,19 @@ CREATE TABLE IF NOT EXISTS otp_pairing (
 );
 
 -- Índices para otimização de consultas
+CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_tokens_refresh_token ON tokens (refresh_token);
-CREATE INDEX IF NOT EXISTS idx_campaigns_active_period ON campaigns (start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_tokens_device_id ON tokens (device_id);
 CREATE INDEX IF NOT EXISTS idx_devices_company_id ON devices (company_id);
 CREATE INDEX IF NOT EXISTS idx_devices_sector_id ON devices (sector_id);
-CREATE INDEX IF NOT EXISTS idx_campaigns_company_id ON campaigns (company_id);
-CREATE INDEX IF NOT EXISTS idx_users_company_id ON users (company_id);
 CREATE INDEX IF NOT EXISTS idx_sectors_company_id ON sectors (company_id);
-CREATE INDEX IF NOT EXISTS idx_campaign_sector_links ON campaign_sector (campaign_id, sector_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_company_id ON campaigns (company_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_active_period ON campaigns (start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_campaign_device_device_id ON campaign_device (device_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_sector_sector_id ON campaign_sector (sector_id);
 CREATE INDEX IF NOT EXISTS idx_campaign_uploads_campaign_id ON campaign_uploads (campaign_id);
-CREATE INDEX IF NOT EXISTS idx_otp_pairing_expires_at ON otp_pairing (expires_at);
+CREATE INDEX IF NOT EXISTS idx_otp_pairing_device_id ON otp_pairing (device_id);
+CREATE INDEX IF NOT EXISTS idx_magic_links_device_id ON magic_links (device_id);
 `;
 
 const resetDatabase = async () => {
