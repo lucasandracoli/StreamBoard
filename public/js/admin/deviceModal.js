@@ -69,7 +69,7 @@ export function setupDeviceModal() {
       modalTitle.textContent = "Editar Dispositivo";
       submitButton.textContent = "Salvar";
       form.action = `/devices/${device.id}/edit`;
-      form.name.value = device.name;
+      form.name.value = device.name ? device.name.replace(/\s+/g, "") : "";
       form.device_type.value = device.device_type;
       form.company_id.value = device.company_id;
       await populateSectors(device.company_id, device.sector_id);

@@ -7,57 +7,69 @@ const companyService = require("../services/company.service");
 const formatUtils = require("../utils/format.utils");
 const logger = require("../utils/logger");
 
+const transformCampaign = (campaign) => {
+  const now = DateTime.now().setZone("America/Sao_Paulo");
+  const startDate = DateTime.fromJSDate(campaign.start_date, {
+    zone: "America/Sao_Paulo",
+  });
+  const endDate = DateTime.fromJSDate(campaign.end_date, {
+    zone: "America/Sao_Paulo",
+  });
+
+  let status;
+  if (now < startDate) {
+    status = { text: "Agendada", class: "scheduled" };
+  } else if (now > endDate) {
+    status = { text: "Finalizada", class: "offline" };
+  } else {
+    status = { text: "Ativa", class: "online" };
+  }
+
+  let campaign_type = "Sem Mídia";
+  const uploadsCount =
+    campaign.uploads_count !== undefined
+      ? parseInt(campaign.uploads_count, 10)
+      : (campaign.uploads || []).length;
+  const firstUpload = (campaign.uploads || [])[0];
+  const firstUploadType =
+    campaign.first_upload_type || (firstUpload ? firstUpload.file_type : null);
+
+  if (uploadsCount > 1) {
+    campaign_type = "Playlist";
+  } else if (uploadsCount === 1) {
+    if (firstUploadType?.startsWith("image/")) {
+      campaign_type = "Imagem";
+    } else if (firstUploadType?.startsWith("video/")) {
+      campaign_type = "Vídeo";
+    } else {
+      campaign_type = "Arquivo";
+    }
+  }
+
+  let target_names = [];
+  if (campaign.sector_names && campaign.sector_names.length > 0) {
+    target_names = campaign.sector_names;
+  } else if (campaign.device_names && campaign.device_names.length > 0) {
+    target_names = campaign.device_names;
+  }
+
+  return {
+    ...campaign,
+    status,
+    target_names,
+    periodo_formatado: formatUtils.formatarPeriodo(
+      campaign.start_date,
+      campaign.end_date
+    ),
+    campaign_type,
+  };
+};
+
 const listCampaignsPage = async (req, res) => {
   try {
     const campaignList = await campaignService.getAllCampaigns();
     const companies = await companyService.getAllCompanies();
-    const now = DateTime.now().setZone("America/Sao_Paulo");
-
-    const campaigns = campaignList.map((campaign) => {
-      const startDate = DateTime.fromJSDate(campaign.start_date, {
-        zone: "America/Sao_Paulo",
-      });
-      const endDate = DateTime.fromJSDate(campaign.end_date, {
-        zone: "America/Sao_Paulo",
-      });
-      let status;
-      if (now < startDate) {
-        status = { text: "Agendada", class: "scheduled" };
-      } else if (now > endDate) {
-        status = { text: "Finalizada", class: "offline" };
-      } else {
-        status = { text: "Ativa", class: "online" };
-      }
-
-      let campaign_type = "Sem Mídia";
-      const uploadsCount = parseInt(campaign.uploads_count, 10);
-      if (uploadsCount > 1) {
-        campaign_type = "Playlist";
-      } else if (uploadsCount === 1) {
-        if (campaign.first_upload_type?.startsWith("image/"))
-          campaign_type = "Imagem";
-        else if (campaign.first_upload_type?.startsWith("video/"))
-          campaign_type = "Vídeo";
-        else campaign_type = "Arquivo";
-      }
-
-      let target_names = [];
-      if (campaign.sector_names && campaign.sector_names.length > 0)
-        target_names = campaign.sector_names;
-      else if (campaign.device_names && campaign.device_names.length > 0)
-        target_names = campaign.device_names;
-
-      return {
-        ...campaign,
-        status,
-        target_names,
-        periodo_formatado: formatUtils.formatarPeriodo(
-          campaign.start_date,
-          campaign.end_date
-        ),
-        campaign_type,
-      };
-    });
+    const campaigns = campaignList.map(transformCampaign);
 
     res.render("campaigns", { campaigns, companies, sectors: [] });
   } catch (err) {
@@ -145,7 +157,7 @@ const deleteCampaign = async (req, res) => {
     }
 
     for (const filePath of filesToDelete) {
-      const fullPath = path.join(__dirname, "../../", filePath); // Ajuste o caminho conforme sua estrutura
+      const fullPath = path.join(__dirname, "../../", filePath);
       fsPromises.unlink(fullPath).catch((err) => {
         logger.error(`Falha ao excluir arquivo de mídia: ${fullPath}`, err);
       });
@@ -329,9 +341,33 @@ const editCampaign = async (req, res) => {
     const campaignForResponse = await campaignService.getCampaignWithDetails(
       id
     );
+
+    const companyData = await companyService.getCompanyById(
+      campaignForResponse.company_id
+    );
+    campaignForResponse.company_name = companyData ? companyData.name : "";
+    campaignForResponse.device_names = (campaignForResponse.devices || []).map(
+      (d) => d.name
+    );
+
+    if (
+      campaignForResponse.sector_ids &&
+      campaignForResponse.sector_ids.length > 0
+    ) {
+      const sectorsData = await db.query(
+        "SELECT name FROM sectors WHERE id = ANY($1::int[])",
+        [campaignForResponse.sector_ids]
+      );
+      campaignForResponse.sector_names = sectorsData.rows.map((s) => s.name);
+    } else {
+      campaignForResponse.sector_names = [];
+    }
+
+    const transformedCampaign = transformCampaign(campaignForResponse);
+
     res.status(200).json({
       message: "Campanha atualizada com sucesso.",
-      campaign: campaignForResponse,
+      campaign: transformedCampaign,
     });
   } catch (err) {
     await client.query("ROLLBACK");

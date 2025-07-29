@@ -224,11 +224,11 @@ export function setupCampaignModal() {
 
       const durationInputHtml = isImage
         ? `<div class="media-duration-group">
-                    <input type="number" class="media-duration-input" data-index="${index}" value="${
+                      <input type="number" class="media-duration-input" data-index="${index}" value="${
             file.duration || 10
           }" min="1">
-                    <label>Segundos</label>
-                  </div>`
+                      <label>Segundos</label>
+                    </div>`
         : "";
 
       item.innerHTML = `
@@ -341,7 +341,7 @@ export function setupCampaignModal() {
 
       stagedFiles = (campaign.uploads || []).map((file) => ({
         ...file,
-        name: file.file_name,
+        name: file.file_path.split("/").pop(),
         type: file.file_type,
       }));
       renderStagedFiles();
@@ -405,9 +405,7 @@ export function setupCampaignModal() {
   });
 
   const updateCampaignRow = (campaign) => {
-    const row = document.querySelector(
-      `tr[data-campaign-id="${campaign.id}"]`
-    );
+    const row = document.querySelector(`tr[data-campaign-id="${campaign.id}"]`);
     if (!row) return;
 
     row.querySelector(".col-name").textContent = campaign.name;

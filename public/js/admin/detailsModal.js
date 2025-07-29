@@ -28,7 +28,7 @@ export function setupDetailsModal() {
     hideOtpView();
 
     otpView.style.display = "flex";
-    otpCodeEl.textContent = otp.match(/.{1,3}/g).join(" ");
+    otpCodeEl.textContent = otp;
 
     const expiryTime = new Date(expiresAt).getTime();
 
@@ -57,7 +57,9 @@ export function setupDetailsModal() {
       default: "bi-question-circle",
     };
 
-    getEl("modalDeviceName").textContent = device.name;
+    getEl("modalDeviceName").textContent = device.name
+      ? device.name.replace(/\s+/g, "")
+      : "";
     getEl("modalDeviceCompany").textContent = device.company_name || "N/A";
     getEl("modalDeviceSector").textContent = device.sector_name || "N/A";
     getEl("modalDeviceType").textContent =
