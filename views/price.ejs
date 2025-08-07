@@ -17,6 +17,12 @@
     />
   </head>
   <body class="player-body">
+    <input
+      type="text"
+      id="barcode-input"
+      style="position: absolute; left: -9999px; top: -9999px"
+      autofocus
+    />
     <div id="price-view-wrapper">
       <div id="idle-screen">
         <div id="offer-container"></div>
@@ -71,6 +77,9 @@
       const offersData = <%- JSON.stringify(offers || []) %>;
     </script>
 
-    <script type="module" src="/js/player/price.js?v=<%= appVersion %>"></script>
+    <script
+      type="module"
+      src="/js/player/price.js?v=<%= appVersion %>"
+    ></script>
   </body>
 </html>

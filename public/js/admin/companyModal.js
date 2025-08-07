@@ -13,13 +13,14 @@ export function setupCompanyModal() {
   const sectorList = document.getElementById("sector-list");
   const newSectorNameInput = document.getElementById("newSectorName");
   const addSectorBtn = document.getElementById("addSectorBtn");
-  const companyCnpjInput = document.getElementById("companyCnpj");
 
   let currentCompanyId = null;
   let stagedSectors = [];
+  let cnpjMask = null;
+  const cnpjInput = document.getElementById("companyCnpj");
 
-  if (companyCnpjInput) {
-    IMask(companyCnpjInput, {
+  if (cnpjInput) {
+    cnpjMask = IMask(cnpjInput, {
       mask: "00.000.000/0000-00",
     });
   }
@@ -136,9 +137,7 @@ export function setupCompanyModal() {
 
   const openCreateModal = () => {
     form.reset();
-    if (companyCnpjInput.mask) {
-      companyCnpjInput.mask.updateValue();
-    }
+    if (cnpjMask) cnpjMask.value = "";
     currentCompanyId = null;
     stagedSectors = [];
     sectorsSection.style.display = "block";
@@ -154,24 +153,24 @@ export function setupCompanyModal() {
       const response = await fetch(`/api/companies/${companyId}`);
       if (!response.ok) throw new Error(await handleFetchError(response));
       const company = await response.json();
-
+      form.reset();
       currentCompanyId = company.id;
       stagedSectors = [];
       sectorsSection.style.display = "block";
       modalTitle.textContent = "Editar Empresa";
       submitButton.textContent = "Salvar";
       form.action = `/companies/${company.id}/edit`;
+      form.name.value = company.name;
 
-      form.name.value = company.name || "";
+      if (cnpjMask) {
+        cnpjMask.value = company.cnpj;
+      } else {
+        form.cnpj.value = company.cnpj;
+      }
+
       form.city.value = company.city || "";
       form.address.value = company.address || "";
       form.state.value = company.state || "";
-
-      if (companyCnpjInput.mask) {
-        companyCnpjInput.mask.unmaskedValue = company.cnpj || "";
-      } else {
-        companyCnpjInput.value = company.cnpj || "";
-      }
 
       await fetchAndRenderSectors(company.id);
       companyModal.style.display = "flex";

@@ -58,12 +58,17 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (isVideo) {
       const video = document.createElement("video");
       video.src = url;
-      video.autoplay = true;
       video.muted = true;
       video.playsInline = true;
       video.onended = playNext;
       video.onerror = () => playNext();
       campaignContainer.appendChild(video);
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          playNext();
+        });
+      }
     } else {
       playNext();
     }

@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const productPriceEl = document.getElementById("product-price");
   const productBarcodeEl = document.getElementById("product-barcode");
   const footer = document.querySelector(".price-check-footer");
+  const barcodeInput = document.getElementById("barcode-input");
   let priceViewTimeout;
   let mediaTimer = null;
   let playlist = [];
@@ -113,12 +114,17 @@ document.addEventListener("DOMContentLoaded", () => {
       mediaTimer = setTimeout(playNextMedia, duration);
     } else if (cached && isVideo) {
       const vid = cached.cloneNode();
-      vid.autoplay = true;
       vid.muted = true;
       vid.playsInline = true;
       vid.onended = playNextMedia;
       vid.onerror = playNextMedia;
       offerContainer.appendChild(vid);
+      const playPromise = vid.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          playNextMedia();
+        });
+      }
     } else {
       playNextMedia();
     }
@@ -180,6 +186,7 @@ document.addEventListener("DOMContentLoaded", () => {
       offerContainer.style.display = "none";
       backgroundImage.style.display = "block";
     }
+    barcodeInput.focus();
   }
 
   function showPriceCard() {
@@ -247,17 +254,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  let buf = "";
-  let bufTimeout = null;
-  document.addEventListener("keydown", (e) => {
-    clearTimeout(bufTimeout);
-    if (e.key === "Enter") {
-      if (buf.length > 3) displayProduct(buf);
-      buf = "";
-    } else if (e.key.length === 1 && /^[0-9]$/.test(e.key)) {
-      buf += e.key;
+  barcodeInput.addEventListener("change", () => {
+    const barcode = barcodeInput.value.trim();
+    if (barcode.length > 3) {
+      displayProduct(barcode);
     }
-    bufTimeout = setTimeout(() => (buf = ""), 200);
+    barcodeInput.value = "";
+  });
+
+  barcodeInput.addEventListener("blur", () => {
+    setTimeout(() => barcodeInput.focus(), 10);
   });
 
   const connector = new DeviceConnector({

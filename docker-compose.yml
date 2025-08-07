@@ -1,11 +1,11 @@
 version: "3.8"
 
-name: streamboard
-
 services:
+  # Serviço da aplicação principal (Node.js)
   application:
     build: .
-    container_name: application
+    # Define o nome exato do contentor como 'streamboard-application'.
+    container_name: streamboard-application
     ports:
       - "3000:3000"
     volumes:
@@ -18,17 +18,19 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Serviço do banco de dados PostgreSQL
   database:
     image: postgres:15-alpine
-    container_name: database
+    # Define o nome exato do contentor como 'streamboard-database'.
+    container_name: streamboard-database
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 10s
@@ -36,5 +38,6 @@ services:
       retries: 5
     restart: unless-stopped
 
+# Volume para persistência dos dados do PostgreSQL
 volumes:
   postgres_data:

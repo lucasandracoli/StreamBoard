@@ -12,6 +12,14 @@ export default class DeviceConnector {
       onAuthFailure: () => {},
       ...handlers,
     };
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        if (this.ws === null || this.ws.readyState === WebSocket.CLOSED) {
+          this.connect();
+        }
+      }
+    });
   }
 
   async probeAndConnect() {
