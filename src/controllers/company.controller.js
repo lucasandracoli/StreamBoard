@@ -1,11 +1,12 @@
 const { validationResult } = require("express-validator");
 const companyService = require("../services/company.service");
 const logger = require("../utils/logger");
+const formatUtils = require("../utils/format.utils");
 
 const listCompaniesPage = async (req, res) => {
   try {
     const companies = await companyService.getAllCompanies();
-    res.render("companies", { companies });
+    res.render("companies", { companies, formatUtils });
   } catch (err) {
     logger.error("Erro ao carregar empresas.", err);
     res.status(500).send("Erro ao carregar a página de empresas.");

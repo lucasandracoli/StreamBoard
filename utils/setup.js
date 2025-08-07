@@ -122,48 +122,26 @@ CREATE INDEX IF NOT EXISTS idx_otp_pairing_device_id ON otp_pairing (device_id);
 CREATE INDEX IF NOT EXISTS idx_magic_links_device_id ON magic_links (device_id);
 `;
 
-const resetDatabase = async () => {
-  const client = new Client({
+const applySchema = async () => {
+  const dbClient = new Client({
     user: DB_USER,
     host: DB_HOST,
+    database: DB_NAME,
     password: DB_PASSWORD,
     port: DB_PORT,
   });
 
   try {
-    await client.connect();
-
-    console.log(`🔄  Tentando dropar o banco de dados "${DB_NAME}"...`);
-    await client.query(`DROP DATABASE IF EXISTS ${DB_NAME} WITH (FORCE)`);
-    console.log(`✅ Banco de dados "${DB_NAME}" dropado com sucesso.`);
-
-    console.log(`✨ Criando um novo banco de dados "${DB_NAME}"...`);
-    await client.query(`CREATE DATABASE ${DB_NAME}`);
-    console.log(`✅ Banco de dados "${DB_NAME}" criado com sucesso.`);
-
-    await client.end();
-
-    const dbClient = new Client({
-      user: DB_USER,
-      host: DB_HOST,
-      database: DB_NAME,
-      password: DB_PASSWORD,
-      port: DB_PORT,
-    });
-
     await dbClient.connect();
     console.log(`🔗 Conectado a "${DB_NAME}". Aplicando o schema...`);
-
     await dbClient.query(schemaSqlContent);
-    await dbClient.end();
-
-    console.log(
-      "🏆 Processo concluído! O banco de dados foi resetado e configurado com sucesso."
-    );
+    console.log("🏆 Schema aplicado com sucesso! As tabelas foram criadas.");
   } catch (err) {
-    console.error("❌ Erro durante o reset do banco de dados:", err);
+    console.error("❌ Erro ao aplicar o schema no banco de dados:", err);
     process.exit(1);
+  } finally {
+    await dbClient.end();
   }
 };
 
-resetDatabase();
+applySchema();

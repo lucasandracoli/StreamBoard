@@ -212,7 +212,11 @@ export function setupCampaignModal() {
     list.className = "file-preview-list";
 
     stagedFiles.forEach((file, index) => {
-      const fileName = file.name || file.file_name;
+      const isExistingFile = !(file instanceof File) && file.file_path;
+      const displayName = isExistingFile
+        ? file.file_path.split("/").pop()
+        : file.name;
+      const hoverTitle = file.file_name || file.name;
       const fileType = file.type || file.file_type || "";
       const isImage = fileType.startsWith("image/");
       const isVideo = fileType.startsWith("video/");
@@ -224,17 +228,17 @@ export function setupCampaignModal() {
 
       const durationInputHtml = isImage
         ? `<div class="media-duration-group">
-                      <input type="number" class="media-duration-input" data-index="${index}" value="${
+                    <input type="number" class="media-duration-input" data-index="${index}" value="${
             file.duration || 10
           }" min="1">
-                      <label>Segundos</label>
-                    </div>`
+                    <label>Segundos</label>
+                  </div>`
         : "";
 
       item.innerHTML = `
         <div class="media-thumbnail">${thumbnailHtml}</div>
         <div class="media-details">
-          <span class="file-preview-name" title="${fileName}">${fileName}</span>
+          <span class="file-preview-name" title="${hoverTitle}">${displayName}</span>
           ${durationInputHtml}
         </div>
         <button type="button" class="remove-file-btn" data-index="${index}">&times;</button>`;
@@ -341,7 +345,7 @@ export function setupCampaignModal() {
 
       stagedFiles = (campaign.uploads || []).map((file) => ({
         ...file,
-        name: file.file_path.split("/").pop(),
+        name: file.file_name,
         type: file.file_type,
       }));
       renderStagedFiles();

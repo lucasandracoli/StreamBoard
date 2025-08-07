@@ -24,6 +24,7 @@
     <main class="container">
       <div class="device-header">
         <button class="device-button" id="openDeviceModal">
+          <i class="bi bi-plus-lg"></i>
           <span>Novo Dispositivo</span>
         </button>
       </div>
@@ -52,9 +53,7 @@
               data-device-id="<%= device.id %>"
               title="Clique para ver detalhes"
             >
-              <td data-label="Nome">
-                <%= device.name ? device.name.replace(/\s+/g, "") : "" %>
-              </td>
+              <td data-label="Nome"><%= device.name %></td>
               <td data-label="Status" data-status-cell>
                 <span class="online-status <%= device.status.class %>">
                   <span class="online-dot"></span>
