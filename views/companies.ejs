@@ -29,6 +29,7 @@
           <thead>
             <tr>
               <th>Nome</th>
+
               <th>CNPJ</th>
               <th>Cidade</th>
               <th>Estado</th>
@@ -37,6 +38,7 @@
           </thead>
           <tbody>
             <% if (companies.length === 0) { %>
+
             <tr id="no-companies-row">
               <td colspan="5" style="text-align: center">
                 Nenhuma empresa cadastrada.
@@ -45,7 +47,9 @@
             <% } else { %> <% companies.forEach(company => { %>
             <tr data-company-id="<%= company.id %>">
               <td class="break-word"><%= company.name %></td>
-              <td class="break-word"><%= company.cnpj %></td>
+              <td class="break-word">
+                <%= formatUtils.formatarCNPJ(company.cnpj) %>
+              </td>
               <td class="break-word"><%= company.city || 'N/A' %></td>
               <td class="break-word"><%= company.state || 'N/A' %></td>
               <td class="actions-cell">
@@ -79,6 +83,7 @@
                 </button>
               </td>
             </tr>
+
             <% }) %> <% } %>
           </tbody>
         </table>
@@ -118,6 +123,7 @@
                 placeholder="00.000.000/0000-00"
               />
             </div>
+
             <div class="form-group">
               <label for="companyAddress" class="form-label">Endereço</label>
               <input
@@ -137,32 +143,38 @@
                   class="modal-input"
                 />
               </div>
+
               <div class="form-group">
                 <label for="companyState" class="form-label">Estado</label>
                 <select id="companyState" name="state" class="modal-input">
                   <option value="">--</option>
                   <option value="AC">AC</option>
+
                   <option value="AL">AL</option>
                   <option value="AP">AP</option>
                   <option value="AM">AM</option>
                   <option value="BA">BA</option>
                   <option value="CE">CE</option>
                   <option value="DF">DF</option>
+
                   <option value="ES">ES</option>
                   <option value="GO">GO</option>
                   <option value="MA">MA</option>
                   <option value="MT">MT</option>
                   <option value="MS">MS</option>
+
                   <option value="MG">MG</option>
                   <option value="PA">PA</option>
                   <option value="PB">PB</option>
                   <option value="PR">PR</option>
                   <option value="PE">PE</option>
+
                   <option value="PI">PI</option>
                   <option value="RJ">RJ</option>
                   <option value="RN">RN</option>
                   <option value="RS">RS</option>
                   <option value="RO">RO</option>
+
                   <option value="RR">RR</option>
                   <option value="SC">SC</option>
                   <option value="SP">SP</option>
@@ -212,6 +224,7 @@
     <div id="confirmationModal" class="confirmation-modal-overlay">
       <div class="confirmation-modal">
         <div class="confirmation-modal-header"><h3>Confirmar Exclusão</h3></div>
+
         <div class="confirmation-modal-body">
           <p>
             Deseja realmente excluir esta empresa? Todos os dispositivos e

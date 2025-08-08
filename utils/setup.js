@@ -4,6 +4,7 @@ const { Client } = require("pg");
 const { DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME } = process.env;
 
 const schemaSqlContent = `
+
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE IF NOT EXISTS companies (
@@ -106,7 +107,6 @@ CREATE TABLE IF NOT EXISTS otp_pairing (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Índices para otimização de consultas
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_tokens_refresh_token ON tokens (refresh_token);
 CREATE INDEX IF NOT EXISTS idx_tokens_device_id ON tokens (device_id);
@@ -123,47 +123,49 @@ CREATE INDEX IF NOT EXISTS idx_magic_links_device_id ON magic_links (device_id);
 `;
 
 const resetDatabase = async () => {
-  const client = new Client({
+  const adminClient = new Client({
     user: DB_USER,
     host: DB_HOST,
     password: DB_PASSWORD,
     port: DB_PORT,
+    database: "postgres",
   });
 
   try {
-    await client.connect();
-
-    console.log(`🔄  Tentando dropar o banco de dados "${DB_NAME}"...`);
-    await client.query(`DROP DATABASE IF EXISTS ${DB_NAME} WITH (FORCE)`);
-    console.log(`✅ Banco de dados "${DB_NAME}" dropado com sucesso.`);
-
-    console.log(`✨ Criando um novo banco de dados "${DB_NAME}"...`);
-    await client.query(`CREATE DATABASE ${DB_NAME}`);
-    console.log(`✅ Banco de dados "${DB_NAME}" criado com sucesso.`);
-
-    await client.end();
-
-    const dbClient = new Client({
-      user: DB_USER,
-      host: DB_HOST,
-      database: DB_NAME,
-      password: DB_PASSWORD,
-      port: DB_PORT,
-    });
-
-    await dbClient.connect();
-    console.log(`🔗 Conectado a "${DB_NAME}". Aplicando o schema...`);
-
-    await dbClient.query(schemaSqlContent);
-    await dbClient.end();
-
-    console.log(
-      "🏆 Processo concluído! O banco de dados foi resetado e configurado com sucesso."
-    );
+    await adminClient.connect();
+    await adminClient.query(`DROP DATABASE IF EXISTS ${DB_NAME}`);
+    await adminClient.query(`CREATE DATABASE ${DB_NAME}`);
   } catch (err) {
-    console.error("❌ Erro durante o reset do banco de dados:", err);
+    console.error("Erro ao dropar/criar o banco:", err);
     process.exit(1);
+  } finally {
+    await adminClient.end();
   }
 };
 
-resetDatabase();
+const applySchema = async () => {
+  const dbClient = new Client({
+    user: DB_USER,
+    host: DB_HOST,
+    password: DB_PASSWORD,
+    port: DB_PORT,
+    database: DB_NAME,
+  });
+
+  try {
+    await dbClient.connect();
+    await dbClient.query(schemaSqlContent);
+  } catch (err) {
+    console.error("Erro ao aplicar o schema:", err);
+    process.exit(1);
+  } finally {
+    await dbClient.end();
+  }
+};
+
+const main = async () => {
+  await resetDatabase();
+  await applySchema();
+};
+
+main();

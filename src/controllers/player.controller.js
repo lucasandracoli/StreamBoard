@@ -44,7 +44,14 @@ const handleOtpPairing = async (req, res) => {
         await db.query("INSERT INTO tokens (device_id, token, refresh_token) VALUES ($1, $2, $3)", [device.id, accessToken, refreshToken]);
         setAuthCookies(res, accessToken, refreshToken);
         
-        return res.redirect(device.device_type === "terminal_consulta" ? "/price" : "/player");
+        const { broadcastToAdmins } = req.app.locals;
+        broadcastToAdmins({
+            type: 'DEVICE_NEWLY_ACTIVE',
+            payload: { deviceId: device.id, deviceName: device.name }
+        });
+
+        const redirectUrl = device.device_type === "terminal_consulta" ? "/price" : "/player";
+        return res.redirect(redirectUrl);
 
     } catch (err) {
         res.render("pair", { error: err.message });
@@ -70,7 +77,14 @@ const handleMagicLinkPairing = async (req, res) => {
         await db.query("INSERT INTO tokens (device_id, token, refresh_token) VALUES ($1, $2, $3)", [device.id, accessToken, refreshToken]);
         setAuthCookies(res, accessToken, refreshToken);
         
-        return res.redirect(device.device_type === "terminal_consulta" ? "/price" : "/player");
+        const { broadcastToAdmins } = req.app.locals;
+        broadcastToAdmins({
+            type: 'DEVICE_NEWLY_ACTIVE',
+            payload: { deviceId: device.id, deviceName: device.name }
+        });
+
+        const redirectUrl = device.device_type === "terminal_consulta" ? "/price" : "/player";
+        return res.redirect(redirectUrl);
     } catch (err) {
         res.render("pair", { error: err.message });
     }

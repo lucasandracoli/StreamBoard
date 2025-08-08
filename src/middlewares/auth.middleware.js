@@ -9,9 +9,10 @@ const isAuthenticated = async (req, res, next) => {
     return res.redirect("/login");
   }
   try {
-    const result = await db.query("SELECT * FROM users WHERE id = $1", [
-      req.session.userId,
-    ]);
+    const result = await db.query(
+      "SELECT id, username, user_role FROM users WHERE id = $1",
+      [req.session.userId]
+    );
     if (result.rows.length === 0) {
       req.session.destroy(() => res.redirect("/login"));
     } else {
@@ -52,7 +53,7 @@ const deviceAuth = async (req, res, next) => {
     const payload = tokenService.verifyToken(accessToken);
     if (payload) {
       const d = await db.query(
-        "SELECT * FROM devices WHERE id = $1 AND is_active = TRUE",
+        "SELECT id, name, device_type, company_id, sector_id, is_active FROM devices WHERE id = $1 AND is_active = TRUE",
         [payload.id]
       );
       if (d.rows.length === 0) {
@@ -73,7 +74,7 @@ const deviceAuth = async (req, res, next) => {
   try {
     await client.query("BEGIN");
     const tokenResult = await client.query(
-      "SELECT * FROM tokens WHERE refresh_token = $1 AND is_revoked = false",
+      "SELECT id, device_id FROM tokens WHERE refresh_token = $1 AND is_revoked = false",
       [refreshToken]
     );
 
@@ -95,7 +96,7 @@ const deviceAuth = async (req, res, next) => {
     ]);
 
     const d = await client.query(
-      "SELECT * FROM devices WHERE id = $1 AND is_active = TRUE",
+      "SELECT id, name, device_type, company_id, sector_id, is_active FROM devices WHERE id = $1 AND is_active = TRUE",
       [storedToken.device_id]
     );
     if (d.rows.length === 0) {

@@ -112,6 +112,22 @@ export function setupDetailsModal() {
     }
   };
 
+  const copyTextToClipboard = async (text) => {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textArea);
+    }
+  };
+
   document
     .getElementById("closeDetailsModal")
     ?.addEventListener("click", () => {
@@ -180,7 +196,7 @@ export function setupDetailsModal() {
         if (!res.ok)
           throw new Error((await res.json()).message || "Falha ao gerar link.");
         const { magicLink } = await res.json();
-        await navigator.clipboard.writeText(magicLink);
+        await copyTextToClipboard(magicLink);
         notyf.success("Link mágico copiado!");
       } catch (err) {
         notyf.error(err.message || "Não foi possível copiar o link.");

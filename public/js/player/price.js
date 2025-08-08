@@ -1,6 +1,18 @@
 import DeviceConnector from "../utils/connector.js";
 
 document.addEventListener("DOMContentLoaded", () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('paired')) {
+    const notyf = new Notyf({
+      duration: 5000,
+      position: { x: 'right', y: 'top' },
+      dismissible: true
+    });
+    notyf.success('Dispositivo conectado com sucesso!');
+    const newUrl = window.location.pathname;
+    history.replaceState({}, document.title, newUrl);
+  }
+
   const viewWrapper = document.getElementById("price-view-wrapper");
   const idleScreen = document.getElementById("idle-screen");
   const priceCheckCard = document.getElementById("price-check-card");

@@ -16,9 +16,11 @@ export function setupCompanyModal() {
 
   let currentCompanyId = null;
   let stagedSectors = [];
+  let cnpjMask = null;
+  const cnpjInput = document.getElementById("companyCnpj");
 
-  if (document.getElementById("companyCnpj")) {
-    IMask(document.getElementById("companyCnpj"), {
+  if (cnpjInput) {
+    cnpjMask = IMask(cnpjInput, {
       mask: "00.000.000/0000-00",
     });
   }
@@ -135,6 +137,7 @@ export function setupCompanyModal() {
 
   const openCreateModal = () => {
     form.reset();
+    if (cnpjMask) cnpjMask.value = "";
     currentCompanyId = null;
     stagedSectors = [];
     sectorsSection.style.display = "block";
@@ -158,10 +161,17 @@ export function setupCompanyModal() {
       submitButton.textContent = "Salvar";
       form.action = `/companies/${company.id}/edit`;
       form.name.value = company.name;
-      form.cnpj.value = company.cnpj;
+
+      if (cnpjMask) {
+        cnpjMask.value = company.cnpj;
+      } else {
+        form.cnpj.value = company.cnpj;
+      }
+
       form.city.value = company.city || "";
       form.address.value = company.address || "";
       form.state.value = company.state || "";
+
       await fetchAndRenderSectors(company.id);
       companyModal.style.display = "flex";
     } catch (error) {

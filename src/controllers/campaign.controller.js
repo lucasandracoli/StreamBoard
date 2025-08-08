@@ -145,7 +145,7 @@ const deleteCampaign = async (req, res) => {
     }
 
     for (const filePath of filesToDelete) {
-      const fullPath = path.join(__dirname, "../../", filePath); // Ajuste o caminho conforme sua estrutura
+      const fullPath = path.join(__dirname, "../../", filePath);
       fsPromises.unlink(fullPath).catch((err) => {
         logger.error(`Falha ao excluir arquivo de mídia: ${fullPath}`, err);
       });
@@ -318,7 +318,7 @@ const editCampaign = async (req, res) => {
       ...new Set([...oldAffectedDeviceIds, ...newAffectedDeviceIds]),
     ];
 
-    const { sendUpdateToDevice } = req.app.locals;
+    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
     allAffectedDeviceIds.forEach((deviceId) => {
       sendUpdateToDevice(deviceId, {
         type: "UPDATE_CAMPAIGN",
@@ -326,9 +326,62 @@ const editCampaign = async (req, res) => {
       });
     });
 
-    const campaignForResponse = await campaignService.getCampaignWithDetails(
-      id
-    );
+    const campaignFromDb = await campaignService.getCampaignWithDetails(id);
+
+    const now = DateTime.now().setZone("America/Sao_Paulo");
+    const startDate = DateTime.fromJSDate(campaignFromDb.start_date, {
+      zone: "America/Sao_Paulo",
+    });
+    const endDate = DateTime.fromJSDate(campaignFromDb.end_date, {
+      zone: "America/Sao_Paulo",
+    });
+
+    let status;
+    if (now < startDate) {
+      status = { text: "Agendada", class: "scheduled" };
+    } else if (now > endDate) {
+      status = { text: "Finalizada", class: "offline" };
+    } else {
+      status = { text: "Ativa", class: "online" };
+    }
+
+    let campaign_type = "Sem Mídia";
+    const uploadsCount = campaignFromDb.uploads.length;
+    if (uploadsCount > 1) {
+      campaign_type = "Playlist";
+    } else if (uploadsCount === 1) {
+      if (campaignFromDb.uploads[0].file_type?.startsWith("image/"))
+        campaign_type = "Imagem";
+      else if (campaignFromDb.uploads[0].file_type?.startsWith("video/"))
+        campaign_type = "Vídeo";
+      else campaign_type = "Arquivo";
+    }
+
+    let target_names = [];
+    if (campaignFromDb.sector_names && campaignFromDb.sector_names.length > 0)
+      target_names = campaignFromDb.sector_names;
+    else if (
+      campaignFromDb.device_names &&
+      campaignFromDb.device_names.length > 0
+    )
+      target_names = campaignFromDb.device_names;
+
+    const campaignForResponse = {
+      ...campaignFromDb,
+      status,
+      target_names,
+      periodo_formatado: formatUtils.formatarPeriodo(
+        campaignFromDb.start_date,
+        campaignFromDb.end_date
+      ),
+      campaign_type,
+    };
+
+    broadcastToAdmins({
+      type: "CAMPAIGN_UPDATED",
+      payload: campaignForResponse,
+    });
+
     res.status(200).json({
       message: "Campanha atualizada com sucesso.",
       campaign: campaignForResponse,

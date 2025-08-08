@@ -10,6 +10,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@react-symbols/icons": "^1.2.10",
     "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.0",

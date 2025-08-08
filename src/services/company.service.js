@@ -2,12 +2,17 @@ const db = require("../../config/streamboard");
 const logger = require("../utils/logger");
 
 const getAllCompanies = async () => {
-  const result = await db.query("SELECT * FROM companies ORDER BY name ASC");
+  const result = await db.query(
+    "SELECT id, name, cnpj, address, city, state FROM companies ORDER BY name ASC"
+  );
   return result.rows;
 };
 
 const getCompanyById = async (id) => {
-  const result = await db.query("SELECT * FROM companies WHERE id = $1", [id]);
+  const result = await db.query(
+    "SELECT id, name, cnpj, address, city, state FROM companies WHERE id = $1",
+    [id]
+  );
   return result.rows[0];
 };
 
@@ -55,7 +60,7 @@ const deleteCompany = async (id) => {
 
 const getSectorsByCompanyId = async (companyId) => {
   const result = await db.query(
-    "SELECT * FROM sectors WHERE company_id = $1 ORDER BY name",
+    "SELECT id, name FROM sectors WHERE company_id = $1 ORDER BY name",
     [companyId]
   );
   return result.rows;

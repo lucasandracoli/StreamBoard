@@ -1,7 +1,5 @@
-<% const deviceIcons = { 'midia_indoor': 'bi-tv', 'terminal_consulta':
-'bi-upc-scan', default: 'bi-question-circle' }; const deviceTypeMap = {
-'midia_indoor': 'Mídia Indoor', 'terminal_consulta': 'Terminal de Consulta',
-'default': 'Tipo Desconhecido' }; %>
+<% const deviceIcons = { 'midia_indoor': 'bi-tv', 'terminal_consulta': 'bi-upc-scan', default: 'bi-question-circle' }; %>
+<% const deviceTypeMap = { 'midia_indoor': 'Mídia Indoor', 'terminal_consulta': 'Terminal de Consulta', 'default': 'Tipo Desconhecido' }; %>
 
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -260,15 +258,15 @@
             </select>
           </div>
           <div class="modal-actions">
-            <button id="deviceSubmitButton" type="submit" class="device-button">
-              Adicionar
-            </button>
             <button
               type="button"
               id="cancelDeviceModal"
               class="device-button device-button-cancel"
             >
               Cancelar
+            </button>
+            <button id="deviceSubmitButton" type="submit" class="device-button">
+              Adicionar
             </button>
           </div>
         </form>

@@ -405,9 +405,7 @@ export function setupCampaignModal() {
   });
 
   const updateCampaignRow = (campaign) => {
-    const row = document.querySelector(
-      `tr[data-campaign-id="${campaign.id}"]`
-    );
+    const row = document.querySelector(`tr[data-campaign-id="${campaign.id}"]`);
     if (!row) return;
 
     row.querySelector(".col-name").textContent = campaign.name;

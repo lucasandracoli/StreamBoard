@@ -1,11 +1,12 @@
 const db = require("../../config/streamboard");
 const bcrypt = require("bcrypt");
-const logger = require("../utils/logger")
+const logger = require("../utils/logger");
 
 const findAndValidateUser = async (username, password) => {
-  const result = await db.query("SELECT * FROM users WHERE username = $1", [
-    username,
-  ]);
+  const result = await db.query(
+    "SELECT id, username, password, user_role FROM users WHERE username = $1",
+    [username]
+  );
   if (result.rows.length > 0) {
     const user = result.rows[0];
     const match = await bcrypt.compare(password, user.password);

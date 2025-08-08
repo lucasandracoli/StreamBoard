@@ -16,18 +16,21 @@ export function setupConfirmationModal() {
           url: `/campaigns/${id}/delete`,
           msg: "Deseja realmente excluir esta campanha?",
           success: "Campanha excluída.",
+          rowSelector: `tr[data-campaign-id="${id}"]`,
         };
       } else if (pageId === "devices-page") {
         config = {
           url: `/devices/${id}/delete`,
           msg: "Deseja realmente excluir este dispositivo?",
           success: "Dispositivo excluído.",
+          rowSelector: `tr[data-device-id="${id}"]`,
         };
       } else if (pageId === "companies-page") {
         config = {
           url: `/companies/${id}/delete`,
           msg: "Excluir esta empresa removerá todos os dados associados. Confirma?",
           success: "Empresa excluída.",
+          rowSelector: `tr[data-company-id="${id}"]`,
         };
       } else return;
 
@@ -50,7 +53,12 @@ export function setupConfirmationModal() {
                 (await res.json()).message || `Erro ${res.status}`
               );
             notyf.success(config.success);
-            setTimeout(() => location.reload(), 1200);
+            const row = document.querySelector(config.rowSelector);
+            if (row) {
+              row.remove();
+            } else {
+              setTimeout(() => location.reload(), 1200);
+            }
           } catch (err) {
             notyf.error(err.message || "Falha na comunicação.");
           } finally {
