@@ -69,7 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
     u.lang = "pt-BR";
     if (selectedVoice) u.voice = selectedVoice;
     u.pitch = 1.0;
-    u.rate = 1.3;
+    u.rate = 1.0;
     u.onend = onComplete;
     speechSynthesis.speak(u);
   };
@@ -246,7 +246,7 @@ document.addEventListener("DOMContentLoaded", () => {
       msg.lang = "pt-BR";
       if (selectedVoice) msg.voice = selectedVoice;
       msg.pitch = 1.0;
-      msg.rate = 1.3;
+      msg.rate = 1.0;
       msg.onend = () => {
         priceViewTimeout = setTimeout(showIdleScreen, 1000);
       };
