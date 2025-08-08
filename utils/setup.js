@@ -4,6 +4,7 @@ const { Client } = require("pg");
 const { DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME } = process.env;
 
 const schemaSqlContent = `
+
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 CREATE TABLE IF NOT EXISTS companies (
@@ -106,7 +107,6 @@ CREATE TABLE IF NOT EXISTS otp_pairing (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Índices para otimização de consultas
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_tokens_refresh_token ON tokens (refresh_token);
 CREATE INDEX IF NOT EXISTS idx_tokens_device_id ON tokens (device_id);
@@ -122,26 +122,50 @@ CREATE INDEX IF NOT EXISTS idx_otp_pairing_device_id ON otp_pairing (device_id);
 CREATE INDEX IF NOT EXISTS idx_magic_links_device_id ON magic_links (device_id);
 `;
 
+const resetDatabase = async () => {
+  const adminClient = new Client({
+    user: DB_USER,
+    host: DB_HOST,
+    password: DB_PASSWORD,
+    port: DB_PORT,
+    database: "postgres",
+  });
+
+  try {
+    await adminClient.connect();
+    await adminClient.query(`DROP DATABASE IF EXISTS ${DB_NAME}`);
+    await adminClient.query(`CREATE DATABASE ${DB_NAME}`);
+  } catch (err) {
+    console.error("Erro ao dropar/criar o banco:", err);
+    process.exit(1);
+  } finally {
+    await adminClient.end();
+  }
+};
+
 const applySchema = async () => {
   const dbClient = new Client({
     user: DB_USER,
     host: DB_HOST,
-    database: DB_NAME,
     password: DB_PASSWORD,
     port: DB_PORT,
+    database: DB_NAME,
   });
 
   try {
     await dbClient.connect();
-    console.log(`🔗 Conectado a "${DB_NAME}". Aplicando o schema...`);
     await dbClient.query(schemaSqlContent);
-    console.log("🏆 Schema aplicado com sucesso! As tabelas foram criadas.");
   } catch (err) {
-    console.error("❌ Erro ao aplicar o schema no banco de dados:", err);
+    console.error("Erro ao aplicar o schema:", err);
     process.exit(1);
   } finally {
     await dbClient.end();
   }
 };
 
-applySchema();
+const main = async () => {
+  await resetDatabase();
+  await applySchema();
+};
+
+main();
