@@ -42,28 +42,6 @@ const broadcastToAdmins = (data) => {
   });
 };
 
-const broadcastDashboardStats = async () => {
-  const onlineDevicesCount = Object.keys(clients).length;
-  const totalDevicesResult = await db.query("SELECT COUNT(*) FROM devices");
-  const revokedDevicesResult = await db.query(
-    "SELECT COUNT(*) FROM devices WHERE is_active = false"
-  );
-
-  const totalDevices = parseInt(totalDevicesResult.rows[0].count, 10);
-  const revokedDevices = parseInt(revokedDevicesResult.rows[0].count, 10);
-
-  const stats = {
-    totalDevices: totalDevices,
-    onlineDevices: onlineDevicesCount,
-    offlineDevices: totalDevices - onlineDevicesCount - revokedDevices,
-    revokedDevices: revokedDevices,
-  };
-  broadcastToAdmins({
-    type: "DASHBOARD_STATS_UPDATE",
-    payload: stats,
-  });
-};
-
 const sendUpdateToDevice = (deviceId, data) => {
   const ws = clients[deviceId];
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -75,7 +53,6 @@ app.locals.wss = wss;
 app.locals.clients = clients;
 app.locals.sendUpdateToDevice = sendUpdateToDevice;
 app.locals.broadcastToAdmins = broadcastToAdmins;
-app.locals.broadcastDashboardStats = broadcastDashboardStats;
 
 app.use(cookieParser());
 app.use(
@@ -112,7 +89,7 @@ wss.on("connection", async (ws, req) => {
     ws.on("close", () => adminClients.delete(ws));
 
     const allDevicesResult = await db.query(
-      `SELECT id, is_active, (SELECT COUNT(*) FROM tokens t WHERE t.device_id = devices.id AND t.is_revoked = false) > 0 as has_tokens FROM devices`
+      `SELECT id, name, is_active, (SELECT COUNT(*) FROM tokens t WHERE t.device_id = devices.id AND t.is_revoked = false) > 0 as has_tokens FROM devices`
     );
     const deviceUtils = require("./src/utils/device.utils");
 
@@ -121,7 +98,7 @@ wss.on("connection", async (ws, req) => {
       ws.send(
         JSON.stringify({
           type: "DEVICE_STATUS_UPDATE",
-          payload: { deviceId: device.id, status },
+          payload: { deviceId: device.id, status, deviceName: device.name },
         })
       );
     }
@@ -135,6 +112,13 @@ wss.on("connection", async (ws, req) => {
   if (!payload) return ws.close(1008, "Token inválido ou expirado");
 
   const deviceId = payload.id;
+  const deviceResult = await db.query(
+    "SELECT name FROM devices WHERE id = $1",
+    [deviceId]
+  );
+  const deviceName =
+    deviceResult.rows.length > 0 ? deviceResult.rows[0].name : null;
+
   await db.query("UPDATE devices SET last_seen = NOW() WHERE id = $1", [
     deviceId,
   ]);
@@ -142,29 +126,35 @@ wss.on("connection", async (ws, req) => {
 
   broadcastToAdmins({
     type: "DEVICE_STATUS_UPDATE",
-    payload: { deviceId, status: { text: "Online", class: "online" } },
+    payload: {
+      deviceId,
+      status: { text: "Online", class: "online" },
+      deviceName,
+    },
   });
-
-  broadcastDashboardStats();
 
   ws.isAlive = true;
   ws.on("pong", () => (ws.isAlive = true));
 
   ws.on("close", async () => {
     delete clients[deviceId];
-    broadcastDashboardStats();
-    const tokenCountResult = await db.query(
-      "SELECT COUNT(*) AS cnt FROM tokens WHERE device_id = $1 AND is_revoked = false",
+    const deviceResult = await db.query(
+      "SELECT name, (SELECT COUNT(*) FROM tokens t WHERE t.device_id = $1 AND t.is_revoked = false) > 0 as has_tokens FROM devices WHERE id = $1",
       [deviceId]
     );
-    const tokenCount = parseInt(tokenCountResult.rows[0].cnt, 10);
-    const status =
-      tokenCount > 0
-        ? { text: "Offline", class: "offline" }
-        : { text: "Inativo", class: "inactive" };
+
+    const deviceName =
+      deviceResult.rows.length > 0 ? deviceResult.rows[0].name : null;
+    const hasTokens =
+      deviceResult.rows.length > 0 ? deviceResult.rows[0].has_tokens : false;
+
+    const status = hasTokens
+      ? { text: "Offline", class: "offline" }
+      : { text: "Inativo", class: "inactive" };
+
     broadcastToAdmins({
       type: "DEVICE_STATUS_UPDATE",
-      payload: { deviceId, status },
+      payload: { deviceId, status, deviceName },
     });
   });
 });
@@ -178,30 +168,6 @@ const heartbeatInterval = setInterval(() => {
 }, 30000);
 
 wss.on("close", () => clearInterval(heartbeatInterval));
-
-setInterval(async () => {
-  try {
-    const result = await db.query(
-      "SELECT id, start_date, end_date FROM campaigns"
-    );
-    const now = DateTime.now();
-    result.rows.forEach((campaign) => {
-      const startDate = DateTime.fromJSDate(campaign.start_date);
-      const endDate = DateTime.fromJSDate(campaign.end_date);
-      let newStatus = null;
-      if (now < startDate) newStatus = { text: "Agendada", class: "scheduled" };
-      else if (now > endDate)
-        newStatus = { text: "Finalizada", class: "offline" };
-      else newStatus = { text: "Ativa", class: "online" };
-      broadcastToAdmins({
-        type: "CAMPAIGN_STATUS_UPDATE",
-        payload: { campaignId: campaign.id, status: newStatus },
-      });
-    });
-  } catch (err) {
-    logger.error("Erro ao verificar status das campanhas.", err);
-  }
-}, 5000);
 
 app.use("/", mainRouter);
 

@@ -212,48 +212,44 @@ export function setupCampaignModal() {
     list.className = "file-preview-list";
 
     stagedFiles.forEach((file, index) => {
-      const item = document.createElement("li");
-      item.className = "file-preview-item";
-      item.dataset.id = file.id || `new-${index}`;
-
       const fileName = file.name || file.file_name;
       const fileType = file.type || file.file_type || "";
       const isImage = fileType.startsWith("image/");
       const isVideo = fileType.startsWith("video/");
+      let thumbnailHtml = `<i class="bi bi-file-earmark"></i>`;
 
-      let thumbnailHtml;
-      if (isImage) {
-        const src =
-          file instanceof File ? URL.createObjectURL(file) : file.file_path;
-        thumbnailHtml = `<img src="${src}" alt="preview">`;
-      } else if (isVideo) {
-        thumbnailHtml = `<i class="bi bi-film"></i>`;
-      } else {
-        thumbnailHtml = `<i class="bi bi-file-earmark"></i>`;
-      }
+      const item = document.createElement("li");
+      item.className = "file-preview-item";
+      item.dataset.id = file.id || `new-${index}`;
 
       const durationInputHtml = isImage
         ? `<div class="media-duration-group">
-                <input type="number" class="media-duration-input" data-index="${index}" value="${
+                    <input type="number" class="media-duration-input" data-index="${index}" value="${
             file.duration || 10
           }" min="1">
-                <label>Segundos</label>
-              </div>`
+                    <label>Segundos</label>
+                  </div>`
         : "";
 
       item.innerHTML = `
-            <div class="media-thumbnail">${thumbnailHtml}</div>
-            <div class="media-details">
-                <span class="file-preview-name" title="${fileName}">${fileName}</span>
-                ${durationInputHtml}
-            </div>
-            <button type="button" class="remove-file-btn" data-index="${index}">&times;</button>
-        `;
+        <div class="media-thumbnail">${thumbnailHtml}</div>
+        <div class="media-details">
+          <span class="file-preview-name" title="${fileName}">${fileName}</span>
+          ${durationInputHtml}
+        </div>
+        <button type="button" class="remove-file-btn" data-index="${index}">&times;</button>`;
 
       list.appendChild(item);
 
-      if (isVideo) {
-        const thumbnailContainer = item.querySelector(".media-thumbnail");
+      const thumbnailContainer = item.querySelector(".media-thumbnail");
+
+      if (isImage) {
+        const src =
+          file instanceof File ? URL.createObjectURL(file) : file.file_path;
+        thumbnailContainer.innerHTML = `<img src="${src}" alt="preview">`;
+      } else if (isVideo) {
+        thumbnailContainer.innerHTML = `<i class="bi bi-film"></i>`;
+
         generateVideoThumbnail(file)
           .then((thumbnailSrc) => {
             if (thumbnailSrc) {
@@ -270,11 +266,11 @@ export function setupCampaignModal() {
       const addItem = document.createElement("li");
       addItem.className = "add-media-card";
       addItem.innerHTML = `
-            <label for="file-upload" class="add-media-label">
-                <i class="bi bi-plus-lg"></i>
-                <span>Adicionar Mídia</span>
-            </label>
-        `;
+        <label for="file-upload" class="add-media-label">
+          <i class="bi bi-plus-lg"></i>
+          <span>Adicionar Mídia</span>
+        </label>
+      `;
       list.appendChild(addItem);
     }
 
@@ -282,8 +278,7 @@ export function setupCampaignModal() {
 
     sortableInstance = new Sortable(list, {
       animation: 150,
-      filter:
-        ".add-media-card, .add-media-label, .add-media-label i, .add-media-label span",
+      filter: ".add-media-card",
       onEnd: (evt) => {
         mediaHasBeenTouched = true;
         const [movedItem] = stagedFiles.splice(evt.oldIndex, 1);

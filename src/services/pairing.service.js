@@ -8,7 +8,7 @@ const pairWithOtp = async (otpCode) => {
   try {
     await client.query("BEGIN");
     const otpResult = await client.query(
-      "SELECT id, device_id, otp_hash FROM otp_pairing WHERE expires_at > NOW() AND used_at IS NULL"
+      "SELECT * FROM otp_pairing WHERE expires_at > NOW() AND used_at IS NULL"
     );
 
     let validOtpRecord = null;
@@ -29,7 +29,7 @@ const pairWithOtp = async (otpCode) => {
       validOtpRecord.id,
     ]);
     const deviceResult = await client.query(
-      "SELECT id, name, device_type, company_id, sector_id, is_active FROM devices WHERE id = $1 AND is_active = true",
+      "SELECT * FROM devices WHERE id = $1 AND is_active = true",
       [validOtpRecord.device_id]
     );
 
@@ -64,7 +64,7 @@ const pairWithMagicLink = async (token) => {
   try {
     await client.query("BEGIN");
     const linkResult = await db.query(
-      "SELECT id, device_id, used_at, expires_at FROM magic_links WHERE token_hash = $1",
+      "SELECT * FROM magic_links WHERE token_hash = $1",
       [tokenHash]
     );
 
@@ -87,7 +87,7 @@ const pairWithMagicLink = async (token) => {
       magicLink.id,
     ]);
     const deviceResult = await client.query(
-      "SELECT id, name, device_type, company_id, sector_id, is_active FROM devices WHERE id = $1 AND is_active = true",
+      "SELECT * FROM devices WHERE id = $1 AND is_active = true",
       [magicLink.device_id]
     );
 
