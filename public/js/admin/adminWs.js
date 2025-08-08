@@ -14,7 +14,7 @@ export function connectAdminWs(detailsModalHandler) {
       if (data.type === "DEVICE_STATUS_UPDATE") {
         const { deviceId, status } = data.payload;
         const newStatusText = status.text;
-        const previousStatusText = statusCacheManager.getStatus(deviceId);
+        statusCacheManager.setStatus(deviceId, newStatusText);
 
         const row = document.querySelector(`tr[data-device-id="${deviceId}"]`);
         if (row) {
@@ -28,28 +28,6 @@ export function connectAdminWs(detailsModalHandler) {
             }
           }
         }
-
-        if (newStatusText === "Online" && previousStatusText !== "Online") {
-          if (detailsModalHandler && row) {
-            const deviceName = row
-              .querySelector('td[data-label="Nome"]')
-              ?.textContent.trim();
-            notyf.success(
-              `Dispositivo "${deviceName || deviceId}" conectado.`
-            );
-
-            const modal = detailsModalHandler.element;
-            if (
-              modal.style.display === "flex" &&
-              modal.dataset.showingDeviceId === deviceId
-            ) {
-              detailsModalHandler.hideOtpView();
-              modal.style.display = "none";
-            }
-          }
-        }
-
-        statusCacheManager.setStatus(deviceId, newStatusText);
       } else if (data.type === "CAMPAIGN_STATUS_UPDATE") {
         const { campaignId, status } = data.payload;
         const campaignRow = document.querySelector(
@@ -65,6 +43,10 @@ export function connectAdminWs(detailsModalHandler) {
               statusText.textContent = status.text;
             }
           }
+        }
+      } else if (data.type === "RELOAD_CAMPAIGNS") {
+        if (document.body.id === "campaigns-page") {
+          location.reload();
         }
       }
     } catch (e) {
