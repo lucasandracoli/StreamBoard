@@ -1,6 +1,18 @@
 import DeviceConnector from "../utils/connector.js";
 
 document.addEventListener("DOMContentLoaded", () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('paired')) {
+    const notyf = new Notyf({
+      duration: 5000,
+      position: { x: 'right', y: 'top' },
+      dismissible: true
+    });
+    notyf.success('Dispositivo conectado com sucesso!');
+    const newUrl = window.location.pathname;
+    history.replaceState({}, document.title, newUrl);
+  }
+
   const campaignContainer = document.getElementById("campaign-container");
   let playlist = [];
   let currentCampaignIndex = -1;
@@ -58,17 +70,12 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (isVideo) {
       const video = document.createElement("video");
       video.src = url;
+      video.autoplay = true;
       video.muted = true;
       video.playsInline = true;
       video.onended = playNext;
       video.onerror = () => playNext();
       campaignContainer.appendChild(video);
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          playNext();
-        });
-      }
     } else {
       playNext();
     }

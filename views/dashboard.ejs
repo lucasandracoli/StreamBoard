@@ -5,8 +5,84 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StreamBoard • Dashboard</title>
     <link rel="stylesheet" href="/css/styles.css?v=<%= appVersion %>" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css"
+      rel="stylesheet"
+    />
   </head>
-  <body class="dashboard">
-    <%- include("partials/navbar") %> <%- include("partials/footer") %>
+  <body id="dashboard-page" class="dashboard">
+    <%- include("partials/navbar") %>
+
+    <main class="container">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-card-icon devices">
+            <i class="bi bi-hdd-stack-fill"></i>
+          </div>
+          <div class="stat-card-info">
+            <span class="stat-card-title">Total de Dispositivos</span>
+            <span id="total-devices-value" class="stat-card-value"><%= stats.totalDevices %></span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-icon online">
+            <i class="bi bi-broadcast-pin"></i>
+          </div>
+          <div class="stat-card-info">
+            <span class="stat-card-title">Online</span>
+            <span id="online-devices-value" class="stat-card-value"><%= stats.onlineDevices %></span>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-card-icon offline">
+            <i class="bi bi-wifi-off"></i>
+          </div>
+          <div class="stat-card-info">
+            <span class="stat-card-title">Offline</span>
+            <span id="offline-devices-value" class="stat-card-value"><%= stats.offlineDevices %></span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-icon revoked">
+            <i class="bi bi-slash-circle-fill"></i>
+          </div>
+          <div class="stat-card-info">
+            <span class="stat-card-title">Revogados</span>
+            <span id="revoked-devices-value" class="stat-card-value"><%= stats.revokedDevices %></span>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-card-icon campaigns">
+            <i class="bi bi-megaphone-fill"></i>
+          </div>
+          <div class="stat-card-info">
+            <span class="stat-card-title">Campanhas Ativas</span>
+            <span id="active-campaigns-value" class="stat-card-value"><%= stats.activeCampaigns %></span>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-icon companies">
+            <i class="bi bi-building-fill"></i>
+          </div>
+          <div class="stat-card-info">
+            <span class="stat-card-title">Empresas</span>
+            <span id="total-companies-value" class="stat-card-value"><%= stats.totalCompanies %></span>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <%- include("partials/footer") %>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
+    <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>
   </body>
 </html>

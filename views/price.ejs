@@ -15,14 +15,12 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
     />
+    <link
+      href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css"
+      rel="stylesheet"
+    />
   </head>
   <body class="player-body">
-    <input
-      type="text"
-      id="barcode-input"
-      style="position: absolute; left: -9999px; top: -9999px"
-      autofocus
-    />
     <div id="price-view-wrapper">
       <div id="idle-screen">
         <div id="offer-container"></div>
@@ -76,10 +74,7 @@
     <script>
       const offersData = <%- JSON.stringify(offers || []) %>;
     </script>
-
-    <script
-      type="module"
-      src="/js/player/price.js?v=<%= appVersion %>"
-    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
+    <script type="module" src="/js/player/price.js?v=<%= appVersion %>"></script>
   </body>
 </html>

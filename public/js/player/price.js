@@ -1,6 +1,18 @@
 import DeviceConnector from "../utils/connector.js";
 
 document.addEventListener("DOMContentLoaded", () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('paired')) {
+    const notyf = new Notyf({
+      duration: 5000,
+      position: { x: 'right', y: 'top' },
+      dismissible: true
+    });
+    notyf.success('Dispositivo conectado com sucesso!');
+    const newUrl = window.location.pathname;
+    history.replaceState({}, document.title, newUrl);
+  }
+
   const viewWrapper = document.getElementById("price-view-wrapper");
   const idleScreen = document.getElementById("idle-screen");
   const priceCheckCard = document.getElementById("price-check-card");
@@ -12,7 +24,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const productPriceEl = document.getElementById("product-price");
   const productBarcodeEl = document.getElementById("product-barcode");
   const footer = document.querySelector(".price-check-footer");
-  const barcodeInput = document.getElementById("barcode-input");
   let priceViewTimeout;
   let mediaTimer = null;
   let playlist = [];
@@ -69,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
     u.lang = "pt-BR";
     if (selectedVoice) u.voice = selectedVoice;
     u.pitch = 1.0;
-    u.rate = 1.0;
+    u.rate = 1.3;
     u.onend = onComplete;
     speechSynthesis.speak(u);
   };
@@ -114,17 +125,12 @@ document.addEventListener("DOMContentLoaded", () => {
       mediaTimer = setTimeout(playNextMedia, duration);
     } else if (cached && isVideo) {
       const vid = cached.cloneNode();
+      vid.autoplay = true;
       vid.muted = true;
       vid.playsInline = true;
       vid.onended = playNextMedia;
       vid.onerror = playNextMedia;
       offerContainer.appendChild(vid);
-      const playPromise = vid.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          playNextMedia();
-        });
-      }
     } else {
       playNextMedia();
     }
@@ -186,7 +192,6 @@ document.addEventListener("DOMContentLoaded", () => {
       offerContainer.style.display = "none";
       backgroundImage.style.display = "block";
     }
-    barcodeInput.focus();
   }
 
   function showPriceCard() {
@@ -246,7 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
       msg.lang = "pt-BR";
       if (selectedVoice) msg.voice = selectedVoice;
       msg.pitch = 1.0;
-      msg.rate = 1.0;
+      msg.rate = 1.3;
       msg.onend = () => {
         priceViewTimeout = setTimeout(showIdleScreen, 1000);
       };
@@ -254,16 +259,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  barcodeInput.addEventListener("change", () => {
-    const barcode = barcodeInput.value.trim();
-    if (barcode.length > 3) {
-      displayProduct(barcode);
+  let buf = "";
+  let bufTimeout = null;
+  document.addEventListener("keydown", (e) => {
+    clearTimeout(bufTimeout);
+    if (e.key === "Enter") {
+      if (buf.length > 3) displayProduct(buf);
+      buf = "";
+    } else if (e.key.length === 1 && /^[0-9]$/.test(e.key)) {
+      buf += e.key;
     }
-    barcodeInput.value = "";
-  });
-
-  barcodeInput.addEventListener("blur", () => {
-    setTimeout(() => barcodeInput.focus(), 10);
+    bufTimeout = setTimeout(() => (buf = ""), 200);
   });
 
   const connector = new DeviceConnector({

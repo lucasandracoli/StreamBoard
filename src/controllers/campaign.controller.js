@@ -103,13 +103,51 @@ const createCampaign = async (req, res) => {
       : [sector_ids]
     : [];
 
+  const client = await db.connect();
   try {
-    const newCampaign = await campaignService.createCampaign(
-      serviceData,
-      req.files,
-      newDeviceIds,
-      newSectorIds
+    await client.query("BEGIN");
+    const campaignResult = await client.query(
+      `INSERT INTO campaigns (name, start_date, end_date, company_id) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [
+        serviceData.name,
+        serviceData.parsedStartDate,
+        serviceData.parsedEndDate,
+        serviceData.company_id,
+      ]
     );
+    const newCampaign = campaignResult.rows[0];
+
+    if (req.files && req.files.length > 0) {
+      for (const [index, file] of req.files.entries()) {
+        const metadata = serviceData.media_metadata[index] || {};
+        const filePath = `/uploads/${file.filename}`;
+        await client.query(
+          `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order, duration) VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            newCampaign.id,
+            file.filename,
+            filePath,
+            file.mimetype,
+            metadata.order,
+            metadata.duration,
+          ]
+        );
+      }
+    }
+
+    for (const device_id of newDeviceIds) {
+      await client.query(
+        `INSERT INTO campaign_device (campaign_id, device_id) VALUES ($1, $2)`,
+        [newCampaign.id, device_id]
+      );
+    }
+    for (const sector_id of newSectorIds) {
+      await client.query(
+        `INSERT INTO campaign_sector (campaign_id, sector_id) VALUES ($1, $2)`,
+        [newCampaign.id, sector_id]
+      );
+    }
+    await client.query("COMMIT");
 
     const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
 
@@ -142,9 +180,13 @@ const createCampaign = async (req, res) => {
 
     res
       .status(200)
-      .json({ message: "Campanha criada.", campaign: newCampaign });
+      .json({ message: "Campanha criada com sucesso.", campaign: newCampaign });
   } catch (err) {
+    await client.query("ROLLBACK");
+    logger.error("Erro interno ao criar campanha.", err);
     res.status(500).json({ message: "Erro interno ao criar campanha." });
+  } finally {
+    client.release();
   }
 };
 
@@ -180,7 +222,7 @@ const deleteCampaign = async (req, res) => {
     });
 
     res.status(200).json({
-      message: "Campanha e mídias associadas foram excluídas com sucesso.",
+      message: "Campanha excluída com sucesso.",
     });
   } catch (err) {
     res.status(500).json({ message: "Erro ao excluir campanha." });
@@ -297,7 +339,7 @@ const editCampaign = async (req, res) => {
             `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order, duration) VALUES ($1, $2, $3, $4, $5, $6)`,
             [
               id,
-              file.originalname,
+              file.filename,
               newFilePath,
               file.mimetype,
               meta.order,
@@ -338,7 +380,7 @@ const editCampaign = async (req, res) => {
       ...new Set([...oldAffectedDeviceIds, ...newAffectedDeviceIds]),
     ];
 
-    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
+    const { sendUpdateToDevice } = req.app.locals;
     allAffectedDeviceIds.forEach((deviceId) => {
       sendUpdateToDevice(deviceId, {
         type: "UPDATE_CAMPAIGN",
@@ -346,16 +388,59 @@ const editCampaign = async (req, res) => {
       });
     });
 
-    broadcastToAdmins({
-      type: "RELOAD_CAMPAIGNS",
-    });
+    const rawCampaign = await campaignService.getCampaignWithDetails(id);
+    const company = await companyService.getCompanyById(rawCampaign.company_id);
 
-    const campaignForResponse = await campaignService.getCampaignWithDetails(
-      id
-    );
+    const now = DateTime.now();
+    const startDate = DateTime.fromJSDate(rawCampaign.start_date);
+    const endDate = DateTime.fromJSDate(rawCampaign.end_date);
+    let status;
+    if (now < startDate) {
+      status = { text: "Agendada", class: "scheduled" };
+    } else if (now > endDate) {
+      status = { text: "Finalizada", class: "offline" };
+    } else {
+      status = { text: "Ativa", class: "online" };
+    }
+
+    let campaign_type = "Sem Mídia";
+    if (rawCampaign.uploads && rawCampaign.uploads.length > 1) {
+      campaign_type = "Playlist";
+    } else if (rawCampaign.uploads && rawCampaign.uploads.length === 1) {
+      if (rawCampaign.uploads[0].file_type.startsWith("image/"))
+        campaign_type = "Imagem";
+      else if (rawCampaign.uploads[0].file_type.startsWith("video/"))
+        campaign_type = "Vídeo";
+      else campaign_type = "Arquivo";
+    }
+
+    const sectorNames =
+      rawCampaign.sector_ids.length > 0
+        ? await db.query("SELECT name FROM sectors WHERE id = ANY($1::int[])", [
+            rawCampaign.sector_ids,
+          ])
+        : { rows: [] };
+
+    const target_names =
+      rawCampaign.sector_ids.length > 0
+        ? sectorNames.rows.map((s) => s.name)
+        : rawCampaign.devices.map((d) => d.name);
+
+    const formattedCampaign = {
+      ...rawCampaign,
+      company_name: company.name,
+      status,
+      campaign_type,
+      target_names,
+      periodo_formatado: formatUtils.formatarPeriodo(
+        rawCampaign.start_date,
+        rawCampaign.end_date
+      ),
+    };
+
     res.status(200).json({
       message: "Campanha atualizada com sucesso.",
-      campaign: campaignForResponse,
+      campaign: formattedCampaign,
     });
   } catch (err) {
     await client.query("ROLLBACK");

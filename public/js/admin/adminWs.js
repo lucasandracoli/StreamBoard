@@ -14,7 +14,6 @@ export function connectAdminWs(detailsModalHandler) {
       if (data.type === "DEVICE_STATUS_UPDATE") {
         const { deviceId, status } = data.payload;
         const newStatusText = status.text;
-        statusCacheManager.setStatus(deviceId, newStatusText);
 
         const row = document.querySelector(`tr[data-device-id="${deviceId}"]`);
         if (row) {
@@ -27,6 +26,43 @@ export function connectAdminWs(detailsModalHandler) {
               statusText.textContent = status.text;
             }
           }
+        }
+
+        if (
+          newStatusText === "Online" &&
+          statusCacheManager.getStatus(deviceId) !== "Online"
+        ) {
+          if (detailsModalHandler) {
+            const modal = detailsModalHandler.element;
+            if (
+              modal.style.display === "flex" &&
+              modal.dataset.showingDeviceId === deviceId
+            ) {
+              detailsModalHandler.hideOtpView();
+              modal.style.display = "none";
+            }
+          }
+        }
+        statusCacheManager.setStatus(deviceId, newStatusText);
+      } else if (data.type === "DEVICE_NEWLY_ACTIVE") {
+        const { deviceName } = data.payload;
+        notyf.success(`Dispositivo "${deviceName}" vinculado com sucesso!`);
+      } else if (data.type === "DASHBOARD_STATS_UPDATE") {
+        if (document.body.id === "dashboard-page") {
+          const {
+            onlineDevices,
+            totalDevices,
+            offlineDevices,
+            revokedDevices,
+          } = data.payload;
+          document.getElementById("online-devices-value").textContent =
+            onlineDevices;
+          document.getElementById("total-devices-value").textContent =
+            totalDevices;
+          document.getElementById("offline-devices-value").textContent =
+            offlineDevices;
+          document.getElementById("revoked-devices-value").textContent =
+            revokedDevices;
         }
       } else if (data.type === "CAMPAIGN_STATUS_UPDATE") {
         const { campaignId, status } = data.payload;
@@ -46,7 +82,10 @@ export function connectAdminWs(detailsModalHandler) {
         }
       } else if (data.type === "RELOAD_CAMPAIGNS") {
         if (document.body.id === "campaigns-page") {
-          location.reload();
+          notyf.success(
+            "Alterações nas campanhas detectadas, atualizando a lista..."
+          );
+          setTimeout(() => location.reload(), 1500);
         }
       }
     } catch (e) {
