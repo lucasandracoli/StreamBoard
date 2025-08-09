@@ -3,27 +3,27 @@ const logger = require("../utils/logger");
 
 const getAllCompanies = async () => {
   const result = await db.query(
-    "SELECT id, name, cnpj, address, city, state FROM companies ORDER BY name ASC"
+    "SELECT id, name, cnpj, address, city, state, cep FROM companies ORDER BY name ASC"
   );
   return result.rows;
 };
 
 const getCompanyById = async (id) => {
   const result = await db.query(
-    "SELECT id, name, cnpj, address, city, state FROM companies WHERE id = $1",
+    "SELECT id, name, cnpj, address, city, state, cep FROM companies WHERE id = $1",
     [id]
   );
   return result.rows[0];
 };
 
 const createCompanyWithSectors = async (companyData, sectors) => {
-  const { name, cnpj, city, address, state } = companyData;
+  const { name, cnpj, city, address, state, cep } = companyData;
   const client = await db.connect();
   try {
     await client.query("BEGIN");
     const companyResult = await client.query(
-      "INSERT INTO companies (name, cnpj, city, address, state) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-      [name, cnpj, city, address, state]
+      "INSERT INTO companies (name, cnpj, city, address, state, cep) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+      [name, cnpj, city, address, state, cep]
     );
     const newCompanyId = companyResult.rows[0].id;
 
@@ -47,10 +47,10 @@ const createCompanyWithSectors = async (companyData, sectors) => {
 };
 
 const updateCompany = async (id, companyData) => {
-  const { name, cnpj, city, address, state } = companyData;
+  const { name, cnpj, city, address, state, cep } = companyData;
   await db.query(
-    "UPDATE companies SET name = $1, cnpj = $2, city = $3, address = $4, state = $5 WHERE id = $6",
-    [name, cnpj, city, address, state, id]
+    "UPDATE companies SET name = $1, cnpj = $2, city = $3, address = $4, state = $5, cep = $6 WHERE id = $7",
+    [name, cnpj, city, address, state, cep, id]
   );
 };
 

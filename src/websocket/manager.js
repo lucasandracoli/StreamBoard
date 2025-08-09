@@ -4,14 +4,23 @@ const db = require("../../config/streamboard");
 const tokenService = require("../services/token.service");
 const deviceUtils = require("../utils/device.utils");
 
-let clients = {};
-let adminClients = new Set();
 let wss;
+const clients = {};
+const adminClients = new Set();
+const deviceStatusCache = new Map();
+
+const updateAndCacheDeviceStatus = (deviceId, deviceDetails) => {
+  const status = deviceUtils.getDeviceStatus(deviceDetails, clients);
+  const cacheEntry = { status, deviceName: deviceDetails.name };
+  deviceStatusCache.set(deviceId, cacheEntry);
+  return cacheEntry;
+};
 
 const broadcastToAdmins = (data) => {
+  const message = JSON.stringify(data);
   adminClients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(data));
+      client.send(message);
     }
   });
 };
@@ -26,6 +35,21 @@ const sendUpdateToDevice = (deviceId, data) => {
 const initializeWebSocket = (server) => {
   wss = new WebSocket.Server({ server });
 
+  const populateInitialCache = async () => {
+    try {
+      const allDevicesResult = await db.query(
+        `SELECT id, name, is_active, (SELECT COUNT(*) FROM tokens t WHERE t.device_id = devices.id AND t.is_revoked = false) > 0 as has_tokens FROM devices`
+      );
+      for (const device of allDevicesResult.rows) {
+        updateAndCacheDeviceStatus(device.id, device);
+      }
+    } catch (error) {
+      console.error("Failed to populate WebSocket cache:", error);
+    }
+  };
+
+  populateInitialCache();
+
   wss.on("connection", async (ws, req) => {
     const { pathname, query } = url.parse(req.url, true);
 
@@ -33,19 +57,18 @@ const initializeWebSocket = (server) => {
       adminClients.add(ws);
       ws.on("close", () => adminClients.delete(ws));
 
-      const allDevicesResult = await db.query(
-        `SELECT id, is_active, (SELECT COUNT(*) FROM tokens t WHERE t.device_id = devices.id AND t.is_revoked = false) > 0 as has_tokens FROM devices`
-      );
-
-      for (const device of allDevicesResult.rows) {
-        const status = deviceUtils.getDeviceStatus(device, clients);
+      deviceStatusCache.forEach((value, deviceId) => {
         ws.send(
           JSON.stringify({
             type: "DEVICE_STATUS_UPDATE",
-            payload: { deviceId: device.id, status },
+            payload: {
+              deviceId,
+              status: value.status,
+              deviceName: value.deviceName,
+            },
           })
         );
-      }
+      });
       return;
     }
 
@@ -56,37 +79,51 @@ const initializeWebSocket = (server) => {
     if (!payload) return ws.close(1008, "Token inválido ou expirado");
 
     const deviceId = payload.id;
+    clients[deviceId] = ws;
+
     await db.query("UPDATE devices SET last_seen = NOW() WHERE id = $1", [
       deviceId,
     ]);
-    clients[deviceId] = ws;
+    const deviceResult = await db.query(
+      "SELECT id, name, is_active, (SELECT COUNT(*) FROM tokens t WHERE t.device_id = devices.id AND t.is_revoked = false) > 0 as has_tokens FROM devices WHERE id = $1",
+      [deviceId]
+    );
 
-    broadcastToAdmins({
-      type: "DEVICE_STATUS_UPDATE",
-      payload: { deviceId, status: { text: "Online", class: "online" } },
-    });
+    if (deviceResult.rows.length > 0) {
+      const device = deviceResult.rows[0];
+      const updatedStatus = updateAndCacheDeviceStatus(deviceId, device);
+      broadcastToAdmins({
+        type: "DEVICE_STATUS_UPDATE",
+        payload: {
+          deviceId,
+          status: updatedStatus.status,
+          deviceName: updatedStatus.deviceName,
+        },
+      });
+    }
 
     ws.isAlive = true;
     ws.on("pong", () => (ws.isAlive = true));
 
     ws.on("close", async () => {
       delete clients[deviceId];
-      const tokenCountResult = await db.query(
-        "SELECT COUNT(*) AS cnt FROM tokens WHERE device_id = $1 AND is_revoked = false",
+      const closedDeviceResult = await db.query(
+        "SELECT id, name, is_active, (SELECT COUNT(*) FROM tokens t WHERE t.device_id = devices.id AND t.is_revoked = false) > 0 as has_tokens FROM devices WHERE id = $1",
         [deviceId]
       );
-      const tokenCount = parseInt(tokenCountResult.rows[0].cnt, 10);
-      const deviceResult = await db.query(
-        "SELECT is_active, (SELECT COUNT(*) FROM tokens t WHERE t.device_id = devices.id AND t.is_revoked = false) > 0 as has_tokens FROM devices WHERE id = $1",
-        [deviceId]
-      );
-      const device = deviceResult.rows[0];
-      const status = deviceUtils.getDeviceStatus(device, clients);
 
-      broadcastToAdmins({
-        type: "DEVICE_STATUS_UPDATE",
-        payload: { deviceId, status },
-      });
+      if (closedDeviceResult.rows.length > 0) {
+        const device = closedDeviceResult.rows[0];
+        const updatedStatus = updateAndCacheDeviceStatus(deviceId, device);
+        broadcastToAdmins({
+          type: "DEVICE_STATUS_UPDATE",
+          payload: {
+            deviceId,
+            status: updatedStatus.status,
+            deviceName: updatedStatus.deviceName,
+          },
+        });
+      }
     });
   });
 

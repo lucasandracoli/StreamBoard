@@ -55,13 +55,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const mainZone = document.createElement("div");
     mainZone.id = "zone-main";
     mainZone.className = "player-zone";
-    playerWrapper.appendChild(mainZone);
 
-    if (layoutType !== "fullscreen") {
-      const secondaryZone = document.createElement("div");
-      secondaryZone.id = "zone-secondary";
-      secondaryZone.className = "player-zone";
+    const secondaryZone = document.createElement("div");
+    secondaryZone.id = "zone-secondary";
+    secondaryZone.className = "player-zone";
+
+    if (layoutType.startsWith("split-80-20")) {
+      playerWrapper.appendChild(mainZone);
       playerWrapper.appendChild(secondaryZone);
+    } else {
+      playerWrapper.appendChild(mainZone);
     }
   };
 
@@ -118,20 +121,94 @@ document.addEventListener("DOMContentLoaded", () => {
   const startPlayback = (data) => {
     Object.values(mediaTimers).forEach(clearTimeout);
 
-    if (data && data.uploads && data.uploads.length > 0) {
-      setupLayout(data.layout_type);
-
-      playlists.main = data.uploads.filter((u) => u.zone === "main" || !u.zone);
-      playlists.secondary = data.uploads.filter((u) => u.zone === "secondary");
-
-      currentIndices = { main: -1, secondary: -1 };
-
-      if (playlists.main.length > 0) playNextInZone("main");
-      if (playlists.secondary.length > 0) playNextInZone("secondary");
-    } else {
+    if (!data) {
       playlists = { main: [], secondary: [] };
       showWaitingScreen();
+      return;
     }
+
+    setupLayout(data.layout_type);
+
+    playlists.main = (data.uploads || []).filter(
+      (u) => u.zone === "main" || !u.zone
+    );
+    playlists.secondary = (data.uploads || []).filter(
+      (u) => u.zone === "secondary"
+    );
+    currentIndices = { main: -1, secondary: -1 };
+
+    if (data.layout_type === "split-80-20-weather") {
+      renderWeather(data.weather, data.city);
+    } else if (playlists.secondary.length > 0) {
+      playNextInZone("secondary");
+    }
+
+    if (playlists.main.length > 0) {
+      playNextInZone("main");
+    }
+
+    const mainZone = document.getElementById("zone-main");
+    if (playlists.main.length === 0 && mainZone) {
+      mainZone.innerHTML = "";
+    }
+
+    if (
+      playlists.main.length === 0 &&
+      playlists.secondary.length === 0 &&
+      data.layout_type !== "split-80-20-weather"
+    ) {
+      showWaitingScreen();
+    }
+  };
+
+  const getWeatherIcon = (code) => {
+    const icons = {
+      0: "bi-sun-fill", // Clear sky
+      1: "bi-sun", // Mainly clear
+      2: "bi-cloud-sun", // Partly cloudy
+      3: "bi-cloud-fill", // Overcast
+      45: "bi-cloud-fog2-fill", // Fog
+      48: "bi-cloud-fog2-fill", // Depositing rime fog
+      51: "bi-cloud-drizzle", // Drizzle Light
+      53: "bi-cloud-drizzle", // Drizzle Moderate
+      55: "bi-cloud-drizzle-fill", // Drizzle Dense
+      61: "bi-cloud-rain", // Rain Slight
+      63: "bi-cloud-rain", // Rain Moderate
+      65: "bi-cloud-rain-heavy-fill", // Rain Heavy
+      80: "bi-cloud-showers", // Rain showers Slight
+      81: "bi-cloud-showers", // Rain showers Moderate
+      82: "bi-cloud-showers-heavy-fill", // Rain showers Violent
+      95: "bi-cloud-lightning-rain-fill", // Thunderstorm Slight or moderate
+    };
+    return icons[code] || "bi-thermometer-half";
+  };
+
+  const renderWeather = (weatherData, city) => {
+    const weatherContainer = document.getElementById("zone-secondary");
+    if (!weatherContainer) return;
+    if (!weatherData) {
+      weatherContainer.innerHTML =
+        '<div class="weather-widget"><div class="weather-error">Clima indisponível</div></div>';
+      return;
+    }
+
+    const { current, daily } = weatherData;
+    const temp = Math.round(current.temperature_2m);
+    const maxTemp = Math.round(daily.temperature_2m_max[0]);
+    const minTemp = Math.round(daily.temperature_2m_min[0]);
+    const iconClass = getWeatherIcon(current.weather_code);
+
+    const weatherHtml = `
+      <div class="weather-widget">
+        <div class="weather-city">${city || ""}</div>
+        <i class="bi ${iconClass} weather-icon"></i>
+        <div class="weather-temp">${temp}°C</div>
+        <div class="weather-minmax">
+          <i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°
+        </div>
+      </div>
+    `;
+    weatherContainer.innerHTML = weatherHtml;
   };
 
   const fetchAndResetPlaylist = async () => {
@@ -203,5 +280,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   wsManager.connect();
   if (playlistInterval) clearInterval(playlistInterval);
-  playlistInterval = setInterval(fetchAndResetPlaylist, 45000);
+  playlistInterval = setInterval(fetchAndResetPlaylist, 30 * 60 * 1000);
 });

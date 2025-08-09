@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS companies (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     cnpj VARCHAR(18) NOT NULL UNIQUE,
+    cep VARCHAR(9),
     address TEXT,
     city VARCHAR(100),
     state VARCHAR(2),

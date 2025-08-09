@@ -17,11 +17,18 @@ export function setupCompanyModal() {
   let currentCompanyId = null;
   let stagedSectors = [];
   let cnpjMask = null;
+  let cepMask = null;
   const cnpjInput = document.getElementById("companyCnpj");
+  const cepInput = document.getElementById("companyCep");
 
   if (cnpjInput) {
     cnpjMask = IMask(cnpjInput, {
       mask: "00.000.000/0000-00",
+    });
+  }
+  if (cepInput) {
+    cepMask = IMask(cepInput, {
+      mask: "00000-000",
     });
   }
 
@@ -138,6 +145,7 @@ export function setupCompanyModal() {
   const openCreateModal = () => {
     form.reset();
     if (cnpjMask) cnpjMask.value = "";
+    if (cepMask) cepMask.value = "";
     currentCompanyId = null;
     stagedSectors = [];
     sectorsSection.style.display = "block";
@@ -166,6 +174,12 @@ export function setupCompanyModal() {
         cnpjMask.value = company.cnpj;
       } else {
         form.cnpj.value = company.cnpj;
+      }
+
+      if (cepMask) {
+        cepMask.value = company.cep;
+      } else {
+        form.cep.value = company.cep;
       }
 
       form.city.value = company.city || "";

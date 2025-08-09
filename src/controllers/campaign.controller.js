@@ -335,7 +335,8 @@ const editCampaign = async (req, res) => {
     const { sendUpdateToDevice } = req.app.locals;
     allAffectedDeviceIds.forEach((deviceId) => {
       sendUpdateToDevice(deviceId, {
-        type: "FORCE_REFRESH",
+        type: "UPDATE_CAMPAIGN",
+        payload: { campaignId: Number(id) },
       });
     });
 

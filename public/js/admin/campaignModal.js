@@ -184,18 +184,30 @@ export function setupCampaignModal() {
       'input[name="layout_type"]:checked'
     ).value;
 
+    elements.secondaryZoneContainer.classList.add("hidden");
+    elements.mainZoneContainer.style.flex = "1";
+    elements.secondaryPreviewWrapper.style.display = "flex";
+
     if (selectedLayout === "fullscreen") {
-      elements.mainZoneContainer.style.flex = "1";
-      elements.secondaryZoneContainer.classList.add("hidden");
       if (stagedFiles.secondary.length > 0) {
         stagedFiles.main.push(...stagedFiles.secondary);
         stagedFiles.secondary = [];
       }
-    } else {
+    } else if (selectedLayout === "split-80-20") {
+      elements.secondaryZoneContainer.classList.remove("hidden");
       elements.mainZoneContainer.style.flex = "4";
       elements.secondaryZoneContainer.style.flex = "1";
+    } else if (selectedLayout === "split-80-20-weather") {
       elements.secondaryZoneContainer.classList.remove("hidden");
+      elements.mainZoneContainer.style.flex = "4";
+      elements.secondaryZoneContainer.style.flex = "1";
+      elements.secondaryPreviewWrapper.style.display = "none";
+      if (stagedFiles.secondary.length > 0) {
+        stagedFiles.main.push(...stagedFiles.secondary);
+        stagedFiles.secondary = [];
+      }
     }
+
     renderStagedFiles();
   };
 

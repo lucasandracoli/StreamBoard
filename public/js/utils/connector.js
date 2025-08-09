@@ -4,6 +4,8 @@ export default class DeviceConnector {
     this.probeTimer = null;
     this.probeInterval = 5000;
     this.shouldReconnect = true;
+    this.reconnectAttempts = 0;
+    this.maxReconnectInterval = 30000;
 
     this.handlers = {
       onOpen: () => {},
@@ -37,21 +39,24 @@ export default class DeviceConnector {
       this.establishConnection(accessToken);
     } catch (err) {
       if (this.shouldReconnect) {
-        console.error("Falha ao sondar/obter token WebSocket, tentando novamente:", err);
+        console.error(
+          "Falha ao sondar/obter token WebSocket, tentando novamente:",
+          err
+        );
       }
     }
   }
 
   startProbing() {
     if (this.probeTimer || !this.shouldReconnect) return;
-  
+
     this.handlers.onReconnecting();
-  
-    this.probeAndConnect(); 
+
+    this.probeAndConnect();
     this.probeTimer = setInterval(() => {
-        if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
-            this.probeAndConnect();
-        }
+      if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
+        this.probeAndConnect();
+      }
     }, this.probeInterval);
   }
 
@@ -67,8 +72,9 @@ export default class DeviceConnector {
     this.ws = new WebSocket(`${protocol}//${location.host}?token=${token}`);
 
     this.ws.onopen = () => {
-        this.stopProbing();
-        this.handlers.onOpen();
+      this.stopProbing();
+      this.handlers.onOpen();
+      this.reconnectAttempts = 0;
     };
 
     this.ws.onmessage = (event) => {
@@ -82,12 +88,19 @@ export default class DeviceConnector {
 
     this.ws.onclose = () => {
       this.ws = null;
-      if (this.shouldReconnect) this.startProbing();
+      if (this.shouldReconnect) {
+        const delay = Math.min(
+          this.maxReconnectInterval,
+          1000 * Math.pow(2, this.reconnectAttempts)
+        );
+        this.reconnectAttempts++;
+        setTimeout(() => this.startProbing(), delay);
+      }
     };
 
     this.ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        this.ws.close();
+      console.error("WebSocket error:", error);
+      this.ws.close();
     };
   }
 

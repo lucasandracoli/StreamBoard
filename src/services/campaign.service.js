@@ -52,13 +52,44 @@ const getCampaignWithDetails = async (id) => {
 };
 
 const getAffectedDevicesForCampaign = async (campaignId) => {
-  const query = `
+  const client = await db.connect();
+  try {
+    const targetingQuery = `
+      SELECT
+        c.company_id,
+        EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id) as has_device_targets,
+        EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id) as has_sector_targets
+      FROM campaigns c
+      WHERE c.id = $1
+    `;
+    const targetingResult = await client.query(targetingQuery, [campaignId]);
+
+    if (targetingResult.rows.length === 0) {
+      return [];
+    }
+
+    const { company_id, has_device_targets, has_sector_targets } =
+      targetingResult.rows[0];
+
+    if (has_device_targets || has_sector_targets) {
+      const specificDevicesQuery = `
         SELECT DISTINCT d.id FROM devices d
         LEFT JOIN campaign_device cd ON d.id = cd.device_id
         LEFT JOIN campaign_sector cs ON d.sector_id = cs.sector_id
-        WHERE cd.campaign_id = $1 OR cs.campaign_id = $1`;
-  const result = await db.query(query, [campaignId]);
-  return result.rows.map((row) => row.id);
+        WHERE d.company_id = $1 AND (cd.campaign_id = $2 OR cs.campaign_id = $2)`;
+      const result = await client.query(specificDevicesQuery, [
+        company_id,
+        campaignId,
+      ]);
+      return result.rows.map((row) => row.id);
+    } else {
+      const allDevicesQuery = `SELECT id FROM devices WHERE company_id = $1 AND is_active = TRUE`;
+      const result = await client.query(allDevicesQuery, [company_id]);
+      return result.rows.map((row) => row.id);
+    }
+  } finally {
+    client.release();
+  }
 };
 
 const createCampaign = async (data, files, deviceIds, sectorIds) => {

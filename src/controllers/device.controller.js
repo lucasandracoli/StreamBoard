@@ -6,6 +6,7 @@ const logger = require("../utils/logger");
 const { DateTime } = require("luxon");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
+const weatherService = require("../services/weather.service");
 
 const listDevicesPage = async (req, res) => {
   try {
@@ -216,18 +217,28 @@ const getDeviceDetails = async (req, res) => {
 const getDevicePlaylist = async (req, res) => {
   try {
     const { id, company_id, sector_id } = req.device;
-    const playlist = await deviceService.getDevicePlaylist(
+    const playlistData = await deviceService.getDevicePlaylist(
       id,
       company_id,
       sector_id
     );
+
+    if (playlistData && playlistData.layout_type === "split-80-20-weather") {
+      const weather = await weatherService.getWeather(
+        playlistData.city,
+        playlistData.state,
+        playlistData.cep
+      );
+      playlistData.weather = weather;
+    }
+
     res.setHeader(
       "Cache-Control",
       "no-store, no-cache, must-revalidate, private"
     );
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
-    res.json(playlist);
+    res.json(playlistData);
   } catch (err) {
     logger.error("Erro ao buscar playlist do dispositivo.", err);
     res.status(500).json({ message: "Erro ao buscar playlist." });

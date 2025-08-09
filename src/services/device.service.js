@@ -130,9 +130,10 @@ const getDeviceDetails = async (id) => {
 };
 
 const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
-    const campaignQuery = `
-      SELECT c.id, c.layout_type
+  const campaignQuery = `
+      SELECT c.id, c.layout_type, comp.city, comp.state
       FROM campaigns c
+      JOIN companies comp ON c.company_id = comp.id
       WHERE
           c.company_id = $2 AND
           c.start_date <= NOW() AND
@@ -148,26 +149,32 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
       ORDER BY c.created_at DESC
       LIMIT 1`;
 
-    const campaignResult = await db.query(campaignQuery, [deviceId, companyId, sectorId]);
+  const campaignResult = await db.query(campaignQuery, [
+    deviceId,
+    companyId,
+    sectorId,
+  ]);
 
-    if (campaignResult.rows.length === 0) {
-        return null;
-    }
+  if (campaignResult.rows.length === 0) {
+    return null;
+  }
 
-    const campaign = campaignResult.rows[0];
+  const campaign = campaignResult.rows[0];
 
-    const uploadsQuery = `
+  const uploadsQuery = `
       SELECT id, file_path, file_type, duration, zone
       FROM campaign_uploads
       WHERE campaign_id = $1
       ORDER BY execution_order ASC`;
-      
-    const uploadsResult = await db.query(uploadsQuery, [campaign.id]);
 
-    return {
-        layout_type: campaign.layout_type,
-        uploads: uploadsResult.rows
-    };
+  const uploadsResult = await db.query(uploadsQuery, [campaign.id]);
+
+  return {
+    layout_type: campaign.layout_type,
+    uploads: uploadsResult.rows,
+    city: campaign.city,
+    state: campaign.state,
+  };
 };
 
 module.exports = {
