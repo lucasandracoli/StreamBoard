@@ -118,15 +118,13 @@ const createCampaign = async (req, res) => {
       [company_id, newDeviceIds, newSectorIds]
     );
 
-    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
+    const { sendUpdateToDevice } = req.app.locals;
     allAffectedDevices.rows.forEach((row) => {
       sendUpdateToDevice(row.id, {
         type: "NEW_CAMPAIGN",
         payload: newCampaign,
       });
     });
-
-    broadcastToAdmins({ type: "RELOAD_CAMPAIGNS" });
 
     res
       .status(200)
@@ -155,15 +153,13 @@ const deleteCampaign = async (req, res) => {
       });
     }
 
-    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
+    const { sendUpdateToDevice } = req.app.locals;
     affectedDeviceIds.forEach((deviceId) => {
       sendUpdateToDevice(deviceId, {
         type: "DELETE_CAMPAIGN",
         payload: { campaignId: Number(id) },
       });
     });
-
-    broadcastToAdmins({ type: "RELOAD_CAMPAIGNS" });
 
     res.status(200).json({
       message: "Campanha e mídias associadas foram excluídas com sucesso.",
@@ -336,11 +332,10 @@ const editCampaign = async (req, res) => {
       ...new Set([...oldAffectedDeviceIds, ...newAffectedDeviceIds]),
     ];
 
-    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
+    const { sendUpdateToDevice } = req.app.locals;
     allAffectedDeviceIds.forEach((deviceId) => {
       sendUpdateToDevice(deviceId, {
-        type: "UPDATE_CAMPAIGN",
-        payload: { campaignId: id },
+        type: "FORCE_REFRESH",
       });
     });
 
@@ -394,11 +389,6 @@ const editCampaign = async (req, res) => {
       ),
       campaign_type,
     };
-
-    broadcastToAdmins({
-      type: "CAMPAIGN_UPDATED",
-      payload: campaignForResponse,
-    });
 
     res.status(200).json({
       message: "Campanha atualizada com sucesso.",
