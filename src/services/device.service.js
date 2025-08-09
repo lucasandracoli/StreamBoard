@@ -130,29 +130,44 @@ const getDeviceDetails = async (id) => {
 };
 
 const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
-  const query = `
-        SELECT up.id, up.file_path, up.file_type, up.duration
-        FROM campaign_uploads up
-        JOIN campaigns c ON up.campaign_id = c.id
-        WHERE
-            c.company_id = $2 AND
-            c.start_date <= NOW() AND
-            c.end_date >= NOW() AND
-            EXISTS (
-                SELECT 1 FROM devices d
-                WHERE d.id = $1
-                AND (
-                    (SELECT COUNT(1) FROM campaign_device cd_inner WHERE cd_inner.campaign_id = c.id) = 0 AND
-                    (SELECT COUNT(1) FROM campaign_sector cs_inner WHERE cs_inner.campaign_id = c.id) = 0
-                )
-                OR
-                EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id AND cd.device_id = $1)
-                OR
-                EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id AND cs.sector_id = $3)
-            )
-        ORDER BY up.execution_order ASC`;
-  const result = await db.query(query, [deviceId, companyId, sectorId]);
-  return result.rows;
+    const campaignQuery = `
+      SELECT c.id, c.layout_type
+      FROM campaigns c
+      WHERE
+          c.company_id = $2 AND
+          c.start_date <= NOW() AND
+          c.end_date >= NOW() AND
+          (
+              NOT EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id) AND
+              NOT EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id)
+              OR
+              EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id AND cd.device_id = $1)
+              OR
+              EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id AND cs.sector_id = $3)
+          )
+      ORDER BY c.created_at DESC
+      LIMIT 1`;
+
+    const campaignResult = await db.query(campaignQuery, [deviceId, companyId, sectorId]);
+
+    if (campaignResult.rows.length === 0) {
+        return null;
+    }
+
+    const campaign = campaignResult.rows[0];
+
+    const uploadsQuery = `
+      SELECT id, file_path, file_type, duration, zone
+      FROM campaign_uploads
+      WHERE campaign_id = $1
+      ORDER BY execution_order ASC`;
+      
+    const uploadsResult = await db.query(uploadsQuery, [campaign.id]);
+
+    return {
+        layout_type: campaign.layout_type,
+        uploads: uploadsResult.rows
+    };
 };
 
 module.exports = {

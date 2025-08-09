@@ -32,8 +32,8 @@ const getCampaignWithDetails = async (id) => {
         SELECT
             c.*,
             co.name as company_name,
-            (SELECT json_agg(s.name) FROM sectors s JOIN campaign_sector cs ON s.id = cs.sector_id WHERE cs.campaign_id = c.id) as sector_names,
-            (SELECT json_agg(d.name) FROM devices d JOIN campaign_device cd ON d.id = cd.device_id WHERE cd.campaign_id = c.id) as device_names
+            (SELECT json_agg(cs.sector_id) FROM campaign_sector cs WHERE cs.campaign_id = c.id) as sector_ids,
+            (SELECT json_agg(cd.device_id) FROM campaign_device cd WHERE cd.campaign_id = c.id) as device_ids
         FROM campaigns c
         JOIN companies co ON c.company_id = co.id
         WHERE c.id = $1`;
@@ -43,7 +43,7 @@ const getCampaignWithDetails = async (id) => {
   const campaign = campaignResult.rows[0];
 
   const uploadsResult = await db.query(
-    "SELECT id, file_name, file_path, file_type, duration FROM campaign_uploads WHERE campaign_id = $1 ORDER BY execution_order ASC",
+    "SELECT id, file_name, file_path, file_type, duration, zone FROM campaign_uploads WHERE campaign_id = $1 ORDER BY zone, execution_order ASC",
     [id]
   );
   campaign.uploads = uploadsResult.rows;
@@ -62,32 +62,43 @@ const getAffectedDevicesForCampaign = async (campaignId) => {
 };
 
 const createCampaign = async (data, files, deviceIds, sectorIds) => {
-  const { name, parsedStartDate, parsedEndDate, company_id, media_metadata } =
-    data;
+  const {
+    name,
+    parsedStartDate,
+    parsedEndDate,
+    company_id,
+    media_metadata,
+    layout_type,
+  } = data;
   const client = await db.connect();
   try {
     await client.query("BEGIN");
     const campaignResult = await client.query(
-      `INSERT INTO campaigns (name, start_date, end_date, company_id) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [name, parsedStartDate, parsedEndDate, company_id]
+      `INSERT INTO campaigns (name, start_date, end_date, company_id, layout_type) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [name, parsedStartDate, parsedEndDate, company_id, layout_type]
     );
     const newCampaign = campaignResult.rows[0];
 
-    if (files && files.length > 0) {
-      for (const [index, file] of files.entries()) {
-        const metadata = media_metadata[index] || {};
-        const filePath = `/uploads/${file.filename}`;
-        await client.query(
-          `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order, duration) VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            newCampaign.id,
-            file.originalname,
-            filePath,
-            file.mimetype,
-            metadata.order,
-            metadata.duration,
-          ]
-        );
+    const fileMap = new Map(files.map((f) => [f.originalname, f]));
+
+    if (media_metadata && media_metadata.length > 0) {
+      for (const meta of media_metadata) {
+        const file = fileMap.get(meta.name);
+        if (file) {
+          const filePath = `/uploads/${file.filename}`;
+          await client.query(
+            `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order, duration, zone) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [
+              newCampaign.id,
+              file.originalname,
+              filePath,
+              file.mimetype,
+              meta.order,
+              meta.duration,
+              meta.zone,
+            ]
+          );
+        }
       }
     }
 

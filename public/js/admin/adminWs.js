@@ -44,21 +44,26 @@ export function connectAdminWs(detailsModalHandler) {
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
+      const currentPage = document.body.id;
 
       if (data.type === "DEVICE_STATUS_UPDATE") {
         const { deviceId, status, deviceName } = data.payload;
         const newStatusText = status.text;
         const previousStatusText = statusCacheManager.getStatus(deviceId);
 
-        const row = document.querySelector(`tr[data-device-id="${deviceId}"]`);
-        if (row) {
-          const statusCell = row.querySelector("[data-status-cell]");
-          if (statusCell) {
-            const statusSpan = statusCell.querySelector(".online-status");
-            const statusText = statusCell.querySelector("[data-status-text]");
-            if (statusSpan && statusText) {
-              statusSpan.className = `online-status ${status.class}`;
-              statusText.textContent = status.text;
+        if (currentPage === "devices-page") {
+          const row = document.querySelector(
+            `tr[data-device-id="${deviceId}"]`
+          );
+          if (row) {
+            const statusCell = row.querySelector("[data-status-cell]");
+            if (statusCell) {
+              const statusSpan = statusCell.querySelector(".online-status");
+              const statusText = statusCell.querySelector("[data-status-text]");
+              if (statusSpan && statusText) {
+                statusSpan.className = `online-status ${status.class}`;
+                statusText.textContent = status.text;
+              }
             }
           }
         }
@@ -78,12 +83,16 @@ export function connectAdminWs(detailsModalHandler) {
 
         statusCacheManager.setStatus(deviceId, newStatusText);
       } else if (data.type === "CAMPAIGN_UPDATED") {
-        updateCampaignRow(data.payload);
-      } else if (
-        data.type === "RELOAD_CAMPAIGNS" &&
-        document.body.id === "campaigns-page" &&
-        !isReloading
-      ) {
+        if (currentPage === "campaigns-page") {
+          updateCampaignRow(data.payload);
+        } else if (currentPage === "devices-page" && !isReloading) {
+          isReloading = true;
+          notyf.info(
+            "Campanha atualizada. A lista de dispositivos será recarregada."
+          );
+          setTimeout(() => window.location.reload(), 2000);
+        }
+      } else if (data.type === "RELOAD_CAMPAIGNS" && !isReloading) {
         isReloading = true;
         notyf.info(
           "A lista de campanhas foi atualizada. Recarregando a página..."

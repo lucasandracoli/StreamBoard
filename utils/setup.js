@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     name VARCHAR(100) NOT NULL,
     start_date TIMESTAMPTZ,
     end_date TIMESTAMPTZ,
+    layout_type VARCHAR(50) DEFAULT 'fullscreen',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -86,6 +87,7 @@ CREATE TABLE IF NOT EXISTS campaign_uploads (
     file_type VARCHAR(50) NOT NULL,
     execution_order INTEGER DEFAULT 0,
     duration INTEGER DEFAULT 10,
+    zone VARCHAR(50) DEFAULT 'main',
     uploaded_at TIMESTAMPTZ DEFAULT NOW()
 );
 

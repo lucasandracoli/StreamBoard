@@ -2,21 +2,21 @@ import DeviceConnector from "../utils/connector.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has('paired')) {
+  if (urlParams.has("paired")) {
     const notyf = new Notyf({
       duration: 5000,
-      position: { x: 'right', y: 'top' },
-      dismissible: true
+      position: { x: "right", y: "top" },
+      dismissible: true,
     });
-    notyf.success('Dispositivo conectado com sucesso!');
+    notyf.success("Dispositivo conectado com sucesso!");
     const newUrl = window.location.pathname;
     history.replaceState({}, document.title, newUrl);
   }
 
-  const campaignContainer = document.getElementById("campaign-container");
-  let playlist = [];
-  let currentCampaignIndex = -1;
-  let mediaTimer = null;
+  const playerWrapper = document.getElementById("player-wrapper");
+  let playlists = { main: [], secondary: [] };
+  let currentIndices = { main: -1, secondary: -1 };
+  let mediaTimers = { main: null, secondary: null };
   let playlistInterval = null;
 
   const showWaitingScreen = (
@@ -24,8 +24,10 @@ document.addEventListener("DOMContentLoaded", () => {
     subtitle = "O player está online e pronto para receber conteúdo.",
     state = "info"
   ) => {
-    if (mediaTimer) clearTimeout(mediaTimer);
-    campaignContainer.style.backgroundColor = "var(--color-background)";
+    Object.values(mediaTimers).forEach(clearTimeout);
+    playerWrapper.innerHTML = "";
+    playerWrapper.className = "player-wrapper-centered";
+
     const icons = {
       info: "bi-clock-history",
       reconnecting: "bi-wifi-off",
@@ -34,7 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const iconClass = icons[state] || "bi-info-circle-fill";
     const spinnerHtml =
       state === "reconnecting" ? '<div class="spinner"></div>' : "";
-    campaignContainer.innerHTML = `
+    playerWrapper.innerHTML = `
       <div class="player-message-card ${state}">
         <i class="icon bi ${iconClass}"></i>
         <div class="message-content">
@@ -46,13 +48,41 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
   };
 
-  const displayMedia = (campaign) => {
-    if (mediaTimer) clearTimeout(mediaTimer);
-    campaignContainer.innerHTML = "";
-    campaignContainer.style.backgroundColor = "#000";
+  const setupLayout = (layoutType = "fullscreen") => {
+    playerWrapper.innerHTML = "";
+    playerWrapper.className = `player-wrapper layout-${layoutType}`;
+
+    const mainZone = document.createElement("div");
+    mainZone.id = "zone-main";
+    mainZone.className = "player-zone";
+    playerWrapper.appendChild(mainZone);
+
+    if (layoutType !== "fullscreen") {
+      const secondaryZone = document.createElement("div");
+      secondaryZone.id = "zone-secondary";
+      secondaryZone.className = "player-zone";
+      playerWrapper.appendChild(secondaryZone);
+    }
+  };
+
+  const displayMediaInZone = (zone) => {
+    if (mediaTimers[zone]) clearTimeout(mediaTimers[zone]);
+    const zoneContainer = document.getElementById(`zone-${zone}`);
+    if (!zoneContainer) return;
+
+    zoneContainer.innerHTML = "";
+
+    const playlist = playlists[zone];
+    if (!playlist || playlist.length === 0) {
+      zoneContainer.style.backgroundColor = "#000";
+      return;
+    }
+
+    currentIndices[zone] = (currentIndices[zone] + 1) % playlist.length;
+    const campaign = playlist[currentIndices[zone]];
 
     if (!campaign || !campaign.file_path) {
-      playNext();
+      playNextInZone(zone);
       return;
     }
 
@@ -63,31 +93,45 @@ document.addEventListener("DOMContentLoaded", () => {
     if (isImage) {
       const img = document.createElement("img");
       img.src = url;
-      img.onerror = () => playNext();
-      campaignContainer.appendChild(img);
+      img.onerror = () => playNextInZone(zone);
+      zoneContainer.appendChild(img);
       const duration = (campaign.duration || 10) * 1000;
-      mediaTimer = setTimeout(playNext, duration);
+      mediaTimers[zone] = setTimeout(() => playNextInZone(zone), duration);
     } else if (isVideo) {
       const video = document.createElement("video");
       video.src = url;
       video.autoplay = true;
       video.muted = true;
       video.playsInline = true;
-      video.onended = playNext;
-      video.onerror = () => playNext();
-      campaignContainer.appendChild(video);
+      video.onended = () => playNextInZone(zone);
+      video.onerror = () => playNextInZone(zone);
+      zoneContainer.appendChild(video);
     } else {
-      playNext();
+      playNextInZone(zone);
     }
   };
 
-  const playNext = () => {
-    if (playlist.length === 0) {
+  const playNextInZone = (zone) => {
+    displayMediaInZone(zone);
+  };
+
+  const startPlayback = (data) => {
+    Object.values(mediaTimers).forEach(clearTimeout);
+
+    if (data && data.uploads && data.uploads.length > 0) {
+      setupLayout(data.layout_type);
+
+      playlists.main = data.uploads.filter((u) => u.zone === "main" || !u.zone);
+      playlists.secondary = data.uploads.filter((u) => u.zone === "secondary");
+
+      currentIndices = { main: -1, secondary: -1 };
+
+      if (playlists.main.length > 0) playNextInZone("main");
+      if (playlists.secondary.length > 0) playNextInZone("secondary");
+    } else {
+      playlists = { main: [], secondary: [] };
       showWaitingScreen();
-      return;
     }
-    currentCampaignIndex = (currentCampaignIndex + 1) % playlist.length;
-    displayMedia(playlist[currentCampaignIndex]);
   };
 
   const fetchAndResetPlaylist = async () => {
@@ -99,22 +143,17 @@ document.addEventListener("DOMContentLoaded", () => {
           if (playlistInterval) clearInterval(playlistInterval);
           window.location.href = "/pair?error=session_expired";
         }
-        return;
+        throw new Error(`Server error: ${res.status}`);
       }
 
-      const campaigns = await res.json();
-
-      playlist = campaigns.filter(
-        (campaign) => campaign.file_path && campaign.file_path.trim() !== ""
+      const data = await res.json();
+      startPlayback(data);
+    } catch (err) {
+      showWaitingScreen(
+        "Erro ao carregar",
+        "Não foi possível buscar a playlist. Tentando novamente...",
+        "error"
       );
-
-      if (playlist.length > 0) {
-        currentCampaignIndex = -1;
-        playNext();
-      } else {
-        showWaitingScreen();
-      }
-    } catch {
       setTimeout(fetchAndResetPlaylist, 10000);
     }
   };

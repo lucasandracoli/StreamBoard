@@ -75,6 +75,7 @@ const createCampaign = async (req, res) => {
     sector_ids,
     company_id,
     media_metadata,
+    layout_type,
   } = req.body;
   if (!name || !start_date || !end_date || !company_id) {
     return res
@@ -85,6 +86,7 @@ const createCampaign = async (req, res) => {
   const serviceData = {
     name,
     company_id,
+    layout_type: layout_type || "fullscreen",
     parsedStartDate: DateTime.fromFormat(
       start_date,
       "dd/MM/yyyy HH:mm"
@@ -112,17 +114,19 @@ const createCampaign = async (req, res) => {
     );
 
     const allAffectedDevices = await db.query(
-      `SELECT id FROM devices WHERE id = ANY($1::uuid[]) OR sector_id = ANY($2::int[])`,
-      [newDeviceIds, newSectorIds]
+      `SELECT id FROM devices WHERE company_id = $1 AND (id = ANY($2::uuid[]) OR sector_id = ANY($3::int[]) OR ($2::uuid[] IS NULL AND $3::int[] IS NULL))`,
+      [company_id, newDeviceIds, newSectorIds]
     );
 
-    const { sendUpdateToDevice } = req.app.locals;
+    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
     allAffectedDevices.rows.forEach((row) => {
       sendUpdateToDevice(row.id, {
         type: "NEW_CAMPAIGN",
         payload: newCampaign,
       });
     });
+
+    broadcastToAdmins({ type: "RELOAD_CAMPAIGNS" });
 
     res
       .status(200)
@@ -151,13 +155,15 @@ const deleteCampaign = async (req, res) => {
       });
     }
 
-    const { sendUpdateToDevice } = req.app.locals;
+    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
     affectedDeviceIds.forEach((deviceId) => {
       sendUpdateToDevice(deviceId, {
         type: "DELETE_CAMPAIGN",
         payload: { campaignId: Number(id) },
       });
     });
+
+    broadcastToAdmins({ type: "RELOAD_CAMPAIGNS" });
 
     res.status(200).json({
       message: "Campanha e mídias associadas foram excluídas com sucesso.",
@@ -191,6 +197,7 @@ const editCampaign = async (req, res) => {
     sector_ids,
     company_id,
     media_touched,
+    layout_type,
   } = req.body;
 
   if (!name || !start_date || !end_date || !company_id) {
@@ -225,8 +232,15 @@ const editCampaign = async (req, res) => {
     await client.query("BEGIN");
 
     await client.query(
-      "UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, company_id = $4 WHERE id = $5",
-      [name, parsedStartDate, parsedEndDate, company_id, id]
+      "UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, company_id = $4, layout_type = $5 WHERE id = $6",
+      [
+        name,
+        parsedStartDate,
+        parsedEndDate,
+        company_id,
+        layout_type || "fullscreen",
+        id,
+      ]
     );
 
     if (media_touched === "true") {
@@ -236,7 +250,6 @@ const editCampaign = async (req, res) => {
       const keptMediaIds = mediaMetadata
         .filter((m) => m.id !== null)
         .map((m) => m.id);
-      const newFilesMetadata = mediaMetadata.filter((m) => m.id === null);
 
       const existingUploads = await client.query(
         "SELECT id, file_path FROM campaign_uploads WHERE campaign_id = $1",
@@ -263,18 +276,21 @@ const editCampaign = async (req, res) => {
       for (const meta of mediaMetadata) {
         if (meta.id !== null) {
           await client.query(
-            "UPDATE campaign_uploads SET execution_order = $1, duration = $2 WHERE id = $3",
-            [meta.order, meta.duration, meta.id]
+            "UPDATE campaign_uploads SET execution_order = $1, duration = $2, zone = $3 WHERE id = $4",
+            [meta.order, meta.duration, meta.zone, meta.id]
           );
         }
       }
-      let fileIndex = 0;
+
+      const fileMap = new Map(req.files.map((f) => [f.originalname, f]));
+      const newFilesMetadata = mediaMetadata.filter((m) => m.id === null);
+
       for (const meta of newFilesMetadata) {
-        const file = req.files[fileIndex++];
+        const file = fileMap.get(meta.name);
         if (file) {
           const newFilePath = `/uploads/${file.filename}`;
           await client.query(
-            `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order, duration) VALUES ($1, $2, $3, $4, $5, $6)`,
+            `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order, duration, zone) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
             [
               id,
               file.originalname,
@@ -282,6 +298,7 @@ const editCampaign = async (req, res) => {
               file.mimetype,
               meta.order,
               meta.duration,
+              meta.zone,
             ]
           );
         }
@@ -310,9 +327,10 @@ const editCampaign = async (req, res) => {
     await client.query("COMMIT");
 
     const newAffectedDevicesResult = await client.query(
-      `SELECT id FROM devices WHERE id = ANY($1::uuid[]) OR sector_id = ANY($2::int[])`,
-      [newDeviceIds, newSectorIds]
+      `SELECT id FROM devices WHERE company_id = $1 AND (id = ANY($2::uuid[]) OR sector_id = ANY($3::int[]) OR ($2::uuid[] IS NULL AND $3::int[] IS NULL))`,
+      [company_id, newDeviceIds, newSectorIds]
     );
+
     const newAffectedDeviceIds = newAffectedDevicesResult.rows.map((r) => r.id);
     const allAffectedDeviceIds = [
       ...new Set([...oldAffectedDeviceIds, ...newAffectedDeviceIds]),

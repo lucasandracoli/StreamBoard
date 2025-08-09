@@ -36,20 +36,23 @@ export default class DeviceConnector {
       this.stopProbing();
       this.establishConnection(accessToken);
     } catch (err) {
-      console.error("Falha ao sondar/obter token WebSocket:", err);
+      if (this.shouldReconnect) {
+        console.error("Falha ao sondar/obter token WebSocket, tentando novamente:", err);
+      }
     }
   }
 
   startProbing() {
     if (this.probeTimer || !this.shouldReconnect) return;
-
+  
     this.handlers.onReconnecting();
-
-    this.probeAndConnect();
-    this.probeTimer = setInterval(
-      () => this.probeAndConnect(),
-      this.probeInterval
-    );
+  
+    this.probeAndConnect(); 
+    this.probeTimer = setInterval(() => {
+        if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
+            this.probeAndConnect();
+        }
+    }, this.probeInterval);
   }
 
   stopProbing() {
@@ -63,7 +66,10 @@ export default class DeviceConnector {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
     this.ws = new WebSocket(`${protocol}//${location.host}?token=${token}`);
 
-    this.ws.onopen = this.handlers.onOpen;
+    this.ws.onopen = () => {
+        this.stopProbing();
+        this.handlers.onOpen();
+    };
 
     this.ws.onmessage = (event) => {
       try {
@@ -75,10 +81,14 @@ export default class DeviceConnector {
     };
 
     this.ws.onclose = () => {
+      this.ws = null;
       if (this.shouldReconnect) this.startProbing();
     };
 
-    this.ws.onerror = () => this.ws.close();
+    this.ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        this.ws.close();
+    };
   }
 
   connect() {

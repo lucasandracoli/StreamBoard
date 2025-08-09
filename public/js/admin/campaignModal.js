@@ -5,8 +5,8 @@ export function setupCampaignModal() {
   if (!campaignModal) return;
 
   let tomSelectDevices, tomSelectSectors;
-  let stagedFiles = [];
-  let sortableInstance = null;
+  let stagedFiles = { main: [], secondary: [] };
+  let sortableInstances = { main: null, secondary: null };
   let mediaHasBeenTouched = false;
 
   const elements = {
@@ -14,7 +14,6 @@ export function setupCampaignModal() {
     cancelBtn: document.getElementById("cancelCampaignModal"),
     form: campaignModal.querySelector(".modal-form"),
     modalTitle: campaignModal.querySelector(".modal-title"),
-    filePreviewWrapper: document.getElementById("file-preview-wrapper"),
     companySelect: document.getElementById("campaignCompany"),
     deviceSelect: document.getElementById("device_ids"),
     sectorSelect: document.getElementById("sector_ids"),
@@ -28,6 +27,13 @@ export function setupCampaignModal() {
     ),
     sectorsContainer: document.getElementById("sectors-selection-container"),
     devicesContainer: document.getElementById("devices-selection-container"),
+    layoutRadios: document.querySelectorAll('input[name="layout_type"]'),
+    mainZoneContainer: document.getElementById("zone-main-container"),
+    secondaryZoneContainer: document.getElementById("zone-secondary-container"),
+    mainPreviewWrapper: document.getElementById("file-preview-wrapper-main"),
+    secondaryPreviewWrapper: document.getElementById(
+      "file-preview-wrapper-secondary"
+    ),
   };
 
   const fpStart = flatpickr(elements.startDateInput, {
@@ -173,6 +179,30 @@ export function setupCampaignModal() {
     }
   };
 
+  const handleLayoutChange = () => {
+    const selectedLayout = document.querySelector(
+      'input[name="layout_type"]:checked'
+    ).value;
+
+    if (selectedLayout === "fullscreen") {
+      elements.mainZoneContainer.style.flex = "1";
+      elements.secondaryZoneContainer.classList.add("hidden");
+      if (stagedFiles.secondary.length > 0) {
+        stagedFiles.main.push(...stagedFiles.secondary);
+        stagedFiles.secondary = [];
+      }
+    } else {
+      elements.mainZoneContainer.style.flex = "4";
+      elements.secondaryZoneContainer.style.flex = "1";
+      elements.secondaryZoneContainer.classList.remove("hidden");
+    }
+    renderStagedFiles();
+  };
+
+  elements.layoutRadios.forEach((radio) => {
+    radio.addEventListener("change", handleLayoutChange);
+  });
+
   const handleSegmentationChange = () => {
     const selectedValue = document.querySelector(
       'input[name="segmentation_type"]:checked'
@@ -201,116 +231,160 @@ export function setupCampaignModal() {
     populateCampaignSelectors(elements.companySelect.value)
   );
 
+  const createAddCard = (zone) => {
+    const addItem = document.createElement("li");
+    addItem.className = "add-media-card";
+    addItem.innerHTML = `
+        <div class="add-media-label" data-zone="${zone}">
+            <i class="bi bi-plus-lg"></i>
+            <span>Adicionar Mídia</span>
+        </div>`;
+    return addItem;
+  };
+
   const renderStagedFiles = () => {
-    if (sortableInstance) {
-      sortableInstance.destroy();
-      sortableInstance = null;
-    }
-    elements.filePreviewWrapper.innerHTML = "";
-
-    const list = document.createElement("ul");
-    list.className = "file-preview-list";
-
-    stagedFiles.forEach((file, index) => {
-      const fileName = file.name || file.file_name;
-      const fileType = file.type || file.file_type || "";
-      const isImage = fileType.startsWith("image/");
-      const isVideo = fileType.startsWith("video/");
-      let thumbnailHtml = `<i class="bi bi-file-earmark"></i>`;
-
-      const item = document.createElement("li");
-      item.className = "file-preview-item";
-      item.dataset.id = file.id || `new-${index}`;
-
-      const durationInputHtml = isImage
-        ? `<div class="media-duration-group">
-                    <input type="number" class="media-duration-input" data-index="${index}" value="${
-            file.duration || 10
-          }" min="1">
-                    <label>Segundos</label>
-                  </div>`
-        : "";
-
-      item.innerHTML = `
-        <div class="media-thumbnail">${thumbnailHtml}</div>
-        <div class="media-details">
-          <span class="file-preview-name" title="${fileName}">${fileName}</span>
-          ${durationInputHtml}
-        </div>
-        <button type="button" class="remove-file-btn" data-index="${index}">&times;</button>`;
-
-      list.appendChild(item);
-
-      const thumbnailContainer = item.querySelector(".media-thumbnail");
-
-      if (isImage) {
-        const src =
-          file instanceof File ? URL.createObjectURL(file) : file.file_path;
-        thumbnailContainer.innerHTML = `<img src="${src}" alt="preview">`;
-      } else if (isVideo) {
-        thumbnailContainer.innerHTML = `<i class="bi bi-film"></i>`;
-
-        generateVideoThumbnail(file)
-          .then((thumbnailSrc) => {
-            if (thumbnailSrc) {
-              thumbnailContainer.innerHTML = `<img src="${thumbnailSrc}" alt="video preview">`;
-            }
-          })
-          .catch((err) => {
-            console.error("Falha ao gerar thumbnail do vídeo:", err);
-          });
+    Object.keys(stagedFiles).forEach((zone) => {
+      const wrapper = elements[`${zone}PreviewWrapper`];
+      if (sortableInstances[zone]) {
+        sortableInstances[zone].destroy();
       }
-    });
+      wrapper.innerHTML = "";
 
-    if (stagedFiles.length < 5) {
-      const addItem = document.createElement("li");
-      addItem.className = "add-media-card";
-      addItem.innerHTML = `
-        <label for="file-upload" class="add-media-label">
-          <i class="bi bi-plus-lg"></i>
-          <span>Adicionar Mídia</span>
-        </label>
-      `;
-      list.appendChild(addItem);
-    }
+      const list = document.createElement("ul");
+      list.className = "file-preview-list";
+      list.dataset.zone = zone;
 
-    elements.filePreviewWrapper.appendChild(list);
+      stagedFiles[zone].forEach((file, index) => {
+        const fileName = file.name || file.file_name;
+        const fileType = file.type || file.file_type || "";
+        const isImage = fileType.startsWith("image/");
+        const isVideo = fileType.startsWith("video/");
+        let thumbnailHtml = `<i class="bi bi-file-earmark"></i>`;
 
-    sortableInstance = new Sortable(list, {
-      animation: 150,
-      filter: ".add-media-card",
-      onEnd: (evt) => {
-        mediaHasBeenTouched = true;
-        const [movedItem] = stagedFiles.splice(evt.oldIndex, 1);
-        stagedFiles.splice(evt.newIndex, 0, movedItem);
-        renderStagedFiles();
-      },
+        const item = document.createElement("li");
+        item.className = "file-preview-item";
+        item.dataset.id = file.id || `new-${index}`;
+        item.dataset.zone = zone;
+
+        const durationInputHtml =
+          isImage && zone !== "secondary"
+            ? `<div class="media-duration-group">
+                    <input type="number" class="media-duration-input" data-index="${index}" data-zone="${zone}" value="${
+                file.duration || 10
+              }" min="1">
+                    <label>Segundos</label>
+                </div>`
+            : "";
+
+        item.innerHTML = `
+                <div class="media-thumbnail">${thumbnailHtml}</div>
+                <div class="media-details">
+                    <span class="file-preview-name" title="${fileName}">${fileName}</span>
+                    ${durationInputHtml}
+                </div>
+                <button type="button" class="remove-file-btn" data-index="${index}" data-zone="${zone}">&times;</button>`;
+
+        list.appendChild(item);
+
+        const thumbnailContainer = item.querySelector(".media-thumbnail");
+
+        if (isImage) {
+          const src =
+            file instanceof File ? URL.createObjectURL(file) : file.file_path;
+          thumbnailContainer.innerHTML = `<img src="${src}" alt="preview">`;
+        } else if (isVideo) {
+          thumbnailContainer.innerHTML = `<i class="bi bi-film"></i>`;
+          generateVideoThumbnail(file)
+            .then((thumbnailSrc) => {
+              if (thumbnailSrc) {
+                thumbnailContainer.innerHTML = `<img src="${thumbnailSrc}" alt="video preview">`;
+              }
+            })
+            .catch((err) => {
+              console.error("Falha ao gerar thumbnail do vídeo:", err);
+            });
+        }
+      });
+
+      const isSecondaryZone = zone === "secondary";
+
+      if (
+        !isSecondaryZone ||
+        (isSecondaryZone && stagedFiles.secondary.length === 0)
+      ) {
+        list.appendChild(createAddCard(zone));
+      }
+
+      wrapper.appendChild(list);
+
+      sortableInstances[zone] = new Sortable(list, {
+        group: "shared-media",
+        animation: 150,
+        filter: ".add-media-card",
+        onAdd: (evt) => {
+          if (
+            evt.to.dataset.zone === "secondary" &&
+            evt.to.querySelectorAll(".file-preview-item").length > 1
+          ) {
+            notyf.error("A zona secundária só pode conter uma mídia.");
+            evt.from.appendChild(evt.item);
+          }
+        },
+        onEnd: (evt) => {
+          mediaHasBeenTouched = true;
+          const fromZone = evt.from.dataset.zone;
+          const toZone = evt.to.dataset.zone;
+
+          if (
+            fromZone !== toZone &&
+            toZone === "secondary" &&
+            stagedFiles.secondary.length >= 1
+          ) {
+            notyf.error("A zona secundária só pode conter uma mídia.");
+            renderStagedFiles();
+            return;
+          }
+
+          const [movedItem] = stagedFiles[fromZone].splice(evt.oldIndex, 1);
+          stagedFiles[toZone].splice(evt.newIndex, 0, movedItem);
+
+          renderStagedFiles();
+        },
+      });
     });
   };
 
   const resetModal = () => {
     elements.form.reset();
-    stagedFiles = [];
+    stagedFiles = { main: [], secondary: [] };
     mediaHasBeenTouched = false;
-    if (sortableInstance) {
-      sortableInstance.destroy();
-      sortableInstance = null;
-    }
-    elements.filePreviewWrapper.innerHTML = "";
+
+    Object.keys(sortableInstances).forEach((zone) => {
+      if (sortableInstances[zone]) {
+        sortableInstances[zone].destroy();
+        sortableInstances[zone] = null;
+      }
+      elements[`${zone}PreviewWrapper`].innerHTML = "";
+    });
+
     tomSelectDevices.clear();
     tomSelectDevices.clearOptions();
     tomSelectDevices.disable();
     tomSelectDevices.settings.placeholder = "Selecione uma empresa";
     tomSelectDevices.sync();
+
     tomSelectSectors.clear();
     tomSelectSectors.clearOptions();
     tomSelectSectors.disable();
     tomSelectSectors.settings.placeholder = "Selecione uma empresa";
     tomSelectSectors.sync();
+
     fpStart.clear();
     fpEnd.clear();
     document.getElementById("seg-all").checked = true;
     handleSegmentationChange();
+    document.getElementById("layout-fullscreen").checked = true;
+    handleLayoutChange();
   };
 
   const openCreateCampaignModal = () => {
@@ -336,27 +410,42 @@ export function setupCampaignModal() {
       elements.nameInput.value = campaign.name;
       elements.companySelect.value = campaign.company_id;
 
+      const layoutRadio = document.querySelector(
+        `input[name="layout_type"][value="${
+          campaign.layout_type || "fullscreen"
+        }"]`
+      );
+      if (layoutRadio) {
+        layoutRadio.checked = true;
+      } else {
+        document.getElementById("layout-fullscreen").checked = true;
+      }
+
       fpStart.setDate(campaign.start_date, true);
       fpEnd.setDate(campaign.end_date, true);
 
-      stagedFiles = (campaign.uploads || []).map((file) => ({
-        ...file,
-        name: file.file_name,
-        type: file.file_type,
-      }));
-      renderStagedFiles();
+      stagedFiles = { main: [], secondary: [] };
+      (campaign.uploads || []).forEach((file) => {
+        const zone = file.zone || "main";
+        if (stagedFiles[zone]) {
+          stagedFiles[zone].push({
+            ...file,
+            name: file.file_name,
+            type: file.file_type,
+          });
+        }
+      });
+
+      handleLayoutChange();
 
       await populateCampaignSelectors(campaign.company_id);
 
-      const deviceIds = (campaign.devices || []).map((d) => d.id);
-      const sectorIds = campaign.sector_ids || [];
-
-      if (sectorIds.length > 0) {
+      if (campaign.sector_ids && campaign.sector_ids.length > 0) {
         document.getElementById("seg-sectors").checked = true;
-        tomSelectSectors.setValue(sectorIds);
-      } else if (deviceIds.length > 0) {
+        tomSelectSectors.setValue(campaign.sector_ids);
+      } else if (campaign.device_ids && campaign.device_ids.length > 0) {
         document.getElementById("seg-devices").checked = true;
-        tomSelectDevices.setValue(deviceIds);
+        tomSelectDevices.setValue(campaign.device_ids);
       } else {
         document.getElementById("seg-all").checked = true;
       }
@@ -368,41 +457,68 @@ export function setupCampaignModal() {
     }
   };
 
+  let currentUploadZone = "main";
+
+  document.body.addEventListener("click", (e) => {
+    const addMediaLabel = e.target.closest(".add-media-label");
+    if (addMediaLabel) {
+      e.preventDefault();
+      currentUploadZone = addMediaLabel.dataset.zone;
+      elements.fileInput.click();
+    }
+  });
+
   elements.fileInput?.addEventListener("change", (e) => {
     mediaHasBeenTouched = true;
     const newFiles = Array.from(e.target.files).map((f) =>
       Object.assign(f, { duration: 10 })
     );
-    const combinedFiles = [...stagedFiles, ...newFiles];
 
-    if (combinedFiles.length > 5) {
-      notyf.error("É permitido no máximo 5 arquivos.");
-      stagedFiles = combinedFiles.slice(0, 5);
-    } else {
-      stagedFiles = combinedFiles;
+    if (
+      currentUploadZone === "secondary" &&
+      stagedFiles.secondary.length + newFiles.length > 1
+    ) {
+      notyf.error("A zona secundária só pode conter uma mídia.");
+      elements.fileInput.value = "";
+      return;
     }
+
+    stagedFiles[currentUploadZone].push(...newFiles);
 
     renderStagedFiles();
     elements.fileInput.value = "";
   });
 
-  elements.filePreviewWrapper.addEventListener("input", (e) => {
-    if (e.target.classList.contains("media-duration-input")) {
+  const handleInputOrClick = (e) => {
+    const target = e.target;
+    if (target.classList.contains("media-duration-input")) {
       mediaHasBeenTouched = true;
-      const index = parseInt(e.target.dataset.index, 10);
-      if (stagedFiles[index]) {
-        stagedFiles[index].duration = parseInt(e.target.value, 10) || 10;
+      const index = parseInt(target.dataset.index, 10);
+      const zone = target.dataset.zone;
+      if (stagedFiles[zone][index]) {
+        stagedFiles[zone][index].duration = parseInt(target.value, 10) || 10;
       }
     }
-  });
-
-  elements.filePreviewWrapper.addEventListener("click", (e) => {
-    if (e.target.classList.contains("remove-file-btn")) {
+    const removeBtn = e.target.closest(".remove-file-btn");
+    if (removeBtn) {
       mediaHasBeenTouched = true;
-      stagedFiles.splice(parseInt(e.target.dataset.index, 10), 1);
+      const index = parseInt(removeBtn.dataset.index, 10);
+      const zone = removeBtn.dataset.zone;
+      stagedFiles[zone].splice(index, 1);
       renderStagedFiles();
     }
-  });
+  };
+
+  elements.mainPreviewWrapper.addEventListener("input", handleInputOrClick);
+  elements.mainPreviewWrapper.addEventListener("click", handleInputOrClick);
+  elements.secondaryPreviewWrapper.addEventListener(
+    "input",
+    handleInputOrClick
+  );
+  elements.secondaryPreviewWrapper.addEventListener(
+    "click",
+    handleInputOrClick
+  );
 
   const updateCampaignRow = (campaign) => {
     const row = document.querySelector(`tr[data-campaign-id="${campaign.id}"]`);
@@ -459,6 +575,10 @@ export function setupCampaignModal() {
     formData.append("company_id", elements.companySelect.value);
     formData.append("start_date", elements.startDateInput.value);
     formData.append("end_date", elements.endDateInput.value);
+    formData.append(
+      "layout_type",
+      document.querySelector('input[name="layout_type"]:checked').value
+    );
 
     const segmentationType = document.querySelector(
       'input[name="segmentation_type"]:checked'
@@ -478,16 +598,28 @@ export function setupCampaignModal() {
 
     if (mediaHasBeenTouched) {
       formData.append("media_touched", "true");
-      const mediaMetadata = stagedFiles.map((file, index) => ({
-        id: file instanceof File ? null : file.id,
-        name: file.name,
-        order: index,
-        duration: file.duration || 10,
-      }));
+
+      const mediaMetadata = [];
+      const newFilesToUpload = [];
+
+      Object.keys(stagedFiles).forEach((zone) => {
+        stagedFiles[zone].forEach((file, index) => {
+          const isNewFile = file instanceof File;
+          mediaMetadata.push({
+            id: isNewFile ? null : file.id,
+            name: isNewFile ? file.name : file.file_name || file.name,
+            order: index,
+            duration: file.duration || 10,
+            zone: zone,
+          });
+          if (isNewFile) {
+            newFilesToUpload.push(file);
+          }
+        });
+      });
+
       formData.append("media_metadata", JSON.stringify(mediaMetadata));
-      stagedFiles
-        .filter((file) => file instanceof File)
-        .forEach((file) => formData.append("media", file));
+      newFilesToUpload.forEach((file) => formData.append("media", file));
     }
 
     try {
@@ -507,6 +639,7 @@ export function setupCampaignModal() {
         setTimeout(() => location.reload(), 1200);
       }
     } catch (err) {
+      console.error("Submit error:", err);
       notyf.error("Falha na comunicação com o servidor.");
     }
   });
