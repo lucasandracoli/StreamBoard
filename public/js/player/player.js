@@ -190,15 +190,32 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const getWeatherIcon = (code) => {
-    if (code >= 200 && code < 300) return "bi-cloud-lightning-rain-fill";
-    if (code >= 300 && code < 400) return "bi-cloud-drizzle-fill";
-    if (code >= 500 && code < 600) return "bi-cloud-rain-heavy-fill";
-    if (code >= 600 && code < 700) return "bi-cloud-snow-fill";
-    if (code >= 700 && code < 800) return "bi-cloud-fog2-fill";
-    if (code === 800) return "bi-sun-fill";
-    if (code === 801) return "bi-cloud-sun-fill";
-    if (code > 801 && code < 805) return "bi-cloud-fill";
-    return "bi-thermometer-half";
+    if (code >= 200 && code < 300)
+      return {
+        iconClass: "bi-cloud-lightning-rain-fill",
+        colorClass: "weather-stormy",
+      };
+    if (code >= 300 && code < 400)
+      return {
+        iconClass: "bi-cloud-drizzle-fill",
+        colorClass: "weather-rainy",
+      };
+    if (code >= 500 && code < 600)
+      return {
+        iconClass: "bi-cloud-rain-heavy-fill",
+        colorClass: "weather-rainy",
+      };
+    if (code >= 600 && code < 700)
+      return { iconClass: "bi-cloud-snow-fill", colorClass: "weather-snowy" };
+    if (code >= 700 && code < 800)
+      return { iconClass: "bi-cloud-fog2-fill", colorClass: "weather-misty" };
+    if (code === 800)
+      return { iconClass: "bi-sun-fill", colorClass: "weather-sunny" };
+    if (code === 801)
+      return { iconClass: "bi-cloud-sun-fill", colorClass: "weather-sunny" };
+    if (code > 801 && code < 805)
+      return { iconClass: "bi-cloud-fill", colorClass: "weather-cloudy" };
+    return { iconClass: "bi-thermometer-half", colorClass: "weather-cloudy" };
   };
 
   const renderWeather = (weatherData, city) => {
@@ -214,12 +231,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const temp = Math.round(current.temperature_2m);
     const maxTemp = Math.round(daily.temperature_2m_max[0]);
     const minTemp = Math.round(daily.temperature_2m_min[0]);
-    const iconClass = getWeatherIcon(current.weather_code);
+    const { iconClass, colorClass } = getWeatherIcon(current.weather_code);
 
     const weatherHtml = `
       <div class="weather-widget">
         <div class="weather-city">${city || ""}</div>
-        <i class="bi ${iconClass} weather-icon"></i>
+        <i class="bi ${iconClass} weather-icon ${colorClass}"></i>
         <div class="weather-temp">${temp}°C</div>
         <div class="weather-minmax">
           <i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°

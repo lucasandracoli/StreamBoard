@@ -208,6 +208,11 @@ export function setupCompanyModal() {
 
   form.addEventListener("submit", async function (e) {
     e.preventDefault();
+
+    const originalButtonText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
+
     const body = Object.fromEntries(new FormData(this));
     if (!currentCompanyId) {
       body.sectors = stagedSectors;
@@ -220,11 +225,17 @@ export function setupCompanyModal() {
         body: JSON.stringify(body),
       });
       const json = await res.json();
-      if (!res.ok) return notyf.error(json.message || `Erro ${res.status}`);
+      if (!res.ok) {
+        notyf.error(json.message || `Erro ${res.status}`);
+        return;
+      }
       notyf.success(json.message);
       setTimeout(() => location.reload(), 1200);
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");
+    } finally {
+      submitButton.disabled = false;
+      submitButton.innerHTML = originalButtonText;
     }
   });
 }

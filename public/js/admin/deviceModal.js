@@ -94,6 +94,11 @@ export function setupDeviceModal() {
 
   form.addEventListener("submit", async function (e) {
     e.preventDefault();
+
+    const originalButtonText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
+
     try {
       const res = await fetch(this.action, {
         method: "POST",
@@ -101,11 +106,17 @@ export function setupDeviceModal() {
         body: JSON.stringify(Object.fromEntries(new FormData(this))),
       });
       const json = await res.json();
-      if (!res.ok) return notyf.error(json.message || `Erro ${res.status}`);
+      if (!res.ok) {
+        notyf.error(json.message || `Erro ${res.status}`);
+        return;
+      }
       notyf.success(json.message);
       setTimeout(() => location.reload(), 1200);
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");
+    } finally {
+      submitButton.disabled = false;
+      submitButton.innerHTML = originalButtonText;
     }
   });
 }

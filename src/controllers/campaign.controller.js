@@ -80,19 +80,44 @@ const createCampaign = async (req, res) => {
   if (!name || !start_date || !end_date || !company_id) {
     return res
       .status(400)
-      .json({ message: "Todos os campos são obrigatórios." });
+      .json({ message: "Nome, datas e empresa são obrigatórios." });
+  }
+
+  const parsedStartDate = DateTime.fromFormat(
+    start_date,
+    "dd/MM/yyyy HH:mm"
+  ).toJSDate();
+  const parsedEndDate = DateTime.fromFormat(
+    end_date,
+    "dd/MM/yyyy HH:mm"
+  ).toJSDate();
+
+  if (parsedEndDate < parsedStartDate) {
+    return res
+      .status(400)
+      .json({
+        message: "A data de término não pode ser anterior à data de início.",
+      });
+  }
+
+  const mediaMetadata = media_metadata ? JSON.parse(media_metadata) : [];
+  const hasMainMedia = mediaMetadata.some((item) => item.zone === "main");
+
+  if (!hasMainMedia) {
+    return res
+      .status(400)
+      .json({
+        message: "A campanha deve conter ao menos uma mídia na zona Principal.",
+      });
   }
 
   const serviceData = {
     name,
     company_id,
     layout_type: layout_type || "fullscreen",
-    parsedStartDate: DateTime.fromFormat(
-      start_date,
-      "dd/MM/yyyy HH:mm"
-    ).toJSDate(),
-    parsedEndDate: DateTime.fromFormat(end_date, "dd/MM/yyyy HH:mm").toJSDate(),
-    media_metadata: media_metadata ? JSON.parse(media_metadata) : [],
+    parsedStartDate,
+    parsedEndDate,
+    media_metadata: mediaMetadata,
   };
   const newDeviceIds = device_ids
     ? Array.isArray(device_ids)
@@ -199,7 +224,40 @@ const editCampaign = async (req, res) => {
   if (!name || !start_date || !end_date || !company_id) {
     return res
       .status(400)
-      .json({ message: "Todos os campos são obrigatórios." });
+      .json({ message: "Nome, datas e empresa são obrigatórios." });
+  }
+
+  const parsedStartDate = DateTime.fromFormat(
+    start_date,
+    "dd/MM/yyyy HH:mm"
+  ).toJSDate();
+  const parsedEndDate = DateTime.fromFormat(
+    end_date,
+    "dd/MM/yyyy HH:mm"
+  ).toJSDate();
+
+  if (parsedEndDate < parsedStartDate) {
+    return res
+      .status(400)
+      .json({
+        message: "A data de término não pode ser anterior à data de início.",
+      });
+  }
+
+  if (media_touched === "true") {
+    const mediaMetadata = req.body.media_metadata
+      ? JSON.parse(req.body.media_metadata)
+      : [];
+    const hasMainMedia = mediaMetadata.some((item) => item.zone === "main");
+
+    if (!hasMainMedia) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "A campanha deve conter ao menos uma mídia na zona Principal.",
+        });
+    }
   }
 
   const newDeviceIds = device_ids
@@ -212,14 +270,6 @@ const editCampaign = async (req, res) => {
       ? sector_ids
       : [sector_ids]
     : [];
-  const parsedStartDate = DateTime.fromFormat(
-    start_date,
-    "dd/MM/yyyy HH:mm"
-  ).toJSDate();
-  const parsedEndDate = DateTime.fromFormat(
-    end_date,
-    "dd/MM/yyyy HH:mm"
-  ).toJSDate();
 
   const client = await db.connect();
   try {

@@ -180,6 +180,25 @@ export function setupCampaignModal() {
     }
   };
 
+  const renderWeatherWidget = () => {
+    return `
+      <div class="weather-widget-preview">
+        <svg class="weather-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+          <g>
+            <path d="M41.5,16.12A12.5,12.5,0,0,0,19.33,21.5a12.45,12.45,0,0,0,.17,2c-6.63.83-11.5,5-11.5,10.25a10.4,10.4,0,0,0,10.5,9.63H41.5a10.5,10.5,0,0,0,0-21Z" fill="#a6adc8" stroke="#a6adc8" stroke-linejoin="round" stroke-width="3"/>
+            <path d="M29.5,16.12A12.5,12.5,0,0,0,7.33,21.5a12.45,12.45,0,0,0,.17,2c-6.63.83-11.5,5-11.5,10.25a10.4,10.4,0,0,0,10.5,9.63H29.5a10.5,10.5,0,0,0,0-21Z" fill="#a6adc8" stroke="#a6adc8" stroke-linejoin="round" stroke-width="3" transform="translate(22, 0)"/>
+          </g>
+          <path d="M32.5,23.5a9,9,0,1,1,9-9,9,9,0,0,1-9,9Z" fill="#f8e187" stroke="#f8e187" stroke-miterlimit="10" stroke-width="3"/>
+        </svg>
+        <div class="weather-temp">25°C</div>
+        <div class="weather-minmax">
+          <span><i class="bi bi-arrow-up"></i> 28°</span>
+          <span><i class="bi bi-arrow-down"></i> 19°</span>
+        </div>
+      </div>
+    `;
+  };
+
   const handleLayoutChange = () => {
     const selectedLayout = document.querySelector(
       'input[name="layout_type"]:checked'
@@ -187,6 +206,7 @@ export function setupCampaignModal() {
 
     elements.secondaryZoneContainer.classList.add("hidden");
     elements.mainZoneContainer.style.flex = "1";
+    elements.secondaryPreviewWrapper.innerHTML = "";
     elements.secondaryPreviewWrapper.style.display = "flex";
 
     if (selectedLayout === "fullscreen") {
@@ -202,7 +222,7 @@ export function setupCampaignModal() {
       elements.secondaryZoneContainer.classList.remove("hidden");
       elements.mainZoneContainer.style.flex = "4";
       elements.secondaryZoneContainer.style.flex = "1";
-      elements.secondaryPreviewWrapper.style.display = "none";
+      elements.secondaryPreviewWrapper.innerHTML = renderWeatherWidget();
       if (stagedFiles.secondary.length > 0) {
         stagedFiles.main.push(...stagedFiles.secondary);
         stagedFiles.secondary = [];
@@ -258,6 +278,14 @@ export function setupCampaignModal() {
   const renderStagedFiles = () => {
     Object.keys(stagedFiles).forEach((zone) => {
       const wrapper = elements[`${zone}PreviewWrapper`];
+      const selectedLayout = document.querySelector(
+        'input[name="layout_type"]:checked'
+      ).value;
+
+      if (zone === "secondary" && selectedLayout === "split-80-20-weather") {
+        return;
+      }
+
       if (sortableInstances[zone]) {
         sortableInstances[zone].destroy();
       }
@@ -582,6 +610,20 @@ export function setupCampaignModal() {
   elements.form.addEventListener("submit", async function (e) {
     e.preventDefault();
 
+    if (stagedFiles.main.length === 0) {
+      notyf.error("A zona Principal deve conter pelo menos uma mídia.");
+      return;
+    }
+
+    if (
+      fpStart.selectedDates[0] &&
+      fpEnd.selectedDates[0] &&
+      fpEnd.selectedDates[0] < fpStart.selectedDates[0]
+    ) {
+      notyf.error("A data de término não pode ser anterior à data de início.");
+      return;
+    }
+
     elements.submitButton.disabled = true;
     elements.submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
 
@@ -645,7 +687,10 @@ export function setupCampaignModal() {
         body: formData,
       });
       const json = await res.json();
-      if (!res.ok) return notyf.error(json.message || `Erro ${res.status}`);
+      if (!res.ok) {
+        notyf.error(json.message || `Erro ${res.status}`);
+        return;
+      }
 
       notyf.success(json.message);
       campaignModal.style.display = "none";
@@ -656,7 +701,6 @@ export function setupCampaignModal() {
         setTimeout(() => location.reload(), 1200);
       }
     } catch (err) {
-      console.error("Submit error:", err);
       notyf.error("Falha na comunicação com o servidor.");
     } finally {
       elements.submitButton.disabled = false;
