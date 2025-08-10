@@ -3,6 +3,8 @@ const url = require("url");
 const db = require("../../config/streamboard");
 const tokenService = require("../services/token.service");
 const deviceUtils = require("../utils/device.utils");
+const deviceService = require("../services/device.service");
+const logger = require("../utils/logger");
 
 let wss;
 const clients = {};
@@ -81,16 +83,19 @@ const initializeWebSocket = (server) => {
     const deviceId = payload.id;
     clients[deviceId] = ws;
 
+    ws.deviceId = deviceId;
+
     await db.query("UPDATE devices SET last_seen = NOW() WHERE id = $1", [
       deviceId,
     ]);
     const deviceResult = await db.query(
-      "SELECT id, name, is_active, (SELECT COUNT(*) FROM tokens t WHERE t.device_id = devices.id AND t.is_revoked = false) > 0 as has_tokens FROM devices WHERE id = $1",
+      "SELECT id, name, device_type, company_id, sector_id, is_active, (SELECT COUNT(*) FROM tokens t WHERE t.device_id = devices.id AND t.is_revoked = false) > 0 as has_tokens FROM devices WHERE id = $1",
       [deviceId]
     );
 
     if (deviceResult.rows.length > 0) {
       const device = deviceResult.rows[0];
+      ws.deviceDetails = device;
       const updatedStatus = updateAndCacheDeviceStatus(deviceId, device);
       broadcastToAdmins({
         type: "DEVICE_STATUS_UPDATE",
@@ -106,6 +111,33 @@ const initializeWebSocket = (server) => {
 
     ws.isAlive = true;
     ws.on("pong", () => (ws.isAlive = true));
+
+    ws.on("message", async (message) => {
+      try {
+        const data = JSON.parse(message);
+        if (
+          data.type === "REQUEST_PLAYLIST" &&
+          ws.deviceId &&
+          ws.deviceDetails
+        ) {
+          const { id, company_id, sector_id } = ws.deviceDetails;
+          const playlistData = await deviceService.getDevicePlaylist(
+            id,
+            company_id,
+            sector_id
+          );
+          sendUpdateToDevice(ws.deviceId, {
+            type: "PLAYLIST_UPDATE",
+            payload: playlistData,
+          });
+        }
+      } catch (error) {
+        logger.error(
+          "Erro ao processar mensagem do dispositivo via WebSocket.",
+          error
+        );
+      }
+    });
 
     ws.on("close", async () => {
       delete clients[deviceId];

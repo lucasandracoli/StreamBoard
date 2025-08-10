@@ -104,6 +104,12 @@ export default class DeviceConnector {
     };
   }
 
+  sendMessage(data) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(data));
+    }
+  }
+
   connect() {
     this.shouldReconnect = true;
     this.startProbing();

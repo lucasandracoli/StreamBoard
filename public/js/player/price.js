@@ -2,13 +2,15 @@ import DeviceConnector from "../utils/connector.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has('paired')) {
+  const isNewlyPaired = urlParams.has("paired");
+
+  if (isNewlyPaired) {
     const notyf = new Notyf({
       duration: 5000,
-      position: { x: 'right', y: 'top' },
-      dismissible: true
+      position: { x: "right", y: "top" },
+      dismissible: true,
     });
-    notyf.success('Dispositivo conectado com sucesso!');
+    notyf.success("Dispositivo conectado com sucesso!");
     const newUrl = window.location.pathname;
     history.replaceState({}, document.title, newUrl);
   }
@@ -275,6 +277,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const connector = new DeviceConnector({
     onOpen: () => {
       fetchAndResetPlaylist();
+      if (isNewlyPaired) {
+        setTimeout(() => fetchAndResetPlaylist(), 5000);
+      }
     },
     onMessage: (data) => {
       switch (data.type) {
@@ -290,7 +295,14 @@ document.addEventListener("DOMContentLoaded", () => {
         case "DEVICE_REVOKED":
           connector.disconnect(false);
           clearInterval(playlistInterval);
-          location.href = "/pair?error=revoked";
+          showMessageScreen(
+            "Dispositivo Desconectado",
+            "Este terminal foi revogado e não está mais ativo.",
+            "error"
+          );
+          setTimeout(() => {
+            location.href = "/pair?error=revoked";
+          }, 4000);
           break;
         case "TYPE_CHANGED":
           connector.disconnect(false);

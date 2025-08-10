@@ -8,6 +8,7 @@ export function setupCampaignModal() {
   let stagedFiles = { main: [], secondary: [] };
   let sortableInstances = { main: null, secondary: null };
   let mediaHasBeenTouched = false;
+  const thumbnailCache = new Map();
 
   const elements = {
     openBtn: document.getElementById("openCampaignModal"),
@@ -83,6 +84,12 @@ export function setupCampaignModal() {
   }
 
   const generateVideoThumbnail = (file) => {
+    const fileKey =
+      file instanceof File ? `${file.name}-${file.size}` : file.file_path;
+    if (thumbnailCache.has(fileKey)) {
+      return Promise.resolve(thumbnailCache.get(fileKey));
+    }
+
     return new Promise((resolve) => {
       const video = document.createElement("video");
       video.setAttribute("crossorigin", "anonymous");
@@ -105,6 +112,7 @@ export function setupCampaignModal() {
           if (file instanceof File) {
             URL.revokeObjectURL(source);
           }
+          thumbnailCache.set(fileKey, dataUrl);
           resolve(dataUrl);
         }, 100);
       };
@@ -334,15 +342,17 @@ export function setupCampaignModal() {
             file instanceof File ? URL.createObjectURL(file) : file.file_path;
           thumbnailContainer.innerHTML = `<img src="${src}" alt="preview">`;
         } else if (isVideo) {
-          thumbnailContainer.innerHTML = `<i class="bi bi-film"></i>`;
+          thumbnailContainer.innerHTML = `<div class="spinner spinner-thumbnail"></div>`;
           generateVideoThumbnail(file)
             .then((thumbnailSrc) => {
               if (thumbnailSrc) {
                 thumbnailContainer.innerHTML = `<img src="${thumbnailSrc}" alt="video preview">`;
+              } else {
+                thumbnailContainer.innerHTML = `<i class="bi bi-film"></i>`;
               }
             })
-            .catch((err) => {
-              console.error("Falha ao gerar thumbnail do vídeo:", err);
+            .catch(() => {
+              thumbnailContainer.innerHTML = `<i class="bi bi-film"></i>`;
             });
         }
       });
@@ -444,6 +454,14 @@ export function setupCampaignModal() {
       const campaign = await response.json();
 
       resetModal();
+
+      const videoFiles = (campaign.uploads || []).filter((file) =>
+        file.file_type.startsWith("video/")
+      );
+      const thumbnailPromises = videoFiles.map((file) =>
+        generateVideoThumbnail(file)
+      );
+      await Promise.all(thumbnailPromises);
 
       elements.modalTitle.textContent = "Editar Campanha";
       elements.form.action = `/campaigns/${campaign.id}/edit`;

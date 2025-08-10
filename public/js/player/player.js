@@ -2,7 +2,9 @@ import DeviceConnector from "../utils/connector.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has("paired")) {
+  const isNewlyPaired = urlParams.has("paired");
+
+  if (isNewlyPaired) {
     const notyf = new Notyf({
       duration: 5000,
       position: { x: "right", y: "top" },
@@ -19,7 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let mediaTimers = { main: null, secondary: null };
   let playlistInterval = null;
   let weatherRetryInterval = null;
-  let currentPlaylistETag = null;
+  let clockInterval = null;
 
   const showWaitingScreen = (
     title = "Aguardando Campanha",
@@ -127,19 +129,15 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error("Falha ao buscar dados do clima.");
       }
       const { weather, city } = await res.json();
-      if (weather) {
-        renderWeather(weather, city);
-        if (weatherRetryInterval) {
-          clearInterval(weatherRetryInterval);
-          weatherRetryInterval = null;
-        }
-      }
+      renderWeather(weather, city);
     } catch (err) {
       console.error(err.message);
+      renderWeather(null, null);
     }
   };
 
   const startPlayback = (data) => {
+    if (clockInterval) clearInterval(clockInterval);
     Object.values(mediaTimers).forEach(clearTimeout);
     if (weatherRetryInterval) {
       clearInterval(weatherRetryInterval);
@@ -163,10 +161,9 @@ document.addEventListener("DOMContentLoaded", () => {
     currentIndices = { main: -1, secondary: -1 };
 
     if (data.layout_type === "split-80-20-weather") {
-      renderWeather(data.weather, data.city);
-      if (!data.weather) {
-        weatherRetryInterval = setInterval(fetchWeather, 30000);
-      }
+      renderClock();
+      fetchWeather();
+      weatherRetryInterval = setInterval(fetchWeather, 300000);
     } else if (playlists.secondary.length > 0) {
       playNextInZone("secondary");
     }
@@ -218,87 +215,111 @@ document.addEventListener("DOMContentLoaded", () => {
     return { iconClass: "bi-thermometer-half", colorClass: "weather-cloudy" };
   };
 
+  const getCurrentTime = () => {
+    const now = new Date();
+    const options = {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    };
+    const timeString = now.toLocaleTimeString("pt-BR", options);
+    const dateOptions = {
+      timeZone: "America/Sao_Paulo",
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+    };
+    const dateString = new Intl.DateTimeFormat("pt-BR", dateOptions).format(
+      now
+    );
+    return {
+      time: timeString,
+      date: dateString.charAt(0).toUpperCase() + dateString.slice(1),
+    };
+  };
+
+  const renderClock = () => {
+    const weatherContainer = document.getElementById("zone-secondary");
+    if (!weatherContainer) return;
+
+    if (clockInterval) clearInterval(clockInterval);
+
+    const updateClock = () => {
+      const { time, date } = getCurrentTime();
+      const clockHtml = `
+            <div class="weather-widget clock-display">
+                <div class="clock-time">${time}</div>
+                <div class="clock-date">${date}</div>
+            </div>
+        `;
+      weatherContainer.innerHTML = clockHtml;
+    };
+    updateClock();
+    clockInterval = setInterval(updateClock, 1000);
+  };
+
   const renderWeather = (weatherData, city) => {
     const weatherContainer = document.getElementById("zone-secondary");
     if (!weatherContainer) return;
-    if (!weatherData) {
-      weatherContainer.innerHTML =
-        '<div class="weather-widget"><div class="weather-error">Clima indisponível</div></div>';
-      return;
-    }
 
-    const { current, daily } = weatherData;
-    const temp = Math.round(current.temperature_2m);
-    const maxTemp = Math.round(daily.temperature_2m_max[0]);
-    const minTemp = Math.round(daily.temperature_2m_min[0]);
-    const { iconClass, colorClass } = getWeatherIcon(current.weather_code);
+    if (weatherData) {
+      if (clockInterval) clearInterval(clockInterval);
+      if (weatherRetryInterval) {
+        clearInterval(weatherRetryInterval);
+        weatherRetryInterval = null;
+      }
 
-    const weatherHtml = `
-      <div class="weather-widget">
-        <div class="weather-city">${city || ""}</div>
-        <i class="bi ${iconClass} weather-icon ${colorClass}"></i>
-        <div class="weather-temp">${temp}°C</div>
-        <div class="weather-minmax">
-          <i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°
+      const { current, daily } = weatherData;
+      const temp = Math.round(current.temperature_2m);
+      const maxTemp = Math.round(daily.temperature_2m_max[0]);
+      const minTemp = Math.round(daily.temperature_2m_min[0]);
+      const { iconClass, colorClass } = getWeatherIcon(current.weather_code);
+
+      const weatherHtml = `
+        <div class="weather-widget">
+          <div class="weather-city">${city || ""}</div>
+          <i class="bi ${iconClass} weather-icon ${colorClass}"></i>
+          <div class="weather-temp">${temp}°C</div>
+          <div class="weather-minmax">
+            <i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°
+          </div>
         </div>
-      </div>
-    `;
-    weatherContainer.innerHTML = weatherHtml;
-  };
-
-  const fetchAndResetPlaylist = async (force = false) => {
-    const headers = {};
-    if (currentPlaylistETag && !force) {
-      headers["If-None-Match"] = currentPlaylistETag;
-    }
-
-    try {
-      const res = await fetch("/api/device/playlist", { headers });
-
-      if (res.status === 304) {
-        return;
-      }
-
-      if (res.status === 401 || res.status === 403) {
-        wsManager.disconnect(false);
-        if (playlistInterval) clearInterval(playlistInterval);
-        window.location.href = "/pair?error=session_expired";
-        return;
-      }
-      if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`);
-      }
-
-      currentPlaylistETag = res.headers.get("ETag");
-      const data = await res.json();
-      startPlayback(data);
-    } catch (err) {
-      showWaitingScreen(
-        "Erro ao carregar",
-        "Não foi possível buscar a playlist. Tentando novamente...",
-        "error"
-      );
-      setTimeout(() => fetchAndResetPlaylist(true), 10000);
+      `;
+      weatherContainer.innerHTML = weatherHtml;
     }
   };
 
   const handleServerMessage = (data) => {
     switch (data.type) {
       case "CONNECTION_ESTABLISHED":
-        fetchAndResetPlaylist(true);
+        wsManager.sendMessage({ type: "REQUEST_PLAYLIST" });
         if (playlistInterval) clearInterval(playlistInterval);
-        playlistInterval = setInterval(fetchAndResetPlaylist, 30 * 60 * 1000);
+        playlistInterval = setInterval(
+          () => wsManager.sendMessage({ type: "REQUEST_PLAYLIST" }),
+          30 * 60 * 1000
+        );
+        break;
+      case "PLAYLIST_UPDATE":
+        startPlayback(data.payload);
         break;
       case "NEW_CAMPAIGN":
       case "UPDATE_CAMPAIGN":
       case "DELETE_CAMPAIGN":
-        fetchAndResetPlaylist(true);
+        wsManager.sendMessage({ type: "REQUEST_PLAYLIST" });
         break;
       case "DEVICE_REVOKED":
         wsManager.disconnect(false);
         if (playlistInterval) clearInterval(playlistInterval);
         if (weatherRetryInterval) clearInterval(weatherRetryInterval);
-        window.location.href = "/pair?error=revoked";
+        showWaitingScreen(
+          "Dispositivo Desconectado",
+          "Este dispositivo foi revogado e não pode mais receber conteúdo.",
+          "error"
+        );
+        setTimeout(() => {
+          window.location.href = "/pair?error=revoked";
+        }, 4000);
         break;
       case "FORCE_REFRESH":
         wsManager.disconnect(false);
