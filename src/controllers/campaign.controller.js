@@ -93,22 +93,18 @@ const createCampaign = async (req, res) => {
   ).toJSDate();
 
   if (parsedEndDate < parsedStartDate) {
-    return res
-      .status(400)
-      .json({
-        message: "A data de término não pode ser anterior à data de início.",
-      });
+    return res.status(400).json({
+      message: "A data de término não pode ser anterior à data de início.",
+    });
   }
 
   const mediaMetadata = media_metadata ? JSON.parse(media_metadata) : [];
   const hasMainMedia = mediaMetadata.some((item) => item.zone === "main");
 
   if (!hasMainMedia) {
-    return res
-      .status(400)
-      .json({
-        message: "A campanha deve conter ao menos uma mídia na zona Principal.",
-      });
+    return res.status(400).json({
+      message: "A campanha deve conter ao menos uma mídia na zona Principal.",
+    });
   }
 
   const serviceData = {
@@ -138,16 +134,14 @@ const createCampaign = async (req, res) => {
       newSectorIds
     );
 
-    const allAffectedDevices = await db.query(
-      `SELECT id FROM devices WHERE company_id = $1 AND (id = ANY($2::uuid[]) OR sector_id = ANY($3::int[]) OR ($2::uuid[] IS NULL AND $3::int[] IS NULL))`,
-      [company_id, newDeviceIds, newSectorIds]
-    );
+    const affectedDeviceIds =
+      await campaignService.getAffectedDevicesForCampaign(newCampaign.id);
 
     const { sendUpdateToDevice } = req.app.locals;
-    allAffectedDevices.rows.forEach((row) => {
-      sendUpdateToDevice(row.id, {
+    affectedDeviceIds.forEach((deviceId) => {
+      sendUpdateToDevice(deviceId, {
         type: "NEW_CAMPAIGN",
-        payload: newCampaign,
+        payload: { campaignId: newCampaign.id },
       });
     });
 
@@ -237,11 +231,9 @@ const editCampaign = async (req, res) => {
   ).toJSDate();
 
   if (parsedEndDate < parsedStartDate) {
-    return res
-      .status(400)
-      .json({
-        message: "A data de término não pode ser anterior à data de início.",
-      });
+    return res.status(400).json({
+      message: "A data de término não pode ser anterior à data de início.",
+    });
   }
 
   if (media_touched === "true") {
@@ -251,12 +243,9 @@ const editCampaign = async (req, res) => {
     const hasMainMedia = mediaMetadata.some((item) => item.zone === "main");
 
     if (!hasMainMedia) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "A campanha deve conter ao menos uma mídia na zona Principal.",
-        });
+      return res.status(400).json({
+        message: "A campanha deve conter ao menos uma mídia na zona Principal.",
+      });
     }
   }
 
@@ -372,12 +361,8 @@ const editCampaign = async (req, res) => {
 
     await client.query("COMMIT");
 
-    const newAffectedDevicesResult = await client.query(
-      `SELECT id FROM devices WHERE company_id = $1 AND (id = ANY($2::uuid[]) OR sector_id = ANY($3::int[]) OR ($2::uuid[] IS NULL AND $3::int[] IS NULL))`,
-      [company_id, newDeviceIds, newSectorIds]
-    );
-
-    const newAffectedDeviceIds = newAffectedDevicesResult.rows.map((r) => r.id);
+    const newAffectedDeviceIds =
+      await campaignService.getAffectedDevicesForCampaign(id);
     const allAffectedDeviceIds = [
       ...new Set([...oldAffectedDeviceIds, ...newAffectedDeviceIds]),
     ];

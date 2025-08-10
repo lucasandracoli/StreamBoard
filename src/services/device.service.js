@@ -115,12 +115,23 @@ const getDeviceDetails = async (id) => {
   const device = deviceResult.rows[0];
 
   const campaignsQuery = `
-        SELECT c.name FROM campaigns c
-            LEFT JOIN campaign_device cd ON c.id = cd.campaign_id
-            LEFT JOIN campaign_sector cs ON c.id = cs.campaign_id
-        WHERE (cd.device_id = $1 OR cs.sector_id = $2)
-        AND NOW() BETWEEN c.start_date AND c.end_date`;
+        SELECT DISTINCT c.name FROM campaigns c
+        LEFT JOIN campaign_device cd ON c.id = cd.campaign_id
+        LEFT JOIN campaign_sector cs ON c.id = cs.campaign_id
+        WHERE
+            c.company_id = $1
+            AND NOW() BETWEEN c.start_date AND c.end_date
+            AND (
+                (NOT EXISTS (SELECT 1 FROM campaign_device cd_inner WHERE cd_inner.campaign_id = c.id) AND
+                 NOT EXISTS (SELECT 1 FROM campaign_sector cs_inner WHERE cs_inner.campaign_id = c.id))
+                OR
+                cd.device_id = $2
+                OR
+                cs.sector_id = $3
+            )`;
+
   const campaignsResult = await db.query(campaignsQuery, [
+    device.company_id,
     id,
     device.sector_id,
   ]);
@@ -139,8 +150,8 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
           c.start_date <= NOW() AND
           c.end_date >= NOW() AND
           (
-              NOT EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id) AND
-              NOT EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id)
+              (NOT EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id) AND
+               NOT EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id))
               OR
               EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id AND cd.device_id = $1)
               OR
@@ -165,7 +176,7 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
       SELECT id, file_path, file_type, duration, zone
       FROM campaign_uploads
       WHERE campaign_id = $1
-      ORDER BY execution_order ASC`;
+      ORDER BY zone, execution_order ASC`;
 
   const uploadsResult = await db.query(uploadsQuery, [campaign.id]);
 
