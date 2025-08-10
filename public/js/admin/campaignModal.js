@@ -13,6 +13,7 @@ export function setupCampaignModal() {
     openBtn: document.getElementById("openCampaignModal"),
     cancelBtn: document.getElementById("cancelCampaignModal"),
     form: campaignModal.querySelector(".modal-form"),
+    submitButton: campaignModal.querySelector('button[type="submit"]'),
     modalTitle: campaignModal.querySelector(".modal-title"),
     companySelect: document.getElementById("campaignCompany"),
     deviceSelect: document.getElementById("device_ids"),
@@ -580,6 +581,10 @@ export function setupCampaignModal() {
 
   elements.form.addEventListener("submit", async function (e) {
     e.preventDefault();
+
+    elements.submitButton.disabled = true;
+    elements.submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
+
     const formData = new FormData();
     const campaignId = elements.idInput.value;
 
@@ -653,6 +658,9 @@ export function setupCampaignModal() {
     } catch (err) {
       console.error("Submit error:", err);
       notyf.error("Falha na comunicação com o servidor.");
+    } finally {
+      elements.submitButton.disabled = false;
+      elements.submitButton.innerHTML = "Salvar";
     }
   });
 }

@@ -1001,7 +1001,7 @@ html,
   justify-content: center;
   align-items: center;
   background-color: var(--color-background);
-  transition: background-color 0.3s ease;
+  transition: background-color: 0.3s ease;
 }
 #campaign-container img,
 #campaign-container video {
@@ -2096,7 +2096,7 @@ select.modal-input:disabled {
   font-size: 1.2rem;
 }
 .player-wrapper.layout-split-80-20-weather {
-  flex-direction: row-reverse;
+  flex-direction: row;
 }
 .player-wrapper.layout-split-80-20-weather .zone-main {
   width: 80%;

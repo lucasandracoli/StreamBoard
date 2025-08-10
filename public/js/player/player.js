@@ -18,6 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentIndices = { main: -1, secondary: -1 };
   let mediaTimers = { main: null, secondary: null };
   let playlistInterval = null;
+  let weatherRetryInterval = null;
+  let currentPlaylistETag = null;
 
   const showWaitingScreen = (
     title = "Aguardando Campanha",
@@ -118,8 +120,31 @@ document.addEventListener("DOMContentLoaded", () => {
     displayMediaInZone(zone);
   };
 
+  const fetchWeather = async () => {
+    try {
+      const res = await fetch("/api/device/weather");
+      if (!res.ok) {
+        throw new Error("Falha ao buscar dados do clima.");
+      }
+      const { weather, city } = await res.json();
+      if (weather) {
+        renderWeather(weather, city);
+        if (weatherRetryInterval) {
+          clearInterval(weatherRetryInterval);
+          weatherRetryInterval = null;
+        }
+      }
+    } catch (err) {
+      console.error(err.message);
+    }
+  };
+
   const startPlayback = (data) => {
     Object.values(mediaTimers).forEach(clearTimeout);
+    if (weatherRetryInterval) {
+      clearInterval(weatherRetryInterval);
+      weatherRetryInterval = null;
+    }
 
     if (!data) {
       playlists = { main: [], secondary: [] };
@@ -139,6 +164,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (data.layout_type === "split-80-20-weather") {
       renderWeather(data.weather, data.city);
+      if (!data.weather) {
+        weatherRetryInterval = setInterval(fetchWeather, 30000);
+      }
     } else if (playlists.secondary.length > 0) {
       playNextInZone("secondary");
     }
@@ -162,25 +190,15 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const getWeatherIcon = (code) => {
-    const icons = {
-      0: "bi-sun-fill", // Clear sky
-      1: "bi-sun", // Mainly clear
-      2: "bi-cloud-sun", // Partly cloudy
-      3: "bi-cloud-fill", // Overcast
-      45: "bi-cloud-fog2-fill", // Fog
-      48: "bi-cloud-fog2-fill", // Depositing rime fog
-      51: "bi-cloud-drizzle", // Drizzle Light
-      53: "bi-cloud-drizzle", // Drizzle Moderate
-      55: "bi-cloud-drizzle-fill", // Drizzle Dense
-      61: "bi-cloud-rain", // Rain Slight
-      63: "bi-cloud-rain", // Rain Moderate
-      65: "bi-cloud-rain-heavy-fill", // Rain Heavy
-      80: "bi-cloud-showers", // Rain showers Slight
-      81: "bi-cloud-showers", // Rain showers Moderate
-      82: "bi-cloud-showers-heavy-fill", // Rain showers Violent
-      95: "bi-cloud-lightning-rain-fill", // Thunderstorm Slight or moderate
-    };
-    return icons[code] || "bi-thermometer-half";
+    if (code >= 200 && code < 300) return "bi-cloud-lightning-rain-fill";
+    if (code >= 300 && code < 400) return "bi-cloud-drizzle-fill";
+    if (code >= 500 && code < 600) return "bi-cloud-rain-heavy-fill";
+    if (code >= 600 && code < 700) return "bi-cloud-snow-fill";
+    if (code >= 700 && code < 800) return "bi-cloud-fog2-fill";
+    if (code === 800) return "bi-sun-fill";
+    if (code === 801) return "bi-cloud-sun-fill";
+    if (code > 801 && code < 805) return "bi-cloud-fill";
+    return "bi-thermometer-half";
   };
 
   const renderWeather = (weatherData, city) => {
@@ -211,18 +229,30 @@ document.addEventListener("DOMContentLoaded", () => {
     weatherContainer.innerHTML = weatherHtml;
   };
 
-  const fetchAndResetPlaylist = async () => {
+  const fetchAndResetPlaylist = async (force = false) => {
+    const headers = {};
+    if (currentPlaylistETag && !force) {
+      headers["If-None-Match"] = currentPlaylistETag;
+    }
+
     try {
-      const res = await fetch("/api/device/playlist", { cache: "no-cache" });
+      const res = await fetch("/api/device/playlist", { headers });
+
+      if (res.status === 304) {
+        return;
+      }
+
+      if (res.status === 401 || res.status === 403) {
+        wsManager.disconnect(false);
+        if (playlistInterval) clearInterval(playlistInterval);
+        window.location.href = "/pair?error=session_expired";
+        return;
+      }
       if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          wsManager.disconnect(false);
-          if (playlistInterval) clearInterval(playlistInterval);
-          window.location.href = "/pair?error=session_expired";
-        }
         throw new Error(`Server error: ${res.status}`);
       }
 
+      currentPlaylistETag = res.headers.get("ETag");
       const data = await res.json();
       startPlayback(data);
     } catch (err) {
@@ -231,20 +261,26 @@ document.addEventListener("DOMContentLoaded", () => {
         "Não foi possível buscar a playlist. Tentando novamente...",
         "error"
       );
-      setTimeout(fetchAndResetPlaylist, 10000);
+      setTimeout(() => fetchAndResetPlaylist(true), 10000);
     }
   };
 
   const handleServerMessage = (data) => {
     switch (data.type) {
+      case "CONNECTION_ESTABLISHED":
+        fetchAndResetPlaylist(true);
+        if (playlistInterval) clearInterval(playlistInterval);
+        playlistInterval = setInterval(fetchAndResetPlaylist, 30 * 60 * 1000);
+        break;
       case "NEW_CAMPAIGN":
       case "UPDATE_CAMPAIGN":
       case "DELETE_CAMPAIGN":
-        fetchAndResetPlaylist();
+        fetchAndResetPlaylist(true);
         break;
       case "DEVICE_REVOKED":
         wsManager.disconnect(false);
         if (playlistInterval) clearInterval(playlistInterval);
+        if (weatherRetryInterval) clearInterval(weatherRetryInterval);
         window.location.href = "/pair?error=revoked";
         break;
       case "FORCE_REFRESH":
@@ -253,6 +289,7 @@ document.addEventListener("DOMContentLoaded", () => {
         break;
       case "TYPE_CHANGED":
         wsManager.disconnect(false);
+        if (weatherRetryInterval) clearInterval(weatherRetryInterval);
         window.location.href =
           data.payload.newType === "terminal_consulta" ? "/price" : "/player";
         break;
@@ -260,7 +297,6 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const wsManager = new DeviceConnector({
-    onOpen: fetchAndResetPlaylist,
     onMessage: handleServerMessage,
     onReconnecting: () => {
       showWaitingScreen(
@@ -279,6 +315,4 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   wsManager.connect();
-  if (playlistInterval) clearInterval(playlistInterval);
-  playlistInterval = setInterval(fetchAndResetPlaylist, 30 * 60 * 1000);
 });

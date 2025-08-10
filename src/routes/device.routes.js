@@ -14,6 +14,7 @@ router.post("/devices/:id/reactivate", isAuthenticated, isAdmin, deviceControlle
 
 router.get("/api/deviceDetails/:id", isAuthenticated, isAdmin, deviceController.getDeviceDetails);
 router.get("/api/device/playlist", deviceAuth, deviceController.getDevicePlaylist);
+router.get("/api/device/weather", deviceAuth, deviceController.getDeviceWeather);
 router.get("/api/wsToken", deviceAuth, deviceController.getWsToken);
 
 module.exports = router;

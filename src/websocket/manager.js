@@ -102,6 +102,8 @@ const initializeWebSocket = (server) => {
       });
     }
 
+    ws.send(JSON.stringify({ type: "CONNECTION_ESTABLISHED" }));
+
     ws.isAlive = true;
     ws.on("pong", () => (ws.isAlive = true));
 

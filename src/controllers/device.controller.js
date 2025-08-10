@@ -91,11 +91,9 @@ const deleteDevice = async (req, res) => {
     await deviceService.deleteDevice(id);
     const { sendUpdateToDevice } = req.app.locals;
     sendUpdateToDevice(id, { type: "DEVICE_REVOKED" });
-    res
-      .status(200)
-      .json({
-        message: "Dispositivo excluído e sessão encerrada com sucesso.",
-      });
+    res.status(200).json({
+      message: "Dispositivo excluído e sessão encerrada com sucesso.",
+    });
   } catch (err) {
     logger.error("Erro ao excluir dispositivo:", err);
     res.status(500).json({ message: "Erro ao excluir o dispositivo." });
@@ -141,12 +139,10 @@ const revokeDevice = async (req, res) => {
     await deviceService.revokeDeviceAccess(id);
     const { sendUpdateToDevice } = req.app.locals;
     sendUpdateToDevice(id, { type: "DEVICE_REVOKED" });
-    res
-      .status(200)
-      .json({
-        message:
-          "Acesso do dispositivo revogado e status atualizado com sucesso.",
-      });
+    res.status(200).json({
+      message:
+        "Acesso do dispositivo revogado e status atualizado com sucesso.",
+    });
   } catch (err) {
     logger.error("Erro ao revogar acesso do dispositivo.", err);
     res.status(500).json({ message: "Erro ao revogar acesso do dispositivo." });
@@ -216,6 +212,9 @@ const getDeviceDetails = async (req, res) => {
 
 const getDevicePlaylist = async (req, res) => {
   try {
+    if (!req.device || !req.device.id) {
+      return res.status(401).json({ message: "Dispositivo não autenticado." });
+    }
     const { id, company_id, sector_id } = req.device;
     const playlistData = await deviceService.getDevicePlaylist(
       id,
@@ -223,13 +222,31 @@ const getDevicePlaylist = async (req, res) => {
       sector_id
     );
 
+    const etag = crypto
+      .createHash("sha1")
+      .update(JSON.stringify(playlistData))
+      .digest("hex");
+    res.setHeader("ETag", etag);
+
+    if (req.headers["if-none-match"] === etag) {
+      return res.status(304).end();
+    }
+
     if (playlistData && playlistData.layout_type === "split-80-20-weather") {
-      const weather = await weatherService.getWeather(
-        playlistData.city,
-        playlistData.state,
-        playlistData.cep
-      );
-      playlistData.weather = weather;
+      try {
+        const weather = await weatherService.getWeather(
+          playlistData.city,
+          playlistData.state,
+          playlistData.cep
+        );
+        playlistData.weather = weather;
+      } catch (weatherError) {
+        logger.error(
+          "Falha ao buscar dados de clima, continuando sem eles.",
+          weatherError
+        );
+        playlistData.weather = null;
+      }
     }
 
     res.setHeader(
@@ -245,8 +262,30 @@ const getDevicePlaylist = async (req, res) => {
   }
 };
 
+const getDeviceWeather = async (req, res) => {
+  try {
+    if (!req.device || !req.device.company_id) {
+      return res.status(401).json({ message: "Dispositivo não autenticado." });
+    }
+    const { company_id } = req.device;
+    const company = await companyService.getCompanyById(company_id);
+    if (!company) {
+      return res.status(404).json({ message: "Empresa não encontrada." });
+    }
+    const { city, state, cep } = company;
+    const weather = await weatherService.getWeather(city, state, cep);
+    res.json({ weather, city });
+  } catch (err) {
+    logger.error("Erro ao buscar clima para o dispositivo.", err);
+    res.status(500).json({ message: "Erro ao buscar clima." });
+  }
+};
+
 const getWsToken = (req, res) => {
   try {
+    if (!req.device) {
+      return res.status(401).json({ message: "Dispositivo não autenticado." });
+    }
     const accessToken = tokenService.generateAccessToken(req.device);
     res.json({ accessToken });
   } catch (err) {
@@ -266,5 +305,6 @@ module.exports = {
   reactivateDevice,
   getDeviceDetails,
   getDevicePlaylist,
+  getDeviceWeather,
   getWsToken,
 };

@@ -33,8 +33,8 @@ const createDevice = async (name, device_type, company_id, sector_id) => {
 const updateDevice = async (id, data) => {
   const { name, device_type, company_id, sector_id } = data;
   const query = `
-        UPDATE devices 
-        SET name = $1, device_type = $2, company_id = $3, sector_id = $4 
+        UPDATE devices
+        SET name = $1, device_type = $2, company_id = $3, sector_id = $4
         WHERE id = $5`;
   await db.query(query, [name, device_type, company_id, sector_id, id]);
 };
@@ -99,8 +99,8 @@ const reactivateDevice = async (id) => {
 
 const getDeviceDetails = async (id) => {
   const query = `
-        SELECT 
-            d.id, d.name, d.device_type, d.company_id, d.sector_id, 
+        SELECT
+            d.id, d.name, d.device_type, d.company_id, d.sector_id,
             d.is_active, d.last_seen, d.registered_at,
             c.name as company_name,
             s.name as sector_name,
@@ -131,7 +131,7 @@ const getDeviceDetails = async (id) => {
 
 const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
   const campaignQuery = `
-      SELECT c.id, c.layout_type, comp.city, comp.state
+      SELECT c.id, c.layout_type, comp.city, comp.state, comp.cep
       FROM campaigns c
       JOIN companies comp ON c.company_id = comp.id
       WHERE
@@ -174,6 +174,7 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
     uploads: uploadsResult.rows,
     city: campaign.city,
     state: campaign.state,
+    cep: campaign.cep,
   };
 };
 

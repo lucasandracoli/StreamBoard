@@ -1,54 +1,34 @@
 const axios = require("axios");
 const logger = require("../utils/logger");
 
-const GEOCODING_API_URL = "https://geocoding-api.open-meteo.com/v1/search";
-const WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast";
+const GEO_API_URL = "http://api.openweathermap.org/geo/1.0/direct";
+const WEATHER_API_URL = "https://api.openweathermap.org/data/2.5/weather";
 
-const getCoordinates = async (city, state, cep) => {
-  const params = {
-    name: cep || city,
-    count: 10,
-    language: "pt",
-    format: "json",
-  };
-
+const getCoordinates = async (city, state) => {
   try {
-    const response = await axios.get(GEOCODING_API_URL, { params });
+    const response = await axios.get(GEO_API_URL, {
+      params: {
+        q: `${city},${state},BR`,
+        limit: 1,
+        appid: process.env.OPENWEATHER_API_KEY,
+      },
+      timeout: 10000,
+      family: 4,
+    });
 
-    if (!response.data.results) return null;
-
-    let location = response.data.results.find((r) => r.country_code === "BR");
-
-    if (
-      location &&
-      state &&
-      location.admin1 &&
-      location.admin1.toLowerCase() !== state.toLowerCase()
-    ) {
-      const stateMatch = response.data.results.find(
-        (r) =>
-          r.country_code === "BR" &&
-          r.admin1 &&
-          r.admin1.toLowerCase() === state.toLowerCase()
-      );
-      if (stateMatch) location = stateMatch;
+    if (response.data && response.data.length > 0) {
+      const { lat, lon } = response.data[0];
+      return { latitude: lat, longitude: lon, city: response.data[0].name };
     }
-
-    return location
-      ? {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          city: location.name,
-        }
-      : null;
+    return null;
   } catch (error) {
-    logger.error("Erro ao buscar coordenadas:", error);
+    logger.error("Erro ao buscar coordenadas na OpenWeather.", error);
     return null;
   }
 };
 
-const getWeather = async (city, state, cep) => {
-  const coordinates = await getCoordinates(city, state, cep);
+const getWeather = async (city, state) => {
+  const coordinates = await getCoordinates(city, state);
   if (!coordinates) {
     return null;
   }
@@ -56,20 +36,30 @@ const getWeather = async (city, state, cep) => {
   try {
     const response = await axios.get(WEATHER_API_URL, {
       params: {
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
-        current: "temperature_2m,weather_code",
-        daily: "weather_code,temperature_2m_max,temperature_2m_min",
-        timezone: "America/Sao_Paulo",
+        lat: coordinates.latitude,
+        lon: coordinates.longitude,
+        appid: process.env.OPENWEATHER_API_KEY,
+        units: "metric",
+        lang: "pt_br",
       },
+      timeout: 10000,
+      family: 4,
     });
 
+    const { main, weather } = response.data;
     return {
-      ...response.data,
+      current: {
+        temperature_2m: main.temp,
+        weather_code: weather[0].id,
+      },
+      daily: {
+        temperature_2m_max: [main.temp_max],
+        temperature_2m_min: [main.temp_min],
+      },
       city: coordinates.city,
     };
   } catch (error) {
-    logger.error("Erro ao buscar previsão do tempo:", error);
+    logger.error("Erro ao buscar previsão do tempo na OpenWeather.", error);
     return null;
   }
 };

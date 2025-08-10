@@ -51,18 +51,15 @@ const deviceAuth = async (req, res, next) => {
 
   if (accessToken) {
     const payload = tokenService.verifyToken(accessToken);
-    if (payload) {
+    if (payload && payload.id) {
       const d = await db.query(
         "SELECT id, name, device_type, company_id, sector_id, is_active FROM devices WHERE id = $1 AND is_active = TRUE",
         [payload.id]
       );
-      if (d.rows.length === 0) {
-        res.clearCookie("access_token");
-        res.clearCookie("refresh_token");
-        return res.redirect("/pair?error=device_not_found");
+      if (d.rows.length > 0) {
+        req.device = d.rows[0];
+        return next();
       }
-      req.device = d.rows[0];
-      return next();
     }
   }
 
@@ -80,7 +77,7 @@ const deviceAuth = async (req, res, next) => {
 
     if (tokenResult.rows.length === 0) {
       const oldTokenPayload = tokenService.verifyToken(refreshToken);
-      if (oldTokenPayload) {
+      if (oldTokenPayload && oldTokenPayload.id) {
         await client.query(
           "UPDATE tokens SET is_revoked = TRUE WHERE device_id = $1",
           [oldTokenPayload.id]
