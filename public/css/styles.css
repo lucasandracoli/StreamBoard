@@ -1980,7 +1980,7 @@ select.modal-input:disabled {
   margin: 0;
 }
 .weather-widget {
-  background-color: #ccc;
+  background-color: #f3f3f3;
   color: var(--color-text);
   padding: 20px;
   width: 100%;

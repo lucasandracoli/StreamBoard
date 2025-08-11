@@ -109,11 +109,19 @@ const renderPricePage = async (req, res) => {
   try {
     const campaignsResult = await db.query(
       `SELECT c.* FROM campaigns c
-             LEFT JOIN campaign_device cd ON c.id = cd.campaign_id
-             LEFT JOIN campaign_sector cs ON c.id = cs.campaign_id
-             WHERE c.start_date <= NOW() AND c.end_date >= NOW()
-             AND (cd.device_id = $1 OR cs.sector_id = $2)`,
-      [req.device.id, req.device.sector_id]
+             WHERE
+                 c.company_id = $1 AND
+                 c.start_date <= NOW() AND
+                 c.end_date >= NOW() AND
+                 (
+                     (NOT EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id) AND
+                      NOT EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id))
+                     OR
+                     EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id AND cd.device_id = $2)
+                     OR
+                     EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id AND cs.sector_id = $3)
+                 )`,
+      [req.device.company_id, req.device.id, req.device.sector_id]
     );
     res.render("price", {
       deviceName: req.device.name,
