@@ -190,7 +190,6 @@ document.addEventListener("DOMContentLoaded", () => {
     currentIndices = { main: -1, secondary: -1 };
 
     if (data.layout_type === "split-80-20-weather") {
-      renderClock();
       fetchWeather();
       weatherRetryInterval = setInterval(fetchWeather, 300000);
     } else if (playlists.secondary.length > 0) {
@@ -269,20 +268,17 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const renderClock = () => {
-    const weatherContainer = document.getElementById("zone-secondary");
-    if (!weatherContainer) return;
+    const clockContainer = document.getElementById("clock-container");
+    if (!clockContainer) return;
 
     if (clockInterval) clearInterval(clockInterval);
 
     const updateClock = () => {
       const { time, date } = getCurrentTime();
-      const clockHtml = `
-            <div class="weather-widget clock-display">
-                <div class="clock-time">${time}</div>
-                <div class="clock-date">${date}</div>
-            </div>
+      clockContainer.innerHTML = `
+            <div class="clock-time">${time}</div>
+            <div class="clock-date">${date}</div>
         `;
-      weatherContainer.innerHTML = clockHtml;
     };
     updateClock();
     clockInterval = setInterval(updateClock, 1000);
@@ -292,31 +288,43 @@ document.addEventListener("DOMContentLoaded", () => {
     const weatherContainer = document.getElementById("zone-secondary");
     if (!weatherContainer) return;
 
+    let weatherContentHtml;
+
     if (weatherData) {
-      if (clockInterval) clearInterval(clockInterval);
       if (weatherRetryInterval) {
         clearInterval(weatherRetryInterval);
         weatherRetryInterval = null;
       }
-
       const { current, daily } = weatherData;
       const temp = Math.round(current.temperature_2m);
       const maxTemp = Math.round(daily.temperature_2m_max[0]);
       const minTemp = Math.round(daily.temperature_2m_min[0]);
       const { iconClass, colorClass } = getWeatherIcon(current.weather_code);
 
-      const weatherHtml = `
-        <div class="weather-widget">
+      weatherContentHtml = `
           <div class="weather-city">${city || ""}</div>
           <i class="bi ${iconClass} weather-icon ${colorClass}"></i>
           <div class="weather-temp">${temp}°C</div>
           <div class="weather-minmax">
             <i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°
           </div>
-        </div>
       `;
-      weatherContainer.innerHTML = weatherHtml;
+    } else {
+      weatherContentHtml = `
+          <div class="weather-error">Não foi possível carregar o clima.</div>
+      `;
     }
+
+    weatherContainer.innerHTML = `
+        <div class="weather-widget">
+            <div class="weather-main-content">
+                ${weatherContentHtml}
+            </div>
+            <div id="clock-container" class="clock-display"></div>
+        </div>
+    `;
+
+    renderClock();
   };
 
   const handleServerMessage = (data) => {

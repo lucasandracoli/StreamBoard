@@ -1192,7 +1192,6 @@ html,
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: url("/assets/price.jpg");
   background-size: cover;
   background-position: center;
   z-index: 1;
@@ -1988,10 +1987,18 @@ select.modal-input:disabled {
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
   text-align: center;
   font-family: var(--font-family-base);
+}
+
+.weather-main-content {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
 }
 .weather-city {
   font-size: 2rem;
@@ -2065,12 +2072,12 @@ select.modal-input:disabled {
   gap: 0.5rem;
 }
 .clock-time {
-  font-size: 4rem;
+  font-size: 2.5rem;
   font-weight: 700;
   line-height: 1.1;
 }
 .clock-date {
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 500;
   color: var(--color-muted);
 }

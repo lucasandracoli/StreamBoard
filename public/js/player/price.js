@@ -142,6 +142,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!hasPlayableMedia()) {
       clearTimeout(mediaTimer);
       offerContainer.style.display = "none";
+      backgroundImage.style.backgroundImage = "url('/assets/price.jpg')";
       backgroundImage.style.display = "block";
       return;
     }
@@ -192,6 +193,7 @@ document.addEventListener("DOMContentLoaded", () => {
       playNextMedia();
     } else {
       offerContainer.style.display = "none";
+      backgroundImage.style.backgroundImage = "url('/assets/price.jpg')";
       backgroundImage.style.display = "block";
     }
   }
