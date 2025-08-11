@@ -23,6 +23,23 @@ document.addEventListener("DOMContentLoaded", () => {
   let weatherRetryInterval = null;
   let clockInterval = null;
 
+  const setupLayout = (layoutType = "fullscreen") => {
+    playerWrapper.innerHTML = "";
+    playerWrapper.className = `player-wrapper layout-${layoutType}`;
+
+    const mainZone = document.createElement("div");
+    mainZone.id = "zone-main";
+    mainZone.className = "player-zone";
+    playerWrapper.appendChild(mainZone);
+
+    if (layoutType.startsWith("split-80-20")) {
+      const secondaryZone = document.createElement("div");
+      secondaryZone.id = "zone-secondary";
+      secondaryZone.className = "player-zone";
+      playerWrapper.appendChild(secondaryZone);
+    }
+  };
+
   const showWaitingScreen = (
     title = "Aguardando Campanha",
     subtitle = "O player está online e pronto para receber conteúdo.",
@@ -52,69 +69,81 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
   };
 
-  const setupLayout = (layoutType = "fullscreen") => {
-    playerWrapper.innerHTML = "";
-    playerWrapper.className = `player-wrapper layout-${layoutType}`;
-
-    const mainZone = document.createElement("div");
-    mainZone.id = "zone-main";
-    mainZone.className = "player-zone";
-
-    const secondaryZone = document.createElement("div");
-    secondaryZone.id = "zone-secondary";
-    secondaryZone.className = "player-zone";
-
-    if (layoutType.startsWith("split-80-20")) {
-      playerWrapper.appendChild(mainZone);
-      playerWrapper.appendChild(secondaryZone);
-    } else {
-      playerWrapper.appendChild(mainZone);
-    }
-  };
-
   const displayMediaInZone = (zone) => {
     if (mediaTimers[zone]) clearTimeout(mediaTimers[zone]);
+
     const zoneContainer = document.getElementById(`zone-${zone}`);
     if (!zoneContainer) return;
 
-    zoneContainer.innerHTML = "";
-
     const playlist = playlists[zone];
     if (!playlist || playlist.length === 0) {
+      zoneContainer.innerHTML = "";
       zoneContainer.style.backgroundColor = "#000";
       return;
     }
 
     currentIndices[zone] = (currentIndices[zone] + 1) % playlist.length;
-    const campaign = playlist[currentIndices[zone]];
+    const mediaItem = playlist[currentIndices[zone]];
 
-    if (!campaign || !campaign.file_path) {
+    if (!mediaItem || !mediaItem.file_path) {
       playNextInZone(zone);
       return;
     }
 
-    const url = campaign.file_path;
-    const isImage = campaign.file_type.startsWith("image/");
-    const isVideo = campaign.file_type.startsWith("video/");
+    const isImage = mediaItem.file_type.startsWith("image/");
+    const isVideo = mediaItem.file_type.startsWith("video/");
+    let newElement;
 
     if (isImage) {
-      const img = document.createElement("img");
-      img.src = url;
-      img.onerror = () => playNextInZone(zone);
-      zoneContainer.appendChild(img);
-      const duration = (campaign.duration || 10) * 1000;
-      mediaTimers[zone] = setTimeout(() => playNextInZone(zone), duration);
+      newElement = document.createElement("img");
     } else if (isVideo) {
-      const video = document.createElement("video");
-      video.src = url;
-      video.autoplay = true;
-      video.muted = true;
-      video.playsInline = true;
-      video.onended = () => playNextInZone(zone);
-      video.onerror = () => playNextInZone(zone);
-      zoneContainer.appendChild(video);
+      newElement = document.createElement("video");
+      newElement.autoplay = true;
+      newElement.muted = true;
+      newElement.playsInline = true;
     } else {
       playNextInZone(zone);
+      return;
+    }
+
+    newElement.src = mediaItem.file_path;
+    newElement.className = "media-element";
+
+    const oldElement = zoneContainer.querySelector(".media-element.active");
+    if (oldElement) {
+      oldElement.addEventListener(
+        "transitionend",
+        () => {
+          oldElement.remove();
+        },
+        { once: true }
+      );
+      oldElement.classList.remove("active");
+    }
+
+    zoneContainer.appendChild(newElement);
+
+    const setupNext = () => playNextInZone(zone);
+
+    const onMediaReady = () => {
+      requestAnimationFrame(() => {
+        newElement.classList.add("active");
+      });
+    };
+
+    if (isImage) {
+      newElement.onerror = setupNext;
+      const duration = (mediaItem.duration || 10) * 1000;
+      mediaTimers[zone] = setTimeout(setupNext, duration);
+      if (newElement.complete) {
+        onMediaReady();
+      } else {
+        newElement.onload = onMediaReady;
+      }
+    } else if (isVideo) {
+      newElement.onloadeddata = onMediaReady;
+      newElement.onended = setupNext;
+      newElement.onerror = setupNext;
     }
   };
 
