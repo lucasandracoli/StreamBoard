@@ -25,25 +25,32 @@ document.addEventListener("DOMContentLoaded", () => {
   const footer = document.querySelector(".price-check-footer");
 
   let priceViewTimeout;
+  let isDisplayingPrice = false;
   let playlists = { main: [], secondary: [] };
   let currentIndices = { main: -1, secondary: -1 };
   let mediaTimers = { main: null, secondary: null };
   let playlistInterval = null;
   let weatherRetryInterval = null;
   let clockInterval = null;
-
   let messageCardEl = null;
   let selectedVoice = null;
 
   const initVoices = () => {
-    const voices = speechSynthesis.getVoices();
-    selectedVoice =
-      voices.find((v) => v.name === "Google português do Brasil") ||
-      voices.find(
-        (v) => v.lang === "pt-BR" && v.name.toLowerCase().includes("brasil")
-      ) ||
-      voices.find((v) => v.lang === "pt-BR");
+    try {
+      if ("speechSynthesis" in window) {
+        const voices = speechSynthesis.getVoices();
+        selectedVoice =
+          voices.find((v) => v.name === "Google português do Brasil") ||
+          voices.find(
+            (v) => v.lang === "pt-BR" && v.name.toLowerCase().includes("brasil")
+          ) ||
+          voices.find((v) => v.lang === "pt-BR");
+      }
+    } catch (e) {
+      console.error("Erro ao inicializar vozes: ", e);
+    }
   };
+
   initVoices();
   if ("speechSynthesis" in window) {
     window.speechSynthesis.onvoiceschanged = initVoices;
@@ -53,12 +60,10 @@ document.addEventListener("DOMContentLoaded", () => {
     viewWrapper.innerHTML = "";
     viewWrapper.className = `player-wrapper layout-${layoutType}`;
     footer.style.display = "flex";
-
     const mainZone = document.createElement("div");
     mainZone.id = "zone-main";
     mainZone.className = "player-zone";
     viewWrapper.appendChild(mainZone);
-
     if (layoutType.startsWith("split-80-20")) {
       const secondaryZone = document.createElement("div");
       secondaryZone.id = "zone-secondary";
@@ -68,6 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const showIdleWithBackground = () => {
+    isDisplayingPrice = false;
     Object.values(mediaTimers).forEach(clearTimeout);
     viewWrapper.innerHTML = `<div id="idle-screen" style="width: 100%; height: 100%;"><div class="background-image"></div></div>`;
     viewWrapper.className = "player-wrapper-centered";
@@ -77,16 +83,11 @@ document.addEventListener("DOMContentLoaded", () => {
     footer.style.display = "flex";
   };
 
-  const showMessageScreen = (
-    title = "Aguardando",
-    subtitle = "O terminal está pronto.",
-    state = "info"
-  ) => {
+  const showMessageScreen = (title, subtitle, state = "info") => {
     Object.values(mediaTimers).forEach(clearTimeout);
     viewWrapper.innerHTML = "";
     viewWrapper.className = "player-wrapper-centered";
     if (messageCardEl) messageCardEl.remove();
-
     const icons = {
       info: "bi-clock-history",
       reconnecting: "bi-wifi-off",
@@ -95,7 +96,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const iconClass = icons[state] || "bi-info-circle-fill";
     const spinner =
       state === "reconnecting" ? '<div class="spinner"></div>' : "";
-
     const messageHtml = `<div class="player-message-card ${state}"><i class="icon bi ${iconClass}"></i><div class="message-content"><p class="message-title">${title}</p><p class="message-subtitle">${subtitle}</p></div>${spinner}</div>`;
     viewWrapper.innerHTML = messageHtml;
     messageCardEl = viewWrapper.querySelector(".player-message-card");
@@ -104,29 +104,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const displayMediaInZone = (zone) => {
     if (mediaTimers[zone]) clearTimeout(mediaTimers[zone]);
-
     const zoneContainer = document.getElementById(`zone-${zone}`);
     if (!zoneContainer) return;
-
     const playlist = playlists[zone];
     if (!playlist || playlist.length === 0) {
       zoneContainer.innerHTML = "";
       zoneContainer.style.backgroundColor = "#000";
       return;
     }
-
     currentIndices[zone] = (currentIndices[zone] + 1) % playlist.length;
     const mediaItem = playlist[currentIndices[zone]];
-
     if (!mediaItem || !mediaItem.file_path) {
       playNextInZone(zone);
       return;
     }
-
     const isImage = mediaItem.file_type.startsWith("image/");
     const isVideo = mediaItem.file_type.startsWith("video/");
     let newElement;
-
     if (isImage) {
       newElement = document.createElement("img");
     } else if (isVideo) {
@@ -138,10 +132,8 @@ document.addEventListener("DOMContentLoaded", () => {
       playNextInZone(zone);
       return;
     }
-
     newElement.src = mediaItem.file_path;
     newElement.className = "media-element";
-
     const oldElement = zoneContainer.querySelector(".media-element.active");
     if (oldElement) {
       oldElement.addEventListener("transitionend", () => oldElement.remove(), {
@@ -149,14 +141,11 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       oldElement.classList.remove("active");
     }
-
     zoneContainer.appendChild(newElement);
     const setupNext = () => playNextInZone(zone);
-
     const onMediaReady = () => {
       requestAnimationFrame(() => newElement.classList.add("active"));
     };
-
     if (isImage) {
       newElement.onerror = setupNext;
       const duration = (mediaItem.duration || 10) * 1000;
@@ -185,19 +174,18 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const startPlayback = (data) => {
+    if (isDisplayingPrice) return;
     if (clockInterval) clearInterval(clockInterval);
     Object.values(mediaTimers).forEach(clearTimeout);
     if (weatherRetryInterval) {
       clearInterval(weatherRetryInterval);
       weatherRetryInterval = null;
     }
-
     if (!data || !data.uploads || data.uploads.length === 0) {
       playlists = { main: [], secondary: [] };
       showIdleWithBackground();
       return;
     }
-
     setupLayout(data.layout_type);
     playlists.main = (data.uploads || []).filter(
       (u) => u.zone === "main" || !u.zone
@@ -206,14 +194,12 @@ document.addEventListener("DOMContentLoaded", () => {
       (u) => u.zone === "secondary"
     );
     currentIndices = { main: -1, secondary: -1 };
-
     if (data.layout_type === "split-80-20-weather") {
       fetchWeather();
       weatherRetryInterval = setInterval(fetchWeather, 300000);
     } else if (playlists.secondary.length > 0) {
       playNextInZone("secondary");
     }
-
     if (playlists.main.length > 0) {
       playNextInZone("main");
     }
@@ -287,7 +273,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const renderWeather = (weatherData, city) => {
     const weatherContainer = document.getElementById("zone-secondary");
     if (!weatherContainer) return;
-
     let weatherContentHtml;
     if (weatherData) {
       if (weatherRetryInterval) {
@@ -327,10 +312,12 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const returnToIdleState = () => {
+    isDisplayingPrice = false;
     fetchAndResetPlaylist();
   };
 
   const showPriceCard = () => {
+    isDisplayingPrice = true;
     Object.values(mediaTimers).forEach(clearTimeout);
     viewWrapper.innerHTML = "";
     viewWrapper.className = "player-wrapper-centered";
@@ -341,7 +328,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const fetchProduct = async (barcode) => {
     const res = await fetch(`/api/product/${barcode}`);
-    if (!res.ok) throw new Error();
+    if (!res.ok) throw new Error("Produto não encontrado");
     return res.json();
   };
 
@@ -353,21 +340,30 @@ document.addEventListener("DOMContentLoaded", () => {
   productSvg.parentNode.insertBefore(productImage, productSvg);
 
   const speakPrice = (price, onComplete) => {
-    if (!("speechSynthesis" in window)) {
+    try {
+      if (
+        !("speechSynthesis" in window) ||
+        !speechSynthesis.getVoices().length
+      ) {
+        if (onComplete) onComplete();
+        return;
+      }
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(`O preço é R$ ${price}`);
+      u.lang = "pt-BR";
+      if (selectedVoice) u.voice = selectedVoice;
+      u.pitch = 1.0;
+      u.rate = 1.3;
+      u.onend = onComplete;
+      speechSynthesis.speak(u);
+    } catch (error) {
+      console.error("Erro na síntese de voz:", error);
       if (onComplete) onComplete();
-      return;
     }
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(`O preço é R$ ${price}`);
-    u.lang = "pt-BR";
-    if (selectedVoice) u.voice = selectedVoice;
-    u.pitch = 1.0;
-    u.rate = 1.3;
-    u.onend = onComplete;
-    speechSynthesis.speak(u);
   };
 
   async function displayProduct(barcode) {
+    if (isDisplayingPrice) return;
     showPriceCard();
     loader.style.display = "flex";
     priceContent.style.display = "none";
@@ -389,7 +385,7 @@ document.addEventListener("DOMContentLoaded", () => {
       priceContent.style.display = "flex";
       setTimeout(() => {
         speakPrice(pv2.toString().replace(".", ","), () => {
-          priceViewTimeout = setTimeout(returnToIdleState, 1000);
+          priceViewTimeout = setTimeout(returnToIdleState, 4000);
         });
       }, 500);
     } catch (e) {
@@ -397,22 +393,38 @@ document.addEventListener("DOMContentLoaded", () => {
       priceCheckCard.style.display = "none";
       showMessageScreen("Produto não encontrado", "", "error");
       speakPrice("Produto não encontrado", () => {
-        priceViewTimeout = setTimeout(returnToIdleState, 1000);
+        priceViewTimeout = setTimeout(returnToIdleState, 4000);
       });
     }
   }
 
-  let buf = "";
-  let bufTimeout = null;
-  document.addEventListener("keydown", (e) => {
-    clearTimeout(bufTimeout);
-    if (e.key === "Enter") {
-      if (buf.length > 3) displayProduct(buf);
-      buf = "";
-    } else if (e.key.length === 1 && /^[0-9]$/.test(e.key)) {
-      buf += e.key;
+  const processBarcode = (barcode) => {
+    if (barcode && barcode.length > 3) {
+      displayProduct(barcode);
     }
-    bufTimeout = setTimeout(() => (buf = ""), 200);
+  };
+
+  window.onBarcodeScan = processBarcode;
+
+  let barcodeBuffer = "";
+  let barcodeTimeout = null;
+  document.addEventListener("keydown", (e) => {
+    if (isDisplayingPrice) return;
+    if (e.key === "Enter") {
+      processBarcode(barcodeBuffer);
+      barcodeBuffer = "";
+      return;
+    }
+    if (e.key.length === 1 && /^[0-9]$/.test(e.key)) {
+      barcodeBuffer += e.key;
+    }
+    clearTimeout(barcodeTimeout);
+    barcodeTimeout = setTimeout(() => {
+      if (barcodeBuffer.length > 3) {
+        processBarcode(barcodeBuffer);
+      }
+      barcodeBuffer = "";
+    }, 100);
   });
 
   const connector = new DeviceConnector({
@@ -462,11 +474,13 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     },
     onReconnecting: () => {
-      showMessageScreen(
-        "Conexão Perdida",
-        "Tentando reconectar...",
-        "reconnecting"
-      );
+      if (!isDisplayingPrice) {
+        showMessageScreen(
+          "Conexão Perdida",
+          "Tentando reconectar...",
+          "reconnecting"
+        );
+      }
     },
     onAuthFailure: () => {
       showMessageScreen("Sessão Inválida", "Redirecionando...", "error");
@@ -476,7 +490,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   connector.connect();
   if (playlistInterval) clearInterval(playlistInterval);
-  playlistInterval = setInterval(fetchAndResetPlaylist, 60 * 1000);
+  playlistInterval = setInterval(fetchAndResetPlaylist, 60 * 60 * 1000);
 
   fetchAndResetPlaylist();
 });
