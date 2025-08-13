@@ -7,15 +7,25 @@ const {
   deviceAuth,
 } = require("../middlewares/auth.middleware");
 
-const renderPairPage = (req, res) => {
+const renderPairPage = async (req, res) => {
   const { error } = req.query;
-
-  if (req.cookies.refresh_token) {
-    return res.redirect("/player");
-  }
+  const refreshToken = req.cookies.refresh_token;
 
   if (req.session.userId) {
     return res.redirect("/dashboard");
+  }
+
+  if (refreshToken) {
+    const payload = tokenService.verifyToken(refreshToken);
+    if (payload && payload.id) {
+      const deviceResult = await db.query(
+        "SELECT id FROM devices WHERE id = $1 AND is_active = TRUE",
+        [payload.id]
+      );
+      if (deviceResult.rows.length > 0) {
+        return res.redirect("/player");
+      }
+    }
   }
 
   res.clearCookie("access_token");
@@ -51,10 +61,12 @@ const handleOtpPairing = async (req, res) => {
       payload: { deviceId: device.id, deviceName: device.name },
     });
 
-    const redirectUrl =
-      device.device_type === "terminal_consulta"
-        ? "/price?paired=true"
-        : "/player?paired=true";
+    let redirectUrl = "/player?paired=true";
+    if (device.device_type === "terminal_consulta") {
+      redirectUrl = "/price?paired=true";
+    } else if (device.device_type === "digital_menu") {
+      redirectUrl = "/menu?paired=true";
+    }
     return res.redirect(redirectUrl);
   } catch (err) {
     res.render("pair", { error: err.message });
@@ -89,10 +101,12 @@ const handleMagicLinkPairing = async (req, res) => {
       payload: { deviceId: device.id, deviceName: device.name },
     });
 
-    const redirectUrl =
-      device.device_type === "terminal_consulta"
-        ? "/price?paired=true"
-        : "/player?paired=true";
+    let redirectUrl = "/player?paired=true";
+    if (device.device_type === "terminal_consulta") {
+      redirectUrl = "/price?paired=true";
+    } else if (device.device_type === "digital_menu") {
+      redirectUrl = "/menu?paired=true";
+    }
     return res.redirect(redirectUrl);
   } catch (err) {
     res.render("pair", { error: err.message });
@@ -102,6 +116,9 @@ const handleMagicLinkPairing = async (req, res) => {
 const renderPlayerPage = async (req, res) => {
   if (req.device.device_type === "terminal_consulta") {
     return res.redirect("/price");
+  }
+  if (req.device.device_type === "digital_menu") {
+    return res.redirect("/menu");
   }
   res.render("player", { deviceName: req.device.name });
 };
@@ -137,10 +154,18 @@ const renderPricePage = async (req, res) => {
   }
 };
 
+const renderMenuPage = async (req, res) => {
+  if (req.device.device_type !== "digital_menu") {
+    return res.redirect("/player");
+  }
+  res.render("menu", { deviceName: req.device.name });
+};
+
 module.exports = {
   renderPairPage,
   handleOtpPairing,
   handleMagicLinkPairing,
   renderPlayerPage,
   renderPricePage,
+  renderMenuPage,
 };

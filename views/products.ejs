@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Produtos - <%= companyName %></title>
+    <link rel="stylesheet" href="/css/styles.css?v=<%= appVersion %>" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body id="products-page" class="dashboard">
+    <%- include("partials/navbar") %>
+
+    <main class="container">
+      <div class="device-header">
+        <a href="/products" class="back-button">
+            <i class="bi bi-arrow-left"></i>
+            <span>Voltar</span>
+        </a>
+        <div class="page-actions-group">
+            <button class="device-button device-button-secondary" id="openAddProductModalBtn">
+                <i class="bi bi-plus-lg"></i>
+                <span>Adicionar</span>
+            </button>
+             <button class="device-button" id="syncCompanyProductsBtn" data-company-id="<%= companyId %>" <%- products.length === 0 ? 'disabled' : '' %>>
+                <i class="bi bi-arrow-clockwise"></i>
+                <span>Sincronizar Preços</span>
+            </button>
+        </div>
+      </div>
+
+      <div class="device-table-wrapper">
+        <table class="device-table products-table">
+          <thead>
+            <tr>
+              <th class="col-product-name">Produto</th>
+              <th class="col-price">Preço</th>
+              <th class="col-category">Categoria</th>
+              <th class="col-last-updated">Atualização</th>
+              <th class="col-actions">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (products.length === 0) { %>
+            <tr id="no-products-row">
+              <td colspan="5" style="text-align: center">
+                Nenhum produto encontrado.
+              </td>
+            </tr>
+            <% } else { %> <% products.forEach(product => { %>
+            <tr data-product-id="<%= product.id %>">
+              <td data-label="Produto"><%- product.product_name %></td>
+              <td data-label="Preço" class="price-cell">
+                <%= Number(product.price).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) %>
+              </td>
+              <td data-label="Categoria"><%= product.section_name %></td>
+              <td data-label="Atualização">
+                <%= new Date(product.last_updated).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short'}) %>
+              </td>
+              <td class="actions-cell">
+                <button
+                  class="action-icon-excluir"
+                  data-id="<%= product.id %>"
+                  title="Excluir Produto"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M6 6L18 18M6 18L18 6"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              </td>
+            </tr>
+            <% }) %> <% } %>
+          </tbody>
+        </table>
+      </div>
+
+      <% if (totalPages > 1) { %>
+      <nav class="pagination-container">
+        <ul class="pagination">
+          <li class="page-item <%= currentPage === 1 ? 'disabled' : '' %>">
+            <a class="page-link" href="/products/<%= companyId %>?page=<%= currentPage - 1 %>">Anterior</a>
+          </li>
+          <% for(let i = 1; i <= totalPages; i++) { %>
+            <li class="page-item <%= i === currentPage ? 'active' : '' %>">
+              <a class="page-link" href="/products/<%= companyId %>?page=<%= i %>"><%= i %></a>
+            </li>
+          <% } %>
+          <li class="page-item <%= currentPage === totalPages ? 'disabled' : '' %>">
+            <a class="page-link" href="/products/<%= companyId %>?page=<%= currentPage + 1 %>">Próximo</a>
+          </li>
+        </ul>
+      </nav>
+      <% } %>
+    </main>
+
+    <div id="addProductModal" class="modal-overlay">
+        <div class="modal-card modal-product">
+            <div class="modal-header centered">
+                <h2 class="modal-title">Adicionar / Importar Produtos</h2>
+            </div>
+            <div class="modal-form-tabs">
+                <button class="tab-button active" data-tab="single">Adicionar por Código</button>
+                <button class="tab-button" data-tab="upload">Importar Planilha</button>
+            </div>
+
+            <div class="tab-content active" id="single-tab-content">
+                <form id="addSingleProductForm" class="modal-form">
+                    <div class="form-group">
+                        <label for="productCode" class="form-label">Código Interno do Sysmo</label>
+                        <input id="productCode" type="text" name="productCode" required class="modal-input" placeholder="">
+                    </div>
+                    <div id="product-preview-container"></div>
+                    <div class="modal-actions">
+                        <button type="button" class="device-button device-button-cancel" id="cancelAddProductModal">Cancelar</button>
+                        <button type="submit" class="device-button" id="addSingleProductBtn">Buscar Produto</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="tab-content" id="upload-tab-content">
+                <form id="uploadProductsForm" class="modal-form">
+                    <div class="file-upload-area">
+                        <input type="file" id="productsSheet" name="productsSheet" accept=".xlsx" hidden>
+                        <label for="productsSheet" class="file-upload-label">
+                            <i class="bi bi-cloud-arrow-up"></i>
+                            <span class="file-upload-title">Arraste e solte o arquivo aqui</span>
+                            <span class="file-upload-or">ou</span>
+                            <span class="file-upload-browse">Procure no seu computador</span>
+                        </label>
+                        <div class="file-upload-selection">
+                            <i class="bi bi-file-earmark-spreadsheet"></i>
+                            <span class="file-name"></span>
+                            <button type="button" class="file-remove-btn">&times;</button>
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                         <a href="/products/template" class="device-button device-button-secondary" style="margin-right: auto;">
+                            <i class="bi bi-cloud-download"></i>
+                            <span>Baixar Modelo</span>
+                        </a>
+                        <button type="button" class="device-button device-button-cancel" id="cancelUploadModal">Cancelar</button>
+                        <button type="submit" class="device-button" disabled>Enviar Planilha</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="confirmationModal" class="confirmation-modal-overlay">
+      <div class="confirmation-modal">
+        <div class="confirmation-modal-header"><h3>Confirmar Exclusão</h3></div>
+        <div class="confirmation-modal-body">
+          <p>Deseja realmente excluir este produto?</p>
+        </div>
+        <div class="confirmation-modal-actions">
+          <button id="cancelConfirmation" class="confirmation-modal-cancel">
+            Cancelar
+          </button>
+          <button id="confirmDeletion" class="confirmation-modal-confirm">
+            Excluir
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <%- include("partials/footer") %>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
+    <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>
+  </body>
+</html>

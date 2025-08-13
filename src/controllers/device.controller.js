@@ -7,6 +7,7 @@ const { DateTime } = require("luxon");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const weatherService = require("../services/weather.service");
+const butcherService = require("../services/butcher.service");
 
 const listDevicesPage = async (req, res) => {
   try {
@@ -211,55 +212,85 @@ const getDeviceDetails = async (req, res) => {
 };
 
 const getDevicePlaylist = async (req, res) => {
-  try {
-    if (!req.device || !req.device.id) {
-      return res.status(401).json({ message: "Dispositivo não autenticado." });
-    }
-    const { id, company_id, sector_id } = req.device;
-    const playlistData = await deviceService.getDevicePlaylist(
-      id,
-      company_id,
-      sector_id
-    );
+    try {
+        if (!req.device || !req.device.id) {
+            return res.status(401).json({ message: "Dispositivo não autenticado." });
+        }
+        const { id, company_id, sector_id, device_type } = req.device;
 
-    const etag = crypto
-      .createHash("sha1")
-      .update(JSON.stringify(playlistData))
-      .digest("hex");
-    res.setHeader("ETag", etag);
-
-    if (req.headers["if-none-match"] === etag) {
-      return res.status(304).end();
-    }
-
-    if (playlistData && playlistData.layout_type === "split-80-20-weather") {
-      try {
-        const weather = await weatherService.getWeather(
-          playlistData.city,
-          playlistData.state,
-          playlistData.cep
+        const standardPlaylistData = await deviceService.getDevicePlaylist(
+            id,
+            company_id,
+            sector_id
         );
-        playlistData.weather = weather;
-      } catch (weatherError) {
-        logger.error(
-          "Falha ao buscar dados de clima, continuando sem eles.",
-          weatherError
-        );
-        playlistData.weather = null;
-      }
-    }
 
-    res.setHeader(
-      "Cache-Control",
-      "no-store, no-cache, must-revalidate, private"
-    );
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
-    res.json(playlistData);
-  } catch (err) {
-    logger.error("Erro ao buscar playlist do dispositivo.", err);
-    res.status(500).json({ message: "Erro ao buscar playlist." });
-  }
+        if (device_type === 'digital_menu') {
+            const butcherProductsGroups = await butcherService.getButcherProducts(company_id);
+            const primaryMedia = standardPlaylistData?.uploads?.filter(u => u.zone === 'main' || !u.zone) || [];
+            const secondaryMedia = standardPlaylistData?.uploads?.find(u => u.zone === 'secondary');
+
+            let interleavedPlaylist = [];
+            let mediaIndex = 0;
+
+            butcherProductsGroups.forEach(group => {
+                interleavedPlaylist.push(group);
+                if (primaryMedia.length > 0) {
+                    interleavedPlaylist.push({ type: 'media', ...primaryMedia[mediaIndex] });
+                    mediaIndex = (mediaIndex + 1) % primaryMedia.length;
+                }
+            });
+            
+            if(interleavedPlaylist.length === 0) {
+                interleavedPlaylist = primaryMedia.map(m => ({type: 'media', ...m}));
+            }
+
+            const playlistData = {
+                layout_type: standardPlaylistData?.layout_type || 'fullscreen',
+                playlist: interleavedPlaylist,
+                secondary_media: secondaryMedia || null
+            };
+            return res.json(playlistData);
+        }
+        
+        const playlistData = standardPlaylistData;
+        const etag = crypto
+            .createHash("sha1")
+            .update(JSON.stringify(playlistData))
+            .digest("hex");
+        res.setHeader("ETag", etag);
+
+        if (req.headers["if-none-match"] === etag) {
+            return res.status(304).end();
+        }
+
+        if (playlistData && playlistData.layout_type === "split-80-20-weather") {
+            try {
+                const weather = await weatherService.getWeather(
+                    playlistData.city,
+                    playlistData.state,
+                    playlistData.cep
+                );
+                playlistData.weather = weather;
+            } catch (weatherError) {
+                logger.error(
+                    "Falha ao buscar dados de clima, continuando sem eles.",
+                    weatherError
+                );
+                playlistData.weather = null;
+            }
+        }
+
+        res.setHeader(
+            "Cache-Control",
+            "no-store, no-cache, must-revalidate, private"
+        );
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+        res.json(playlistData);
+    } catch (err) {
+        logger.error("Erro ao buscar playlist do dispositivo.", err);
+        res.status(500).json({ message: "Erro ao buscar playlist." });
+    }
 };
 
 const getDeviceWeather = async (req, res) => {

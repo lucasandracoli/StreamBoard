@@ -8,6 +8,7 @@ const cookieParser = require("cookie-parser");
 const path = require("path");
 const mainRouter = require("./src/routes");
 const webSocketManager = require("./src/websocket/manager");
+const productSyncService = require("./src/services/productSync.service");
 
 const logger = {
   info: (message) => {
@@ -63,6 +64,16 @@ app.use(bodyParser.json());
 
 app.use("/", mainRouter);
 
+const ONE_HOUR_IN_MS = 60 * 60 * 1000;
+
+const startProductSyncScheduler = () => {
+  productSyncService.syncAllProducts(); 
+  setInterval(() => {
+    productSyncService.syncAllProducts();
+  }, ONE_HOUR_IN_MS);
+};
+
 server.listen(PORT, () => {
   logger.info(`🔥 Server Running in http://127.0.0.1:${PORT}`);
+  startProductSyncScheduler();
 });

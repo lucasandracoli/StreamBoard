@@ -9,5 +9,6 @@ router.get("/pair/magic", playerController.handleMagicLinkPairing);
 
 router.get("/player", deviceAuth, playerController.renderPlayerPage);
 router.get("/price", deviceAuth, playerController.renderPricePage);
+router.get("/menu", deviceAuth, playerController.renderMenuPage);
 
 module.exports = router;

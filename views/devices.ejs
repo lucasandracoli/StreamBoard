@@ -1,5 +1,8 @@
-<% const deviceIcons = { 'midia_indoor': 'bi-tv', 'terminal_consulta': 'bi-upc-scan', default: 'bi-question-circle' }; %>
-<% const deviceTypeMap = { 'midia_indoor': 'Mídia Indoor', 'terminal_consulta': 'Terminal de Consulta', 'default': 'Tipo Desconhecido' }; %>
+<% const deviceIcons = { 'midia_indoor': 'bi-tv', 'terminal_consulta':
+'bi-upc-scan', 'digital_menu': 'bi-card-list', default: 'bi-question-circle' };
+%> <% const deviceTypeMap = { 'midia_indoor': 'Mídia Indoor',
+'terminal_consulta': 'Terminal de Consulta', 'digital_menu': 'Menu Digital',
+'default': 'Tipo Desconhecido' }; %>
 
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -255,6 +258,7 @@
             >
               <option value="midia_indoor" selected>Mídia Indoor</option>
               <option value="terminal_consulta">Terminal de Consulta</option>
+              <option value="digital_menu">Menu Digital</option>
             </select>
           </div>
           <div class="modal-actions">

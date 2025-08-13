@@ -6,6 +6,8 @@ import { setupDetailsModal } from "./admin/detailsModal.js";
 import { setupConfirmationModal } from "./admin/confirmationModal.js";
 import { setupGlobalListeners } from "./admin/globalListeners.js";
 import { connectAdminWs } from "./admin/adminWs.js";
+import { setupProductModal } from "./admin/productModal.js";
+import { setupProductWs } from "./admin/productWs.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   setupLoginForm();
@@ -16,4 +18,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setupConfirmationModal();
   setupGlobalListeners(detailsModalHandler);
   connectAdminWs(detailsModalHandler);
+  setupProductModal();
+  setupProductWs();
 });

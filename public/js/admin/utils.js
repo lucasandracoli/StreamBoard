@@ -7,6 +7,7 @@ export const notyf = new Notyf({
 export const deviceTypeNames = {
   midia_indoor: "Mídia Indoor",
   terminal_consulta: "Terminal de Consulta",
+  digital_menu: "Menu Digital",
   default: "Tipo Desconhecido",
 };
 

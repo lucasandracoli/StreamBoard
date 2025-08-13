@@ -189,6 +189,17 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
   };
 };
 
+const getActiveDigitalMenuDevicesByCompany = async (companyId) => {
+  const query = `
+        SELECT id FROM devices
+        WHERE company_id = $1
+        AND is_active = TRUE
+        AND device_type = 'digital_menu'
+    `;
+  const result = await db.query(query, [companyId]);
+  return result.rows.map((row) => row.id);
+};
+
 module.exports = {
   getFullDeviceList,
   getDeviceById,
@@ -201,4 +212,5 @@ module.exports = {
   reactivateDevice,
   getDeviceDetails,
   getDevicePlaylist,
+  getActiveDigitalMenuDevicesByCompany,
 };

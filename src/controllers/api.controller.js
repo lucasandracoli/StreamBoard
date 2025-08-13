@@ -22,14 +22,6 @@ const getProduct = async (req, res) => {
   }
 };
 
-const addSector = async (req, res) => {
-  res.status(501).json({ message: "Not implemented. See company routes." });
-};
-
-const deleteSector = async (req, res) => {
-  res.status(501).json({ message: "Not implemented. See company routes." });
-};
-
 module.exports = {
   getProduct,
 };

@@ -22,6 +22,11 @@
       class="navbar-link <%= currentRoute === '/campaigns' ? 'active' : '' %>"
       >Campanhas</a
     >
+    <a
+      href="/products"
+      class="navbar-link <%= currentRoute === '/products' ? 'active' : '' %>"
+      >Produtos</a
+    >
   </div>
 
   <div class="navbar-user">
@@ -51,7 +56,7 @@
 />
 <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
 
-<script>  
+<script>
   if (
     window.location.pathname === "/login" &&
     window.location.search.includes("logout=true")

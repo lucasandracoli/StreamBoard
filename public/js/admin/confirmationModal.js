@@ -15,22 +15,21 @@ export function setupConfirmationModal() {
         config = {
           url: `/campaigns/${id}/delete`,
           msg: "Deseja realmente excluir esta campanha?",
-          success: "Campanha excluída.",
-          rowSelector: `tr[data-campaign-id="${id}"]`,
         };
       } else if (pageId === "devices-page") {
         config = {
           url: `/devices/${id}/delete`,
           msg: "Deseja realmente excluir este dispositivo?",
-          success: "Dispositivo excluído.",
-          rowSelector: `tr[data-device-id="${id}"]`,
         };
       } else if (pageId === "companies-page") {
         config = {
           url: `/companies/${id}/delete`,
           msg: "Excluir esta empresa removerá todos os dados associados. Confirma?",
-          success: "Empresa excluída.",
-          rowSelector: `tr[data-company-id="${id}"]`,
+        };
+      } else if (pageId === "products-page") {
+        config = {
+          url: `/products/${id}/delete`,
+          msg: "Deseja realmente excluir este produto da lista local?",
         };
       } else return;
 
@@ -48,16 +47,9 @@ export function setupConfirmationModal() {
         async () => {
           try {
             const res = await fetch(config.url, { method: "POST" });
-            if (!res.ok)
-              throw new Error(
-                (await res.json()).message || `Erro ${res.status}`
-              );
-            notyf.success(config.success);
-            const row = document.querySelector(config.rowSelector);
-            if (row) {
-              row.remove();
-            } else {
-              setTimeout(() => location.reload(), 1200);
+            if (!res.ok) {
+              const error = await res.json();
+              throw new Error(error.message || `Erro ${res.status}`);
             }
           } catch (err) {
             notyf.error(err.message || "Falha na comunicação.");
