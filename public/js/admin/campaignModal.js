@@ -628,8 +628,22 @@ export function setupCampaignModal() {
   elements.form.addEventListener("submit", async function (e) {
     e.preventDefault();
 
+    const selectedLayout = document.querySelector(
+      'input[name="layout_type"]:checked'
+    ).value;
+
     if (stagedFiles.main.length === 0) {
       notyf.error("A zona Principal deve conter pelo menos uma mídia.");
+      return;
+    }
+
+    if (
+      selectedLayout === "split-80-20" &&
+      stagedFiles.secondary.length === 0
+    ) {
+      notyf.error(
+        "Para o layout 80/20, a zona Secundária também deve conter ao menos uma mídia."
+      );
       return;
     }
 

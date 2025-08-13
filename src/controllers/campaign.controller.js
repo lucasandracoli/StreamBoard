@@ -100,10 +100,20 @@ const createCampaign = async (req, res) => {
 
   const mediaMetadata = media_metadata ? JSON.parse(media_metadata) : [];
   const hasMainMedia = mediaMetadata.some((item) => item.zone === "main");
+  const hasSecondaryMedia = mediaMetadata.some(
+    (item) => item.zone === "secondary"
+  );
 
   if (!hasMainMedia) {
     return res.status(400).json({
       message: "A campanha deve conter ao menos uma mídia na zona Principal.",
+    });
+  }
+
+  if (layout_type === "split-80-20" && !hasSecondaryMedia) {
+    return res.status(400).json({
+      message:
+        "Para o layout 80/20, a zona Secundária também deve conter ao menos uma mídia.",
     });
   }
 
@@ -241,10 +251,20 @@ const editCampaign = async (req, res) => {
       ? JSON.parse(req.body.media_metadata)
       : [];
     const hasMainMedia = mediaMetadata.some((item) => item.zone === "main");
+    const hasSecondaryMedia = mediaMetadata.some(
+      (item) => item.zone === "secondary"
+    );
 
     if (!hasMainMedia) {
       return res.status(400).json({
         message: "A campanha deve conter ao menos uma mídia na zona Principal.",
+      });
+    }
+
+    if (layout_type === "split-80-20" && !hasSecondaryMedia) {
+      return res.status(400).json({
+        message:
+          "Para o layout 80/20, a zona Secundária também deve conter ao menos uma mídia.",
       });
     }
   }

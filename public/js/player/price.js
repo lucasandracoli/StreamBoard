@@ -29,7 +29,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let playlists = { main: [], secondary: [] };
   let currentIndices = { main: -1, secondary: -1 };
   let mediaTimers = { main: null, secondary: null };
-  let weatherRetryInterval = null;
   let clockInterval = null;
 
   const configureFullyKioskVoice = () => {
@@ -50,6 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
     viewWrapper.innerHTML = "";
     viewWrapper.className = `player-wrapper layout-${layoutType}`;
     footer.style.display = "flex";
+
     const mainZone = document.createElement("div");
     mainZone.id = "zone-main";
     mainZone.className = "player-zone";
@@ -150,41 +150,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const playNextInZone = (zone) => displayMediaInZone(zone);
 
-  const fetchWeather = async () => {
-    try {
-      const res = await fetch("/api/device/weather");
-      if (!res.ok)
-        throw new Error("Falha ao buscar dados do clima (servidor).");
+  const startPlayback = (data) => {
+    if (isDisplayingPrice) return;
+    if (clockInterval) clearInterval(clockInterval);
+    Object.values(mediaTimers).forEach(clearTimeout);
 
-      const data = await res.json();
-      if (data && data.weather) {
-        renderWeather(data.weather, data.city);
-        return;
-      }
+    if (!data) {
+      playlists = { main: [], secondary: [] };
+      showIdleWithBackground();
+      return;
+    }
 
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            const { latitude, longitude } = position.coords;
-            const resClient = await fetch(
-              `/api/device/weather?lat=${latitude}&lon=${longitude}`
-            );
-            if (!resClient.ok)
-              throw new Error("Falha ao buscar dados do clima (cliente).");
-            const dataClient = await resClient.json();
-            renderWeather(dataClient.weather, dataClient.city);
-          },
-          (error) => {
-            console.error("Erro de geolocalização:", error);
-            renderWeather(null, null, "Permissão de localização negada.");
-          }
-        );
-      } else {
-        renderWeather(null, null, "Geolocalização não suportada.");
-      }
-    } catch (err) {
-      console.error(err.message);
-      renderWeather(null, null, "Não foi possível carregar o clima.");
+    setupLayout(data.layout_type);
+
+    playlists.main = (data.uploads || []).filter(
+      (u) => u.zone === "main" || !u.zone
+    );
+    playlists.secondary = (data.uploads || []).filter(
+      (u) => u.zone === "secondary"
+    );
+    currentIndices = { main: -1, secondary: -1 };
+
+    if (data.layout_type === "split-80-20-weather") {
+      renderWeather(data.weather, data.city);
+    } else if (playlists.secondary.length > 0) {
+      playNextInZone("secondary");
+    }
+
+    if (playlists.main.length > 0) {
+      playNextInZone("main");
+    }
+
+    const mainZone = document.getElementById("zone-main");
+    if (playlists.main.length === 0 && mainZone) {
+      mainZone.innerHTML = "";
+    }
+
+    if (
+      playlists.main.length === 0 &&
+      playlists.secondary.length === 0 &&
+      data.layout_type !== "split-80-20-weather"
+    ) {
+      showIdleWithBackground();
     }
   };
 
@@ -258,71 +265,43 @@ document.addEventListener("DOMContentLoaded", () => {
     clockInterval = setInterval(updateClock, 1000);
   };
 
-  const renderWeather = (weatherData, city, errorMessage = null) => {
-    const mainZone = document.getElementById("zone-main");
-    if (!mainZone) return;
+  const renderWeather = (weatherData, city) => {
+    const weatherContainer = document.getElementById("zone-secondary");
+    if (!weatherContainer) return;
 
     let weatherContentHtml;
+
     if (weatherData) {
       const { current, daily } = weatherData;
       const temp = Math.round(current.temperature_2m);
       const maxTemp = Math.round(daily.temperature_2m_max[0]);
       const minTemp = Math.round(daily.temperature_2m_min[0]);
       const { iconClass, colorClass } = getWeatherIcon(current.weather_code);
+
       weatherContentHtml = `
           <div class="weather-city">${city || ""}</div>
           <i class="bi ${iconClass} weather-icon ${colorClass}"></i>
           <div class="weather-temp">${temp}°C</div>
           <div class="weather-minmax">
             <i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°
-          </div>`;
+          </div>
+      `;
     } else {
-      weatherContentHtml = `<div class="weather-error">${
-        errorMessage || "Clima indisponível."
-      }</div>`;
+      weatherContentHtml = `
+          <div class="weather-error">Não foi possível carregar o clima.</div>
+      `;
     }
 
-    mainZone.innerHTML = `
+    weatherContainer.innerHTML = `
         <div class="weather-widget">
-            <div class="weather-main-content">${weatherContentHtml}</div>
+            <div class="weather-main-content">
+                ${weatherContentHtml}
+            </div>
             <div id="clock-container" class="clock-display"></div>
-        </div>`;
+        </div>
+    `;
+
     renderClock();
-  };
-
-  const startPlayback = (data) => {
-    if (isDisplayingPrice) return;
-
-    if (clockInterval) clearInterval(clockInterval);
-    Object.values(mediaTimers).forEach(clearTimeout);
-    if (weatherRetryInterval) {
-      clearInterval(weatherRetryInterval);
-      weatherRetryInterval = null;
-    }
-
-    if (!data) {
-      showIdleWithBackground();
-      return;
-    }
-
-    setupLayout(data.layout_type);
-
-    if (data.layout_type === "split-80-20-weather") {
-      fetchWeather();
-      weatherRetryInterval = setInterval(fetchWeather, 300000);
-    } else if (data.uploads && data.uploads.length > 0) {
-      playlists.main = (data.uploads || []).filter(
-        (u) => u.zone === "main" || !u.zone
-      );
-      playlists.secondary = (data.uploads || []).filter(
-        (u) => u.zone === "secondary"
-      );
-      currentIndices = { main: -1, secondary: -1 };
-      if (playlists.secondary.length > 0) playNextInZone("secondary");
-      if (playlists.main.length > 0) playNextInZone("main");
-    } else {
-      showIdleWithBackground();
-    }
   };
 
   const fetchAndResetPlaylist = async () => {
@@ -350,9 +329,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const showPriceCard = () => {
     isDisplayingPrice = true;
     Object.values(mediaTimers).forEach(clearTimeout);
-    if (weatherRetryInterval) clearInterval(weatherRetryInterval);
-    if (clockInterval) clearInterval(clockInterval);
-
     viewWrapper.innerHTML = "";
     viewWrapper.className = "player-wrapper-centered";
     viewWrapper.appendChild(priceCheckCard);
@@ -465,7 +441,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const connector = new DeviceConnector({
-    onOpen: fetchAndResetPlaylist,
+    onOpen: () => {
+      fetchAndResetPlaylist();
+    },
     onMessage: (data) => {
       switch (data.type) {
         case "PLAYLIST_UPDATE":

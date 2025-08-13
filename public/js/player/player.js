@@ -20,7 +20,6 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentIndices = { main: -1, secondary: -1 };
   let mediaTimers = { main: null, secondary: null };
   let playlistInterval = null;
-  let weatherRetryInterval = null;
   let clockInterval = null;
 
   const setupLayout = (layoutType = "fullscreen") => {
@@ -151,27 +150,9 @@ document.addEventListener("DOMContentLoaded", () => {
     displayMediaInZone(zone);
   };
 
-  const fetchWeather = async () => {
-    try {
-      const res = await fetch("/api/device/weather");
-      if (!res.ok) {
-        throw new Error("Falha ao buscar dados do clima.");
-      }
-      const { weather, city } = await res.json();
-      renderWeather(weather, city);
-    } catch (err) {
-      console.error(err.message);
-      renderWeather(null, null);
-    }
-  };
-
   const startPlayback = (data) => {
     if (clockInterval) clearInterval(clockInterval);
     Object.values(mediaTimers).forEach(clearTimeout);
-    if (weatherRetryInterval) {
-      clearInterval(weatherRetryInterval);
-      weatherRetryInterval = null;
-    }
 
     if (!data) {
       playlists = { main: [], secondary: [] };
@@ -190,8 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
     currentIndices = { main: -1, secondary: -1 };
 
     if (data.layout_type === "split-80-20-weather") {
-      fetchWeather();
-      weatherRetryInterval = setInterval(fetchWeather, 300000);
+      renderWeather(data.weather, data.city);
     } else if (playlists.secondary.length > 0) {
       playNextInZone("secondary");
     }
@@ -291,10 +271,6 @@ document.addEventListener("DOMContentLoaded", () => {
     let weatherContentHtml;
 
     if (weatherData) {
-      if (weatherRetryInterval) {
-        clearInterval(weatherRetryInterval);
-        weatherRetryInterval = null;
-      }
       const { current, daily } = weatherData;
       const temp = Math.round(current.temperature_2m);
       const maxTemp = Math.round(daily.temperature_2m_max[0]);
@@ -348,7 +324,6 @@ document.addEventListener("DOMContentLoaded", () => {
       case "DEVICE_REVOKED":
         wsManager.disconnect(false);
         if (playlistInterval) clearInterval(playlistInterval);
-        if (weatherRetryInterval) clearInterval(weatherRetryInterval);
         showWaitingScreen(
           "Dispositivo Desconectado",
           "Este dispositivo foi revogado e não pode mais receber conteúdo.",
@@ -364,7 +339,6 @@ document.addEventListener("DOMContentLoaded", () => {
         break;
       case "TYPE_CHANGED":
         wsManager.disconnect(false);
-        if (weatherRetryInterval) clearInterval(weatherRetryInterval);
         window.location.href =
           data.payload.newType === "terminal_consulta" ? "/price" : "/player";
         break;
