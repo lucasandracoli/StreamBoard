@@ -29,7 +29,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let playlists = { main: [], secondary: [] };
   let currentIndices = { main: -1, secondary: -1 };
   let mediaTimers = { main: null, secondary: null };
-  let playlistInterval = null;
+  let weatherRetryInterval = null;
+  let clockInterval = null;
 
   const configureFullyKioskVoice = () => {
     if (typeof fully !== "undefined") {
@@ -53,6 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
     mainZone.id = "zone-main";
     mainZone.className = "player-zone";
     viewWrapper.appendChild(mainZone);
+
     if (layoutType.startsWith("split-80-20")) {
       const secondaryZone = document.createElement("div");
       secondaryZone.id = "zone-secondary";
@@ -148,23 +150,179 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const playNextInZone = (zone) => displayMediaInZone(zone);
 
+  const fetchWeather = async () => {
+    try {
+      const res = await fetch("/api/device/weather");
+      if (!res.ok)
+        throw new Error("Falha ao buscar dados do clima (servidor).");
+
+      const data = await res.json();
+      if (data && data.weather) {
+        renderWeather(data.weather, data.city);
+        return;
+      }
+
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            const resClient = await fetch(
+              `/api/device/weather?lat=${latitude}&lon=${longitude}`
+            );
+            if (!resClient.ok)
+              throw new Error("Falha ao buscar dados do clima (cliente).");
+            const dataClient = await resClient.json();
+            renderWeather(dataClient.weather, dataClient.city);
+          },
+          (error) => {
+            console.error("Erro de geolocalização:", error);
+            renderWeather(null, null, "Permissão de localização negada.");
+          }
+        );
+      } else {
+        renderWeather(null, null, "Geolocalização não suportada.");
+      }
+    } catch (err) {
+      console.error(err.message);
+      renderWeather(null, null, "Não foi possível carregar o clima.");
+    }
+  };
+
+  const getWeatherIcon = (code) => {
+    if (code >= 200 && code < 300)
+      return {
+        iconClass: "bi-cloud-lightning-rain-fill",
+        colorClass: "weather-stormy",
+      };
+    if (code >= 300 && code < 400)
+      return {
+        iconClass: "bi-cloud-drizzle-fill",
+        colorClass: "weather-rainy",
+      };
+    if (code >= 500 && code < 600)
+      return {
+        iconClass: "bi-cloud-rain-heavy-fill",
+        colorClass: "weather-rainy",
+      };
+    if (code >= 600 && code < 700)
+      return { iconClass: "bi-cloud-snow-fill", colorClass: "weather-snowy" };
+    if (code >= 700 && code < 800)
+      return { iconClass: "bi-cloud-fog2-fill", colorClass: "weather-misty" };
+    if (code === 800)
+      return { iconClass: "bi-sun-fill", colorClass: "weather-sunny" };
+    if (code === 801)
+      return { iconClass: "bi-cloud-sun-fill", colorClass: "weather-sunny" };
+    if (code > 801 && code < 805)
+      return { iconClass: "bi-cloud-fill", colorClass: "weather-cloudy" };
+    return { iconClass: "bi-thermometer-half", colorClass: "weather-cloudy" };
+  };
+
+  const getCurrentTime = () => {
+    const now = new Date();
+    const options = {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    };
+    const timeString = now.toLocaleTimeString("pt-BR", options);
+    const dateOptions = {
+      timeZone: "America/Sao_Paulo",
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+    };
+    const dateString = new Intl.DateTimeFormat("pt-BR", dateOptions).format(
+      now
+    );
+    return {
+      time: timeString,
+      date: dateString.charAt(0).toUpperCase() + dateString.slice(1),
+    };
+  };
+
+  const renderClock = () => {
+    const clockContainer = document.getElementById("clock-container");
+    if (!clockContainer) return;
+
+    if (clockInterval) clearInterval(clockInterval);
+
+    const updateClock = () => {
+      const { time, date } = getCurrentTime();
+      clockContainer.innerHTML = `
+            <div class="clock-time">${time}</div>
+            <div class="clock-date">${date}</div>
+        `;
+    };
+    updateClock();
+    clockInterval = setInterval(updateClock, 1000);
+  };
+
+  const renderWeather = (weatherData, city, errorMessage = null) => {
+    const mainZone = document.getElementById("zone-main");
+    if (!mainZone) return;
+
+    let weatherContentHtml;
+    if (weatherData) {
+      const { current, daily } = weatherData;
+      const temp = Math.round(current.temperature_2m);
+      const maxTemp = Math.round(daily.temperature_2m_max[0]);
+      const minTemp = Math.round(daily.temperature_2m_min[0]);
+      const { iconClass, colorClass } = getWeatherIcon(current.weather_code);
+      weatherContentHtml = `
+          <div class="weather-city">${city || ""}</div>
+          <i class="bi ${iconClass} weather-icon ${colorClass}"></i>
+          <div class="weather-temp">${temp}°C</div>
+          <div class="weather-minmax">
+            <i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°
+          </div>`;
+    } else {
+      weatherContentHtml = `<div class="weather-error">${
+        errorMessage || "Clima indisponível."
+      }</div>`;
+    }
+
+    mainZone.innerHTML = `
+        <div class="weather-widget">
+            <div class="weather-main-content">${weatherContentHtml}</div>
+            <div id="clock-container" class="clock-display"></div>
+        </div>`;
+    renderClock();
+  };
+
   const startPlayback = (data) => {
     if (isDisplayingPrice) return;
+
+    if (clockInterval) clearInterval(clockInterval);
     Object.values(mediaTimers).forEach(clearTimeout);
-    if (!data || !data.uploads || data.uploads.length === 0) {
+    if (weatherRetryInterval) {
+      clearInterval(weatherRetryInterval);
+      weatherRetryInterval = null;
+    }
+
+    if (!data) {
       showIdleWithBackground();
       return;
     }
+
     setupLayout(data.layout_type);
-    playlists.main = (data.uploads || []).filter(
-      (u) => u.zone === "main" || !u.zone
-    );
-    playlists.secondary = (data.uploads || []).filter(
-      (u) => u.zone === "secondary"
-    );
-    currentIndices = { main: -1, secondary: -1 };
-    if (playlists.secondary.length > 0) playNextInZone("secondary");
-    if (playlists.main.length > 0) playNextInZone("main");
+
+    if (data.layout_type === "split-80-20-weather") {
+      fetchWeather();
+      weatherRetryInterval = setInterval(fetchWeather, 300000);
+    } else if (data.uploads && data.uploads.length > 0) {
+      playlists.main = (data.uploads || []).filter(
+        (u) => u.zone === "main" || !u.zone
+      );
+      playlists.secondary = (data.uploads || []).filter(
+        (u) => u.zone === "secondary"
+      );
+      currentIndices = { main: -1, secondary: -1 };
+      if (playlists.secondary.length > 0) playNextInZone("secondary");
+      if (playlists.main.length > 0) playNextInZone("main");
+    } else {
+      showIdleWithBackground();
+    }
   };
 
   const fetchAndResetPlaylist = async () => {
@@ -192,6 +350,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const showPriceCard = () => {
     isDisplayingPrice = true;
     Object.values(mediaTimers).forEach(clearTimeout);
+    if (weatherRetryInterval) clearInterval(weatherRetryInterval);
+    if (clockInterval) clearInterval(clockInterval);
+
     viewWrapper.innerHTML = "";
     viewWrapper.className = "player-wrapper-centered";
     viewWrapper.appendChild(priceCheckCard);

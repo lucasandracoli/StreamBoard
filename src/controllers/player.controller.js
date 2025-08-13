@@ -10,6 +10,10 @@ const {
 const renderPairPage = (req, res) => {
   const { error } = req.query;
 
+  if (req.cookies.refresh_token) {
+    return res.redirect("/player");
+  }
+
   if (req.session.userId) {
     return res.redirect("/dashboard");
   }
