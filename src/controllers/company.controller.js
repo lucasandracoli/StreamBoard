@@ -22,8 +22,21 @@ const createCompany = async (req, res) => {
   const { sectors, ...companyData } = req.body;
 
   try {
-    await companyService.createCompanyWithSectors(companyData, sectors);
-    res.status(201).json({ message: "Empresa cadastrada com sucesso." });
+    const newCompany = await companyService.createCompanyWithSectors(
+      companyData,
+      sectors
+    );
+    const { broadcastToAdmins } = req.app.locals;
+    broadcastToAdmins({
+      type: "COMPANY_CREATED",
+      payload: {
+        companyId: newCompany.companyId,
+        message: "Empresa cadastrada com sucesso.",
+      },
+    });
+    res
+      .status(201)
+      .json({ status: "success", companyId: newCompany.companyId });
   } catch (err) {
     if (err.code === "23505") {
       return res
@@ -44,7 +57,15 @@ const editCompany = async (req, res) => {
 
   try {
     await companyService.updateCompany(id, req.body);
-    res.status(200).json({ message: "Empresa atualizada com sucesso." });
+    const { broadcastToAdmins } = req.app.locals;
+    broadcastToAdmins({
+      type: "COMPANY_UPDATED",
+      payload: {
+        companyId: id,
+        message: "Empresa atualizada com sucesso.",
+      },
+    });
+    res.status(200).json({ status: "success" });
   } catch (err) {
     logger.error(`Erro ao editar empresa ${id}.`, err);
     res.status(500).json({ message: "Erro ao atualizar empresa." });
@@ -55,7 +76,15 @@ const deleteCompany = async (req, res) => {
   const { id } = req.params;
   try {
     await companyService.deleteCompany(id);
-    res.status(200).json({ message: "Empresa excluída com sucesso." });
+    const { broadcastToAdmins } = req.app.locals;
+    broadcastToAdmins({
+      type: "COMPANY_DELETED",
+      payload: {
+        companyId: id,
+        message: "Empresa excluída com sucesso.",
+      },
+    });
+    res.status(200).json({ status: "success" });
   } catch (err) {
     logger.error(`Erro ao excluir empresa ${id}.`, err);
     res.status(500).json({ message: "Erro ao excluir empresa." });

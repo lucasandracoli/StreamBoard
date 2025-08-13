@@ -264,6 +264,18 @@ body {
 .device-button:active {
   transform: translateY(-1px);
 }
+.device-button:disabled {
+  background-color: var(--color-gray-light);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.6;
+}
+.device-button:disabled:hover {
+  background-color: var(--color-gray-light);
+  transform: none;
+  box-shadow: none;
+}
 .device-button svg {
   stroke: var(--color-surface);
   display: inline-block;
@@ -2533,4 +2545,46 @@ select.modal-input:disabled {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+.empty-state-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  margin-top: 2rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.empty-state-icon {
+  font-size: 3.5rem;
+  color: var(--color-primary);
+  background-color: rgba(0, 200, 111, 0.1);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.empty-state-title {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 0.5rem;
+}
+
+.empty-state-subtitle {
+  font-size: var(--text-base);
+  color: var(--color-muted);
+  max-width: 450px;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
 }

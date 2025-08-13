@@ -115,9 +115,7 @@ export function setupProductModal() {
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.message);
-
-        notyf.success(json.message);
-        setTimeout(() => window.location.reload(), 1500);
+        modal.style.display = "none";
       } catch (err) {
         notyf.error(err.message || "Falha na comunicação.");
         addSingleProductBtn.disabled = false;
@@ -174,9 +172,7 @@ export function setupProductModal() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message);
-
-      notyf.success(json.message);
-      setTimeout(() => window.location.reload(), 1500);
+      modal.style.display = "none";
     } catch (err) {
       notyf.error(err.message || "Falha na comunicação.");
       uploadSubmitBtn.disabled = false;
@@ -198,9 +194,6 @@ export function setupProductModal() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message);
-
-      notyf.success(json.message);
-      setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
       notyf.error(error.message || "Erro de comunicação.");
       syncCompanyBtn.disabled = false;

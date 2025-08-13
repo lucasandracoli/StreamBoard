@@ -9,27 +9,32 @@ export function setupConfirmationModal() {
       e.stopPropagation();
       const { id } = e.currentTarget.dataset;
       const pageId = document.body.id;
+      const row = e.currentTarget.closest("tr");
       let config = {};
 
       if (pageId === "campaigns-page") {
         config = {
           url: `/campaigns/${id}/delete`,
           msg: "Deseja realmente excluir esta campanha?",
+          reload: true,
         };
       } else if (pageId === "devices-page") {
         config = {
           url: `/devices/${id}/delete`,
           msg: "Deseja realmente excluir este dispositivo?",
+          targetRow: row
         };
       } else if (pageId === "companies-page") {
         config = {
           url: `/companies/${id}/delete`,
           msg: "Excluir esta empresa removerá todos os dados associados. Confirma?",
+          targetRow: row
         };
       } else if (pageId === "products-page") {
         config = {
           url: `/products/${id}/delete`,
           msg: "Deseja realmente excluir este produto da lista local?",
+          reload: true
         };
       } else return;
 
@@ -47,10 +52,22 @@ export function setupConfirmationModal() {
         async () => {
           try {
             const res = await fetch(config.url, { method: "POST" });
+            const json = await res.json();
             if (!res.ok) {
-              const error = await res.json();
-              throw new Error(error.message || `Erro ${res.status}`);
+              throw new Error(json.message || `Erro ${res.status}`);
             }
+            
+            if (pageId !== 'products-page') {
+                notyf.success(json.message);
+            }
+            
+            if (config.targetRow) {
+                 config.targetRow.remove();
+            }
+            if (config.reload) {
+                setTimeout(() => window.location.reload(), 1200);
+            }
+
           } catch (err) {
             notyf.error(err.message || "Falha na comunicação.");
           } finally {

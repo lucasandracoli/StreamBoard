@@ -14,24 +14,36 @@
         <div class="device-header">
         </div>
 
-        <div class="company-grid">
-            <% if (companies.length === 0) { %>
-                <p class="empty-state">Nenhuma empresa foi cadastrada no sistema. Por favor, adicione uma empresa primeiro.</p>
-            <% } else { %>
+        <% if (companies.length === 0) { %>
+            <div class="empty-state-container">
+                <div class="empty-state-icon">
+                    <i class="bi bi-building-slash"></i>
+                </div>
+                <h3 class="empty-state-title">Primeiro, Cadastre uma Empresa</h3>
+                <p class="empty-state-subtitle">
+                    Para gerenciar os produtos de uma loja, você precisa ter pelo menos uma empresa registrada no sistema. Vá para a página de empresas para começar.
+                </p>
+                <a href="/companies" class="device-button" style="text-decoration: none;">
+                    <i class="bi bi-building"></i>
+                    <span>Ir para Empresas</span>
+                </a>
+            </div>
+        <% } else { %>
+            <div class="company-grid">
                 <% companies.forEach(company => { %>
                     <a href="/products/<%= company.id %>" class="company-card">
                         <div class="company-card-icon">
-                            <i class="bi bi-shop"></i>
+                             <i class="bi bi-shop"></i>
                         </div>
                         <div class="company-card-info">
                             <span class="company-card-name"><%= company.name %></span>
-                            <span class="company-card-cnpj"><%= company.cnpj %></span>
+                            <span class="company-card-cnpj"><%= formatUtils.formatarCNPJ(company.cnpj) %></span>
                         </div>
                         <i class="bi bi-chevron-right arrow-icon"></i>
-                    </a>
+                     </a>
                 <% }) %>
-            <% } %>
-        </div>
+            </div>
+        <% } %>
     </main>
 
     <%- include("partials/footer") %>

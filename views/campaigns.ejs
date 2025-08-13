@@ -18,7 +18,8 @@
     />
     <link
       href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.css"
-      rel="stylesheet"
+      
+ rel="stylesheet"
     />
   </head>
   <body id="campaigns-page" class="dashboard">
@@ -26,12 +27,18 @@
 
     <main class="container">
       <div class="device-header">
-        <button class="device-button" id="openCampaignModal">
+        <button 
+            class="device-button" 
+            id="openCampaignModal"
+            <%- companies.length === 0 ? 'disabled' : '' %>
+            title="<%= companies.length === 0 ? 'Você precisa cadastrar uma empresa primeiro' : 'Criar nova campanha' %>"
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="16"
             height="16"
             viewBox="0 0 24 24"
+ 
             fill="none"
             stroke="white"
             stroke-width="2"
@@ -39,111 +46,135 @@
             stroke-linejoin="round"
           >
             <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
+            <line x1="5" 
+ y1="12" x2="19" y2="12" />
           </svg>
           <span>Nova Campanha</span>
         </button>
       </div>
 
-      <div class="device-table-wrapper">
-        <table class="device-table">
-          <thead>
-            <tr>
-              <th class="col-name">Nome</th>
-              <th class="col-status">Status</th>
-              <th class="col-company">Empresa</th>
-              <th class="col-type">Tipo</th>
-              <th class="col-period">Período</th>
-              <th class="col-devices">Alvos</th>
-              <th class="col-actions">Ações</th>
-            </tr>
-          </thead>
-          <tbody id="campaigns-table-body">
-            <% if (campaigns.length === 0) { %>
-            <tr id="no-campaigns-row">
-              <td colspan="7" style="text-align: center">
-                Nenhuma campanha cadastrada.
-              </td>
-            </tr>
-            <% } else { %> <% campaigns.forEach(campaign => { %>
-            <tr data-campaign-id="<%= campaign.id %>">
-              <td class="break-word col-name"><%= campaign.name %></td>
-              <td data-status-cell class="col-status">
-                <span class="online-status <%= campaign.status.class %>">
-                  <span class="online-dot"></span>
-                  <span data-status-text><%= campaign.status.text %></span>
-                </span>
-              </td>
-              <td class="break-word col-company">
-                <%= campaign.company_name %>
-              </td>
-              <td class="break-word col-type"><%= campaign.campaign_type %></td>
-              <td class="period-cell col-period">
-                <%= campaign.periodo_formatado %>
-              </td>
-              <td class="device-badges-cell col-devices">
-                <% if (campaign.target_names && campaign.target_names.length >
-                0) { %> <% campaign.target_names.slice(0, 2).forEach((name,
-                index, arr) => { %> <%= name %><% if (index < arr.length - 1) {
-                %>, <% } %> <% }) %> <% if (campaign.target_names.length > 2) {
-                %>
-                <span class="device-badge-extra">
-                  +<%= campaign.target_names.length - 2 %>
-                </span>
-                <% } %> <% } else { %> Todos <% } %>
-              </td>
-              <td class="actions-cell col-actions">
-                <button
-                  class="action-icon action-icon-editar"
-                  data-id="<%= campaign.id %>"
-                  title="Editar Campanha"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path
-                      d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
-                    ></path>
-                    <path
-                      d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
-                    ></path>
-                  </svg>
-                </button>
-                <button
-                  class="action-icon-excluir"
-                  data-id="<%= campaign.id %>"
-                  title="Excluir Campanha"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                  >
-                    <path
-                      d="M6 6L18 18M6 18L18 6"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </button>
-              </td>
-            </tr>
-            <% }) %> <% } %>
-          </tbody>
-        </table>
-      </div>
+      <% if (companies.length === 0) { %>
+        <div class="empty-state-container">
+            <div class="empty-state-icon">
+                <i class="bi bi-building-slash"></i>
+            </div>
+            <h3 class="empty-state-title">Primeiro, Cadastre uma Empresa</h3>
+            <p class="empty-state-subtitle">
+                Para criar uma campanha, você precisa ter pelo menos uma empresa registrada no sistema. Vá para a página de empresas para começar.
+            </p>
+            <a href="/companies" class="device-button" style="text-decoration: none;">
+                <i class="bi bi-building"></i>
+                <span>Ir para Empresas</span>
+            </a>
+        </div>
+      <% } else if (campaigns.length === 0) { %>
+        <div class="empty-state-container">
+            <div class="empty-state-icon">
+                <i class="bi bi-megaphone"></i>
+            </div>
+            <h3 class="empty-state-title">Nenhuma Campanha Criada</h3>
+            <p class="empty-state-subtitle">
+                Ainda não há campanhas para exibir. Clique no botão "Nova Campanha" para criar sua primeira playlist de mídias e agendá-la para seus dispositivos.
+            </p>
+        </div>
+      <% } else { %>
+        <div class="device-table-wrapper">
+            <table class="device-table">
+            <thead>
+                <tr>
+                <th class="col-name">Nome</th>
+                 <th class="col-status">Status</th>
+                <th class="col-company">Empresa</th>
+                <th class="col-type">Tipo</th>
+                <th class="col-period">Período</th>
+                <th class="col-devices">Alvos</th>
+                <th class="col-actions">Ações</th>
+                </tr>
+             </thead>
+            <tbody id="campaigns-table-body">
+                <% campaigns.forEach(campaign => { %>
+                <tr data-campaign-id="<%= campaign.id %>">
+                <td class="break-word col-name"><%= campaign.name %></td>
+                <td data-status-cell class="col-status">
+                    <span class="online-status 
+ <%= campaign.status.class %>">
+                    <span class="online-dot"></span>
+                    <span data-status-text><%= campaign.status.text %></span>
+                    </span>
+                </td>
+                <td class="break-word col-company">
+                     <%= campaign.company_name %>
+                </td>
+                <td class="break-word col-type"><%= campaign.campaign_type %></td>
+                <td class="period-cell col-period">
+                    <%= campaign.periodo_formatado %>
+                </td>
+                 <td class="device-badges-cell col-devices">
+                    <% if (campaign.target_names && campaign.target_names.length >
+                    0) { %> <% campaign.target_names.slice(0, 2).forEach((name,
+                    index, arr) => { %> <%= name %><% if (index < arr.length - 1) {
+                    %>, <% } %> <% }) %> <% if (campaign.target_names.length 
+ > 2) {
+                    %>
+                    <span class="device-badge-extra">
+                    +<%= campaign.target_names.length - 2 %>
+                    </span>
+                    <% } %> <% } else { %> Todos <% } 
+ %>
+                </td>
+                <td class="actions-cell col-actions">
+                    <button
+                    class="action-icon action-icon-editar"
+                    data-id="<%= campaign.id %>"
+                       title="Editar Campanha"
+                    >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                         viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                         stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path
+                        d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                         ></path>
+                        <path
+                        d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                        ></path>
+                     </svg>
+                    </button>
+                    <button
+                    class="action-icon-excluir"
+                    data-id="<%= campaign.id %>"
+                    title="Excluir Campanha"
+                   >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                         viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                         <path
+                        d="M6 6L18 18M6 18L18 6"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                     />
+                    </svg>
+                    </button>
+                </td>
+                </tr>
+                <% }) %>
+            </tbody>
+            </table>
+         </div>
+      <% } %>
     </main>
 
     <div id="campaignModal" class="modal-overlay campaign-modal">
@@ -155,7 +186,7 @@
         </div>
         <form
           method="POST"
-          class="modal-form"
+           class="modal-form"
           novalidate
           enctype="multipart/form-data"
         >
@@ -164,56 +195,57 @@
           <fieldset class="form-fieldset">
             <legend class="fieldset-legend">Informações da Campanha</legend>
             <div class="form-group">
-              <label for="campaignName" class="form-label"
+              <label 
+ for="campaignName" class="form-label"
                 >Nome da Campanha</label
               >
               <input
                 id="campaignName"
                 type="text"
                 name="name"
-                required
+                 required
                 class="modal-input"
               />
             </div>
             <div class="form-group">
               <label for="campaignCompany" class="form-label">Empresa</label>
               <select
-                id="campaignCompany"
+                 id="campaignCompany"
                 name="company_id"
                 class="modal-input"
                 required
               >
                 <option value="" disabled selected>
-                  Selecione uma empresa
+                   Selecione uma empresa
                 </option>
                 <% companies.forEach(company => { %>
                 <option value="<%= company.id %>"><%= company.name %></option>
                 <% }) %>
-              </select>
+               </select>
             </div>
             <div class="date-group">
               <div class="form-group">
                 <label for="start_date" class="form-label">Início</label>
                 <input
                   id="start_date"
-                  type="text"
+                   type="text"
                   name="start_date"
                   required
                   class="modal-input"
                   placeholder="Data de início"
-                />
+                 />
               </div>
               <div class="form-group">
                 <label for="end_date" class="form-label">Término</label>
                 <input
                   id="end_date"
-                  type="text"
+                   type="text"
                   name="end_date"
                   required
                   class="modal-input"
                   placeholder="Data de término"
                 />
-              </div>
+               </div>
             </div>
           </fieldset>
 
@@ -222,29 +254,29 @@
             <div class="segmentation-choice">
               <input
                 type="radio"
-                id="seg-all"
+                 id="seg-all"
                 name="segmentation_type"
                 value="all"
                 checked
               />
               <label for="seg-all">
-                <svg
+                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
                   height="24"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="currentColor"
+                   stroke="currentColor"
                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <rect x="3" y="3" width="7" height="7"></rect>
+                   <rect x="3" y="3" width="7" height="7"></rect>
                   <rect x="14" y="3" width="7" height="7"></rect>
                   <rect x="14" y="14" width="7" height="7"></rect>
                   <rect x="3" y="14" width="7" height="7"></rect>
                 </svg>
-                <span>Todos os Dispositivos</span>
+                 <span>Todos os Dispositivos</span>
               </label>
 
               <input
@@ -252,22 +284,22 @@
                 id="seg-sectors"
                 name="segmentation_type"
                 value="sectors"
-              />
+               />
               <label for="seg-sectors">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="24"
                   height="24"
-                  viewBox="0 0 24 24"
+                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
                   stroke-width="2"
                   stroke-linecap="round"
-                  stroke-linejoin="round"
+                   stroke-linejoin="round"
                 >
                   <path
                     d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                  ></path>
+                   ></path>
                 </svg>
                 <span>Por Setores</span>
               </label>
@@ -275,37 +307,38 @@
               <input
                 type="radio"
                 id="seg-devices"
-                name="segmentation_type"
+                 name="segmentation_type"
                 value="devices"
               />
               <label for="seg-devices">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="24"
+                   width="24"
                   height="24"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
                   <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                   <line x1="8" y1="21" x2="16" y2="21"></line>
-                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                   <line x1="12" y1="17" x2="12" y2="21"></line>
                 </svg>
                 <span>Por Dispositivos</span>
               </label>
             </div>
 
             <div
-              id="sectors-selection-container"
+               id="sectors-selection-container"
               class="selection-container hidden"
             >
               <div class="form-group">
                 <select
                   id="sector_ids"
-                  name="sector_ids"
+                  
+ name="sector_ids"
                   multiple
                   disabled
                 ></select>
@@ -313,14 +346,14 @@
             </div>
 
             <div
-              id="devices-selection-container"
+               id="devices-selection-container"
               class="selection-container hidden"
             >
               <div class="form-group">
                 <select
                   id="device_ids"
                   name="device_ids"
-                  multiple
+                   multiple
                   disabled
                 ></select>
               </div>
@@ -328,53 +361,56 @@
           </fieldset>
 
           <fieldset class="form-fieldset">
-            <legend class="fieldset-legend">Layout da Tela</legend>
+             <legend class="fieldset-legend">Layout da Tela</legend>
             <div class="layout-choice">
               <input
                 type="radio"
                 id="layout-fullscreen"
                 name="layout_type"
-                value="fullscreen"
+                 value="fullscreen"
                 checked
               />
               <label for="layout-fullscreen">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  width="32"
+                  
+ width="32"
                   height="32"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
                   stroke-width="2"
-                  stroke-linecap="round"
+                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
                   <path
-                    d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+                    d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 
+ 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
                   />
                 </svg>
                 <span>Tela Cheia</span>
               </label>
 
               <input
-                type="radio"
+                 type="radio"
                 id="layout-80-20"
                 name="layout_type"
                 value="split-80-20"
               />
               <label for="layout-80-20">
                 <svg
-                  xmlns="http://www.w3.org/2000/svg"
+                   xmlns="http://www.w3.org/2000/svg"
                   width="32"
                   height="32"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="currentColor"
+                   stroke="currentColor"
                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <rect x="3" y="3" width="18" height="18" rx="2" 
+ ry="2"></rect>
                   <line x1="15" y1="3" x2="15" y2="21"></line>
                 </svg>
                 <span>80/20</span>
@@ -382,43 +418,43 @@
 
               <input
                 type="radio"
-                id="layout-80-20-weather"
+                 id="layout-80-20-weather"
                 name="layout_type"
                 value="split-80-20-weather"
               />
               <label for="layout-80-20-weather">
                 <svg
-                  xmlns="http://www.w3.org/2000/svg"
+                   xmlns="http://www.w3.org/2000/svg"
                   width="32"
                   height="32"
                   viewBox="0 0 64 64"
                 >
-                  <g>
+                   <g>
                     <path
                       d="M41.5,16.12A12.5,12.5,0,0,0,19.33,21.5a12.45,12.45,0,0,0,.17,2c-6.63.83-11.5,5-11.5,10.25a10.4,10.4,0,0,0,10.5,9.63H41.5a10.5,10.5,0,0,0,0-21Z"
                       fill="#a6adc8"
                       stroke="#a6adc8"
-                      stroke-linejoin="round"
+                       stroke-linejoin="round"
                       stroke-width="3"
                     />
                     <path
                       d="M29.5,16.12A12.5,12.5,0,0,0,7.33,21.5a12.45,12.45,0,0,0,.17,2c-6.63.83-11.5,5-11.5,10.25a10.4,10.4,0,0,0,10.5,9.63H29.5a10.5,10.5,0,0,0,0-21Z"
-                      fill="#a6adc8"
+                       fill="#a6adc8"
                       stroke="#a6adc8"
                       stroke-linejoin="round"
                       stroke-width="3"
-                      transform="translate(22, 0)"
+                       transform="translate(22, 0)"
                     />
                   </g>
                   <path
                     d="M32.5,23.5a9,9,0,1,1,9-9,9,9,0,0,1-9,9Z"
                     fill="#f8e187"
-                    stroke="#f8e187"
+                     stroke="#f8e187"
                     stroke-miterlimit="10"
                     stroke-width="3"
                   />
                 </svg>
-                <span>80/20 com Clima</span>
+                 <span>80/20 com Clima</span>
               </label>
             </div>
           </fieldset>
@@ -427,36 +463,36 @@
             <legend class="fieldset-legend">Mídias</legend>
             <div class="file-upload-wrapper">
               <input
-                type="file"
+                 type="file"
                 id="file-upload"
                 name="media"
                 accept="image/*,video/*"
                 multiple
                 hidden
-              />
+               />
               <div id="layout-zones-wrapper">
                 <div class="media-drop-zone-container" id="zone-main-container">
                   <span class="zone-title">Principal</span>
                   <div
                     class="file-preview-wrapper"
-                    id="file-preview-wrapper-main"
+                     id="file-preview-wrapper-main"
                     data-zone="main"
                   ></div>
                 </div>
                 <div
-                  class="media-drop-zone-container hidden"
+                   class="media-drop-zone-container hidden"
                   id="zone-secondary-container"
                 >
                   <span class="zone-title">Secundária</span>
                   <div
                     class="file-preview-wrapper"
-                    id="file-preview-wrapper-secondary"
+                     id="file-preview-wrapper-secondary"
                     data-zone="secondary"
                   ></div>
                 </div>
               </div>
             </div>
-          </fieldset>
+           </fieldset>
 
           <div class="modal-actions">
             <button
@@ -464,7 +500,8 @@
               id="cancelCampaignModal"
               class="device-button device-button-cancel"
             >
-              Cancelar
+              
+ Cancelar
             </button>
             <button type="submit" class="device-button">Salvar</button>
           </div>
@@ -477,9 +514,10 @@
         <div class="confirmation-modal-header"><h3>Confirmar Exclusão</h3></div>
         <div class="confirmation-modal-body">
           <p>
-            Deseja realmente excluir esta campanha? Esta ação não pode ser
+             Deseja realmente excluir esta campanha?
+ Esta ação não pode ser
             desfeita.
-          </p>
+ </p>
         </div>
         <div class="confirmation-modal-actions">
           <button id="cancelConfirmation" class="confirmation-modal-cancel">
@@ -490,7 +528,7 @@
           </button>
         </div>
       </div>
-    </div>
+     </div>
 
     <%- include('partials/footer') %>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>

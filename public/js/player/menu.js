@@ -17,7 +17,10 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const renderSecondaryMedia = () => {
-    if (!secondaryZone || !secondaryMedia) return;
+    if (!secondaryZone || !secondaryMedia) {
+      secondaryZone.innerHTML = "";
+      return;
+    }
 
     const mediaElement = document.createElement(
       secondaryMedia.file_type.startsWith("video/") ? "video" : "img"
@@ -27,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
       mediaElement.autoplay = true;
       mediaElement.muted = true;
       mediaElement.loop = true;
+      mediaElement.playsInline = true;
     }
     mediaElement.className = "media-element active";
     secondaryZone.innerHTML = "";
@@ -88,16 +92,20 @@ document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(() => newElement.classList.add("active"));
   };
 
+  const showWaitingScreen = () => {
+    header.style.display = "flex";
+    categoryTitle.textContent = "Aguardando conteúdo";
+    mainZone.innerHTML = `
+            <div class="menu-table">
+                <ul id="product-list"></ul>
+            </div>`;
+    secondaryZone.innerHTML = "";
+  };
+
   const playNextItem = () => {
     if (mediaTimer) clearTimeout(mediaTimer);
     if (playlist.length === 0) {
-      header.style.display = "flex";
-      categoryTitle.textContent = "Aguardando conteúdo";
-      mainZone.innerHTML = `
-                <div class="menu-table">
-                    <ul id="product-list"></ul>
-                </div>
-            `;
+      showWaitingScreen();
       return;
     }
 
@@ -116,70 +124,60 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const startPlayback = (data) => {
-    if (!data) return;
+    if (!data || !data.playlist || data.playlist.length === 0) {
+      playlist = [];
+      secondaryMedia = null;
+      showWaitingScreen();
+      return;
+    }
 
     playlist = data.playlist || [];
     secondaryMedia = data.secondary_media || null;
     currentIndex = -1;
 
     setupLayout(data.layout_type);
-    if (secondaryMedia) {
-      renderSecondaryMedia();
-    }
+
+    renderSecondaryMedia();
+
     playNextItem();
   };
 
-  const fetchAndResetPlaylist = async () => {
-    try {
-      const res = await fetch("/api/device/playlist", { cache: "no-store" });
-      if (!res.ok) {
-        if ([401, 403].includes(res.status)) {
-          connector.disconnect(false);
-          location.href = "/pair?error=session_expired";
+  const handleServerMessage = (data) => {
+    switch (data.type) {
+      case "CONNECTION_ESTABLISHED":
+        connector.sendMessage({ type: "REQUEST_PLAYLIST" });
+        break;
+      case "PLAYLIST_UPDATE":
+      case "NEW_CAMPAIGN":
+      case "UPDATE_CAMPAIGN":
+      case "DELETE_CAMPAIGN":
+        connector.sendMessage({ type: "REQUEST_PLAYLIST" });
+        break;
+      case "FORCE_REFRESH":
+        connector.disconnect(false);
+        window.location.reload(true);
+        break;
+      case "DEVICE_REVOKED":
+        connector.disconnect(false);
+        window.location.href = "/pair?error=revoked";
+        break;
+      case "TYPE_CHANGED":
+        connector.disconnect(false);
+        const newType = data.payload.newType;
+        if (newType === "terminal_consulta") {
+          window.location.href = "/price";
+        } else if (newType === "midia_indoor") {
+          window.location.href = "/player";
         }
-        return;
-      }
-      const data = await res.json();
-      startPlayback(data);
-    } catch (e) {
-      setTimeout(fetchAndResetPlaylist, 10000);
+        break;
     }
   };
 
   const connector = new DeviceConnector({
-    onOpen: () => fetchAndResetPlaylist(),
-    onMessage: (data) => {
-      switch (data.type) {
-        case "PLAYLIST_UPDATE":
-        case "NEW_CAMPAIGN":
-        case "UPDATE_CAMPAIGN":
-        case "DELETE_CAMPAIGN":
-          fetchAndResetPlaylist();
-          break;
-        case "FORCE_REFRESH":
-          connector.disconnect(false);
-          location.reload(true);
-          break;
-        case "DEVICE_REVOKED":
-          connector.disconnect(false);
-          setTimeout(() => {
-            location.href = "/pair?error=revoked";
-          }, 4000);
-          break;
-        case "TYPE_CHANGED":
-          connector.disconnect(false);
-          location.href =
-            data.payload.newType === "digital_menu"
-              ? "/menu"
-              : data.payload.newType === "terminal_consulta"
-              ? "/price"
-              : "/player";
-          break;
-      }
-    },
+    onMessage: handleServerMessage,
     onReconnecting: () => {},
     onAuthFailure: () => {
-      setTimeout(() => (location.href = "/pair?error=session_expired"), 4000);
+      window.location.href = "/pair?error=session_expired";
     },
   });
 

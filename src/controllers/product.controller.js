@@ -5,6 +5,7 @@ const companyService = require("../services/company.service");
 const deviceService = require("../services/device.service");
 const logger = require("../utils/logger");
 const xlsx = require("xlsx");
+const formatUtils = require("../utils/format.utils");
 
 const notifyPlayers = async (companyId, { sendUpdateToDevice }) => {
   const deviceIds = await deviceService.getActiveDigitalMenuDevicesByCompany(
@@ -18,7 +19,7 @@ const notifyPlayers = async (companyId, { sendUpdateToDevice }) => {
 const listCompaniesPage = async (req, res) => {
   try {
     const companies = await companyService.getAllCompanies();
-    res.render("products_companies", { companies });
+    res.render("products_companies", { companies, formatUtils });
   } catch (err) {
     logger.error("Erro ao carregar a página de empresas com produtos.", err);
     res.status(500).send("Erro ao carregar a página.");
@@ -71,7 +72,7 @@ const deleteProduct = async (req, res) => {
     });
     notifyPlayers(product.company_id, { sendUpdateToDevice });
 
-    res.status(200).json({ message: "Comando de exclusão enviado." });
+    res.status(200).json({ message: "Comando de exclusão processado." });
   } catch (err) {
     logger.error(`Erro ao excluir o produto ${id}.`, err);
     res.status(500).json({ message: "Erro ao excluir produto." });
@@ -93,7 +94,7 @@ const triggerSyncForCompany = async (req, res) => {
     });
     notifyPlayers(companyId, { sendUpdateToDevice });
 
-    res.status(200).json({ message: "Comando de sincronização enviado." });
+    res.status(200).json({ message: "Comando de sincronização processado." });
   } catch (err) {
     res.status(500).json({ message: "Erro durante a sincronização da loja." });
   }
@@ -135,12 +136,10 @@ const uploadProducts = async (req, res) => {
         (p) => "product_name" in p && "price" in p && "section_id" in p
       )
     ) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "A planilha está fora do padrão. Verifique as colunas: product_name, price, section_id.",
-        });
+      return res.status(400).json({
+        message:
+          "A planilha está fora do padrão. Verifique as colunas: product_name, price, section_id.",
+      });
     }
 
     await localProductService.upsertProductsFromSheet(products, companyId);
@@ -155,7 +154,7 @@ const uploadProducts = async (req, res) => {
     });
     notifyPlayers(companyId, { sendUpdateToDevice });
 
-    res.status(200).json({ message: "Comando de upload enviado." });
+    res.status(200).json({ message: "Comando de upload processado." });
   } catch (error) {
     logger.error("Erro ao processar a planilha de produtos.", error);
     res.status(500).json({ message: "Erro interno ao processar o arquivo." });
@@ -196,11 +195,9 @@ const addSingleProduct = async (req, res) => {
       companyId
     );
     if (!productData) {
-      return res
-        .status(404)
-        .json({
-          message: "Produto não encontrado no sistema Sysmo com este código.",
-        });
+      return res.status(404).json({
+        message: "Produto não encontrado no sistema Sysmo com este código.",
+      });
     }
 
     const sectionMap = { 1: "BOVINO", 2: "SUÍNO", 3: "AVES", 4: "OVINO" };
@@ -223,7 +220,7 @@ const addSingleProduct = async (req, res) => {
     });
     notifyPlayers(companyId, { sendUpdateToDevice });
 
-    res.status(201).json({ message: "Comando de adição enviado." });
+    res.status(201).json({ message: "Comando de adição processado." });
   } catch (error) {
     if (error.code === "23505") {
       return res
@@ -234,11 +231,9 @@ const addSingleProduct = async (req, res) => {
       `Erro ao adicionar produto único com código ${productCode}.`,
       error
     );
-    res
-      .status(500)
-      .json({
-        message: error.message || "Erro interno ao adicionar o produto.",
-      });
+    res.status(500).json({
+      message: error.message || "Erro interno ao adicionar o produto.",
+    });
   }
 };
 
