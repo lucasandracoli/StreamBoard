@@ -64,15 +64,15 @@ const deleteProduct = async (req, res) => {
 
     const { broadcastToAdmins, sendUpdateToDevice } = req.app.locals;
     broadcastToAdmins({
-      type: "PRODUCT_UPDATE",
+      type: "PRODUCT_DELETED",
       payload: {
+        productId: id,
         companyId: product.company_id,
-        message: "Produto excluído com sucesso.",
       },
     });
     notifyPlayers(product.company_id, { sendUpdateToDevice });
 
-    res.status(200).json({ message: "Comando de exclusão processado." });
+    res.status(200).json({ message: "Produto excluído com sucesso." });
   } catch (err) {
     logger.error(`Erro ao excluir o produto ${id}.`, err);
     res.status(500).json({ message: "Erro ao excluir produto." });
@@ -143,10 +143,10 @@ const uploadProducts = async (req, res) => {
 
     const { broadcastToAdmins, sendUpdateToDevice } = req.app.locals;
     broadcastToAdmins({
-      type: "PRODUCT_UPDATE",
+      type: "PRODUCT_SYNC_COMPLETED",
       payload: {
         companyId: companyId,
-        message: `${products.length} produtos foram importados/atualizados com sucesso!`,
+        message: `${products.length} produtos foram importados/atualizados! A página será atualizada.`,
       },
     });
     notifyPlayers(companyId, { sendUpdateToDevice });
@@ -199,7 +199,7 @@ const addSingleProduct = async (req, res) => {
 
     const sectionMap = { 1: "BOVINO", 2: "SUÍNO", 3: "AVES", 4: "OVINO" };
 
-    await localProductService.addProduct({
+    const newProduct = await localProductService.addProduct({
       company_id: companyId,
       product_name: productData.dsc,
       price: productData.pv2,
@@ -209,11 +209,8 @@ const addSingleProduct = async (req, res) => {
 
     const { broadcastToAdmins, sendUpdateToDevice } = req.app.locals;
     broadcastToAdmins({
-      type: "PRODUCT_UPDATE",
-      payload: {
-        companyId: companyId,
-        message: "Produto adicionado com sucesso!",
-      },
+      type: "PRODUCT_CREATED",
+      payload: newProduct,
     });
     notifyPlayers(companyId, { sendUpdateToDevice });
 

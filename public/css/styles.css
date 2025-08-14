@@ -1265,7 +1265,7 @@ body.player-body {
   margin: 0 0 20px 0;
   color: var(--color-text);
 }
-.product-price {
+.price-check-content .product-price {
   display: flex;
   align-items: baseline;
   color: var(--color-primary);

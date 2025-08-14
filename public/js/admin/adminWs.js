@@ -14,6 +14,7 @@ import {
   updateCampaignRow,
   removeCampaignRow,
 } from "./campaignsPage.js";
+import { addProductRow, removeProductRow } from "./productsPage.js";
 
 function updateDeviceStatusOnPage(payload) {
   const { deviceId, status, deviceName } = payload;
@@ -48,6 +49,7 @@ export function connectAdminWs(detailsModalHandler) {
       const isDevicesPage = document.getElementById("devices-page");
       const isCompaniesPage = document.getElementById("companies-page");
       const isCampaignsPage = document.getElementById("campaigns-page");
+      const isProductsPage = document.getElementById("products-page");
 
       switch (data.type) {
         case "DEVICE_STATUS_UPDATE":
@@ -93,15 +95,21 @@ export function connectAdminWs(detailsModalHandler) {
           notyf.success(`Campanha removida com sucesso.`);
           break;
 
-        case "PRODUCT_UPDATE":
-          if (
-            document.getElementById("products-page") &&
-            window.location.pathname.includes("/products")
-          ) {
-            notyf.success(
-              data.payload.message || "Operação de produto concluída."
-            );
-            setTimeout(() => window.location.reload(), 1200);
+        case "PRODUCT_CREATED":
+          if (isProductsPage) addProductRow(data.payload);
+          notyf.success(`Produto "${data.payload.product_name}" adicionado.`);
+          break;
+        case "PRODUCT_DELETED":
+          if (isProductsPage) removeProductRow(data.payload.productId);
+          notyf.success(`Produto removido com sucesso.`);
+          break;
+        case "PRODUCT_SYNC_COMPLETED":
+          if (isProductsPage) {
+            const currentCompanyId = window.location.pathname.split("/").pop();
+            if (data.payload.companyId == currentCompanyId) {
+              notyf.success(data.payload.message);
+              setTimeout(() => window.location.reload(), 1500);
+            }
           }
           break;
       }

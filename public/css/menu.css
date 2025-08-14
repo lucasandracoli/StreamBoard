@@ -100,10 +100,12 @@ body.body-menu-player #player-wrapper {
 }
 
 #product-list li {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-column-gap: 2vw;
   align-items: center;
-  padding: 1.2vh 2.5vw;
+  min-height: 8vh;
+  padding: 0 2.5vw;
   font-size: 5.5vh;
   background-color: var(--menu-card-bg);
   color: var(--menu-text-dark);
@@ -111,38 +113,24 @@ body.body-menu-player #player-wrapper {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
   font-family: var(--font-display);
   font-weight: 700;
-  flex-shrink: 0;
   margin-bottom: 1.5vh;
-}
-
-#product-list .product-name,
-#product-list .product-price {
-  line-height: 1;
+  box-sizing: border-box;
 }
 
 #product-list .product-name {
   text-transform: uppercase;
   letter-spacing: 1px;
-  flex-grow: 1;
   text-align: left;
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #product-list .product-price {
   color: var(--menu-red);
   font-weight: 700;
-  flex-shrink: 0;
   text-align: right;
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
-}
-
-#player-wrapper.layout-split-80-20 .category-title,
-#player-wrapper.layout-split-80-20-weather .category-title {
-  font-size: 5.5vh;
-}
-
-#player-wrapper.layout-split-80-20 #product-list li,
-#player-wrapper.layout-split-80-20-weather #product-list li {
-  font-size: 4.5vh;
-  padding: 1vh 2vw;
+  white-space: nowrap;
 }

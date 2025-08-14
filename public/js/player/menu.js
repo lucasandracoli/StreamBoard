@@ -161,8 +161,8 @@ document.addEventListener("DOMContentLoaded", () => {
       li.style.transform = "translateY(10px)";
       li.style.transition = "opacity 0.5s, transform 0.5s";
       li.innerHTML = `
-                <span class="product-name">${p.name}</span>
-                <span class="product-price">R$ ${p.price}</span>`;
+                <div class="product-name">${p.name}</div>
+                <div class="product-price">R$ ${p.price}</div>`;
       productListEl.appendChild(li);
       setTimeout(() => {
         li.style.opacity = "1";
