@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@700&family=Oswald:wght@700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@700&family=Roboto+Condensed:wght@700&display=swap");
 
 :root {
   --menu-red: #d90429;
@@ -6,12 +6,15 @@
   --menu-card-bg: #ffffff;
   --menu-text-dark: #333;
   --header-height: 12vh;
+  --font-display: "Oswald", sans-serif;
+  --font-text: "Roboto Condensed", sans-serif;
 }
 
 body.body-menu-player {
   margin: 0;
   padding: 0;
   background-color: var(--menu-bg);
+  font-family: var(--font-text);
 }
 
 body.body-menu-player::before {
@@ -46,7 +49,7 @@ body.body-menu-player #player-wrapper {
   width: 100%;
   background: var(--menu-red);
   z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   transition: width 0.3s ease-in-out;
 }
 
@@ -55,11 +58,13 @@ body.body-menu-player #player-wrapper {
 }
 
 .category-title {
-  font-family: 'Oswald', sans-serif;
+  font-family: var(--font-display);
   font-weight: 700;
   color: white;
   font-size: 7vh;
   text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 #header-logo {
@@ -67,8 +72,9 @@ body.body-menu-player #player-wrapper {
   width: auto;
 }
 
-#zone-main, #zone-secondary {
-    box-sizing: border-box;
+#zone-main,
+#zone-secondary {
+  box-sizing: border-box;
 }
 
 .menu-table {
@@ -94,24 +100,33 @@ body.body-menu-player #player-wrapper {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5vh 2vw;
-  font-size: 5vh;
+  padding: 1.2vh 2.5vw;
+  font-size: 5.5vh;
   background-color: var(--menu-card-bg);
   color: var(--menu-text-dark);
   border-radius: 15px;
   margin-bottom: 1.5vh;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-  font-family: 'Roboto Condensed', sans-serif;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  font-family: var(--font-display);
   font-weight: 700;
   flex-shrink: 0;
+  line-height: 1.2;
 }
 
 #product-list .product-name {
-    text-transform: uppercase;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  flex-grow: 1;
+  text-align: left;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
 }
 
 #product-list .product-price {
-  padding: 0.8vh 1.8vw;
+  font-family: var(--font-text);
   color: var(--menu-red);
   font-weight: 700;
+  flex-shrink: 0;
+  width: 30%;
+  text-align: right;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
 }

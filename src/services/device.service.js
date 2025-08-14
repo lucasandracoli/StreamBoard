@@ -250,27 +250,14 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId, deviceType) => {
     }
   }
 
-  let playlist = [];
-  if (butcherProductsGroups.length > 0) {
-    let mediaIndex = 0;
-    butcherProductsGroups.forEach((group) => {
-      playlist.push(group);
-      if (primaryMedia.length > 0) {
-        playlist.push({ type: "media", ...primaryMedia[mediaIndex] });
-        mediaIndex = (mediaIndex + 1) % primaryMedia.length;
-      }
-    });
-  } else {
-    playlist = primaryMedia.map((m) => ({ type: "media", ...m }));
-  }
-
   if (!campaign && butcherProductsGroups.length > 0) {
     layout_type = "fullscreen";
   }
 
   return {
     layout_type: layout_type,
-    playlist,
+    product_groups: butcherProductsGroups,
+    primary_media: primaryMedia,
     secondary_media: secondaryMedia,
   };
 };

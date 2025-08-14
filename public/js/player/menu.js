@@ -8,44 +8,71 @@ document.addEventListener("DOMContentLoaded", () => {
   const header = document.getElementById("menu-header");
   let clockInterval = null;
 
-  let playlist = [];
+  let productGroups = [];
+  let primaryMedia = [];
   let secondaryMedia = null;
-  let currentIndex = -1;
+  let productIndex = 0;
+  let mediaIndex = 0;
   let mediaTimer = null;
+  let isDisplayingProducts = true;
 
   const setupLayout = (layoutType = "fullscreen") => {
     playerWrapper.className = `player-wrapper layout-${layoutType}`;
-    
-    if (layoutType === 'fullscreen') {
-      mainZone.style.width = '100%';
-      secondaryZone.style.display = 'none';
-      header.classList.remove('split');
-    } else {
-      mainZone.style.width = '80%';
-      secondaryZone.style.display = 'flex';
-      header.classList.add('split');
-    }
+    header.classList.toggle("split", layoutType !== "fullscreen");
+    secondaryZone.style.display = layoutType === "fullscreen" ? "none" : "flex";
   };
 
   const getWeatherIcon = (code) => {
-    if (code >= 200 && code < 300) return { iconClass: "bi-cloud-lightning-rain-fill", colorClass: "weather-stormy" };
-    if (code >= 300 && code < 400) return { iconClass: "bi-cloud-drizzle-fill", colorClass: "weather-rainy" };
-    if (code >= 500 && code < 600) return { iconClass: "bi-cloud-rain-heavy-fill", colorClass: "weather-rainy" };
-    if (code >= 600 && code < 700) return { iconClass: "bi-cloud-snow-fill", colorClass: "weather-snowy" };
-    if (code >= 700 && code < 800) return { iconClass: "bi-cloud-fog2-fill", colorClass: "weather-misty" };
-    if (code === 800) return { iconClass: "bi-sun-fill", colorClass: "weather-sunny" };
-    if (code === 801) return { iconClass: "bi-cloud-sun-fill", colorClass: "weather-sunny" };
-    if (code > 801 && code < 805) return { iconClass: "bi-cloud-fill", colorClass: "weather-cloudy" };
+    if (code >= 200 && code < 300)
+      return {
+        iconClass: "bi-cloud-lightning-rain-fill",
+        colorClass: "weather-stormy",
+      };
+    if (code >= 300 && code < 400)
+      return {
+        iconClass: "bi-cloud-drizzle-fill",
+        colorClass: "weather-rainy",
+      };
+    if (code >= 500 && code < 600)
+      return {
+        iconClass: "bi-cloud-rain-heavy-fill",
+        colorClass: "weather-rainy",
+      };
+    if (code >= 600 && code < 700)
+      return { iconClass: "bi-cloud-snow-fill", colorClass: "weather-snowy" };
+    if (code >= 700 && code < 800)
+      return { iconClass: "bi-cloud-fog2-fill", colorClass: "weather-misty" };
+    if (code === 800)
+      return { iconClass: "bi-sun-fill", colorClass: "weather-sunny" };
+    if (code === 801)
+      return { iconClass: "bi-cloud-sun-fill", colorClass: "weather-sunny" };
+    if (code > 801 && code < 805)
+      return { iconClass: "bi-cloud-fill", colorClass: "weather-cloudy" };
     return { iconClass: "bi-thermometer-half", colorClass: "weather-cloudy" };
   };
 
   const getCurrentTime = () => {
     const now = new Date();
-    const options = { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hour12: false };
+    const options = {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    };
     const timeString = now.toLocaleTimeString("pt-BR", options);
-    const dateOptions = { timeZone: "America/Sao_Paulo", weekday: "long", day: "2-digit", month: "long" };
-    const dateString = new Intl.DateTimeFormat("pt-BR", dateOptions).format(now);
-    return { time: timeString, date: dateString.charAt(0).toUpperCase() + dateString.slice(1) };
+    const dateOptions = {
+      timeZone: "America/Sao_Paulo",
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+    };
+    const dateString = new Intl.DateTimeFormat("pt-BR", dateOptions).format(
+      now
+    );
+    return {
+      time: timeString,
+      date: dateString.charAt(0).toUpperCase() + dateString.slice(1),
+    };
   };
 
   const renderClock = () => {
@@ -59,7 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updateClock();
     clockInterval = setInterval(updateClock, 1000);
   };
-  
+
   const renderWeather = (weatherData, city) => {
     let weatherContentHtml;
     if (weatherData) {
@@ -92,9 +119,9 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if (secondaryMedia.type === 'weather') {
-       renderWeather(secondaryMedia.weather, secondaryMedia.city);
-       return;
+    if (secondaryMedia.type === "weather") {
+      renderWeather(secondaryMedia.weather, secondaryMedia.city);
+      return;
     }
 
     const mediaElement = document.createElement(
@@ -114,7 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const renderProductTable = (item) => {
     header.style.display = "flex";
-    mainZone.style.paddingTop = 'var(--header-height)';
+    mainZone.style.paddingTop = "var(--header-height)";
     mainZone.style.backgroundColor = "#f0f0f0";
     mainZone.innerHTML = `
             <div class="menu-table">
@@ -124,7 +151,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const productListEl = document.getElementById("product-list");
     categoryTitle.textContent = item.category;
 
-    const productsToShow = Array.isArray(item.products) ? item.products.slice(0, 8) : [];
+    const productsToShow = Array.isArray(item.products)
+      ? item.products.slice(0, 8)
+      : [];
 
     productsToShow.forEach((p, index) => {
       const li = document.createElement("li");
@@ -144,7 +173,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const renderMedia = (item) => {
     header.style.display = "none";
-    mainZone.style.paddingTop = '0';
+    mainZone.style.paddingTop = "0";
     mainZone.innerHTML = "";
     mainZone.style.backgroundColor = "#000";
 
@@ -157,26 +186,60 @@ document.addEventListener("DOMContentLoaded", () => {
     newElement.src = item.file_path;
     newElement.className = "media-element";
 
+    const oldElement = mainZone.querySelector(".media-element.active");
+    mainZone.appendChild(newElement);
+
+    const onMediaReady = () => {
+      requestAnimationFrame(() => {
+        newElement.classList.add("active");
+        if (oldElement) {
+          oldElement.classList.remove("active");
+          oldElement.addEventListener(
+            "transitionend",
+            () => {
+              if (oldElement.tagName === "VIDEO") {
+                oldElement.pause();
+                oldElement.src = "";
+              }
+              oldElement.remove();
+            },
+            { once: true }
+          );
+          setTimeout(() => {
+            if (oldElement && oldElement.parentNode) {
+              if (oldElement.tagName === "VIDEO") {
+                oldElement.pause();
+                oldElement.src = "";
+              }
+              oldElement.remove();
+            }
+          }, 1000);
+        }
+      });
+    };
+
     if (isVideo) {
       newElement.autoplay = true;
       newElement.muted = true;
       newElement.playsInline = true;
+      newElement.onloadeddata = onMediaReady;
       newElement.onended = () => playNextItem();
+      newElement.onerror = () => playNextItem();
     } else {
-      mediaTimer = setTimeout(() => playNextItem(), (item.duration || 10) * 1000);
+      newElement.onload = onMediaReady;
+      mediaTimer = setTimeout(
+        () => playNextItem(),
+        (item.duration || 10) * 1000
+      );
     }
-    
-    newElement.onerror = () => playNextItem();
-    mainZone.appendChild(newElement);
-    requestAnimationFrame(() => newElement.classList.add("active"));
   };
 
   const showWaitingScreen = () => {
     header.style.display = "none";
-    mainZone.style.paddingTop = '0';
+    mainZone.style.paddingTop = "0";
     mainZone.style.backgroundColor = "#000";
     secondaryZone.innerHTML = "";
-    setupLayout('fullscreen');
+    setupLayout("fullscreen");
     mainZone.innerHTML = `
       <div class="player-message-card info">
         <i class="icon bi bi-clock-history"></i>
@@ -190,33 +253,57 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const playNextItem = () => {
     if (mediaTimer) clearTimeout(mediaTimer);
-    if (playlist.length === 0) {
+    if (productGroups.length === 0 && primaryMedia.length === 0) {
       showWaitingScreen();
       return;
     }
 
-    currentIndex = (currentIndex + 1) % playlist.length;
-    const currentItem = playlist[currentIndex];
+    if (isDisplayingProducts && productGroups.length > 0) {
+      const currentProductGroup = productGroups[productIndex];
+      renderProductTable(currentProductGroup);
+      mediaTimer = setTimeout(
+        () => playNextItem(),
+        currentProductGroup.duration || 15000
+      );
 
-    if (currentItem.type === "products") {
-      renderProductTable(currentItem);
-      mediaTimer = setTimeout(() => playNextItem(), currentItem.duration || 15000);
-    } else if (currentItem.type === "media") {
-      renderMedia(currentItem);
+      productIndex++;
+      if (productIndex >= productGroups.length) {
+        isDisplayingProducts = false;
+        productIndex = 0;
+      }
+    } else if (primaryMedia.length > 0) {
+      const currentMediaItem = primaryMedia[mediaIndex];
+      renderMedia({ type: "media", ...currentMediaItem });
+
+      mediaIndex = (mediaIndex + 1) % primaryMedia.length;
+      isDisplayingProducts = true;
+    } else if (productGroups.length > 0) {
+      isDisplayingProducts = true;
+      productIndex = 0;
+      playNextItem();
+    } else {
+      showWaitingScreen();
     }
   };
 
   const startPlayback = (data) => {
-    if (!data || !data.playlist || data.playlist.length === 0) {
-      playlist = [];
+    if (
+      !data ||
+      (!data.product_groups?.length && !data.primary_media?.length)
+    ) {
+      productGroups = [];
+      primaryMedia = [];
       secondaryMedia = null;
       showWaitingScreen();
       return;
     }
 
-    playlist = data.playlist || [];
+    productGroups = data.product_groups || [];
+    primaryMedia = data.primary_media || [];
     secondaryMedia = data.secondary_media || null;
-    currentIndex = -1;
+    productIndex = 0;
+    mediaIndex = 0;
+    isDisplayingProducts = productGroups.length > 0;
 
     setupLayout(data.layout_type);
     renderSecondaryMedia();
@@ -234,6 +321,7 @@ document.addEventListener("DOMContentLoaded", () => {
       case "NEW_CAMPAIGN":
       case "UPDATE_CAMPAIGN":
       case "DELETE_CAMPAIGN":
+      case "PRODUCT_UPDATE_NOTIFICATION":
         connector.sendMessage({ type: "REQUEST_PLAYLIST" });
         break;
       case "FORCE_REFRESH":

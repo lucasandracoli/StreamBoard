@@ -12,7 +12,7 @@ const notifyPlayers = async (companyId, { sendUpdateToDevice }) => {
     companyId
   );
   deviceIds.forEach((deviceId) => {
-    sendUpdateToDevice(deviceId, { type: "PLAYLIST_UPDATE" });
+    sendUpdateToDevice(deviceId, { type: "PRODUCT_UPDATE_NOTIFICATION" });
   });
 };
 

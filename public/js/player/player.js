@@ -5,12 +5,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const isNewlyPaired = urlParams.has("paired");
 
   if (isNewlyPaired) {
-    const notyf = new Notyf({
-      duration: 5000,
-      position: { x: "right", y: "top" },
-      dismissible: true,
-    });
-    notyf.success("Dispositivo conectado com sucesso!");
     const newUrl = window.location.pathname;
     history.replaceState({}, document.title, newUrl);
   }
@@ -109,17 +103,6 @@ document.addEventListener("DOMContentLoaded", () => {
     newElement.className = "media-element";
 
     const oldElement = zoneContainer.querySelector(".media-element.active");
-    if (oldElement) {
-      oldElement.addEventListener(
-        "transitionend",
-        () => {
-          oldElement.remove();
-        },
-        { once: true }
-      );
-      oldElement.classList.remove("active");
-    }
-
     zoneContainer.appendChild(newElement);
 
     const setupNext = () => playNextInZone(zone);
@@ -127,6 +110,30 @@ document.addEventListener("DOMContentLoaded", () => {
     const onMediaReady = () => {
       requestAnimationFrame(() => {
         newElement.classList.add("active");
+        if (oldElement) {
+          oldElement.classList.remove("active");
+          oldElement.addEventListener(
+            "transitionend",
+            () => {
+              if (oldElement.tagName === "VIDEO") {
+                oldElement.pause();
+                oldElement.src = "";
+              }
+              oldElement.remove();
+            },
+            { once: true }
+          );
+
+          setTimeout(() => {
+            if (oldElement && oldElement.parentNode) {
+              if (oldElement.tagName === "VIDEO") {
+                oldElement.pause();
+                oldElement.src = "";
+              }
+              oldElement.remove();
+            }
+          }, 1000);
+        }
       });
     };
 

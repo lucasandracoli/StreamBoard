@@ -22,19 +22,19 @@ export function setupConfirmationModal() {
         config = {
           url: `/devices/${id}/delete`,
           msg: "Deseja realmente excluir este dispositivo?",
-          targetRow: row
+          targetRow: row,
         };
       } else if (pageId === "companies-page") {
         config = {
           url: `/companies/${id}/delete`,
           msg: "Excluir esta empresa removerá todos os dados associados. Confirma?",
-          targetRow: row
+          targetRow: row,
         };
       } else if (pageId === "products-page") {
         config = {
           url: `/products/${id}/delete`,
           msg: "Deseja realmente excluir este produto da lista local?",
-          reload: true
+          reload: true,
         };
       } else return;
 
@@ -56,18 +56,19 @@ export function setupConfirmationModal() {
             if (!res.ok) {
               throw new Error(json.message || `Erro ${res.status}`);
             }
-            
-            if (pageId !== 'products-page') {
-                notyf.success(json.message);
-            }
-            
-            if (config.targetRow) {
-                 config.targetRow.remove();
-            }
-            if (config.reload) {
-                setTimeout(() => window.location.reload(), 1200);
+
+            if (pageId !== "products-page") {
+              notyf.success(
+                json.message || "Operação realizada com sucesso."
+              );
             }
 
+            if (config.targetRow) {
+              config.targetRow.remove();
+            }
+            if (config.reload) {
+              setTimeout(() => window.location.reload(), 1200);
+            }
           } catch (err) {
             notyf.error(err.message || "Falha na comunicação.");
           } finally {

@@ -229,7 +229,7 @@ export function setupCompanyModal() {
         notyf.error(json.message || `Erro ${res.status}`);
         return;
       }
-      notyf.success(json.message);
+      notyf.success(json.message || "Operação realizada com sucesso.");
       setTimeout(() => location.reload(), 1200);
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");

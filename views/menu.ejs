@@ -6,21 +6,19 @@
     <link rel="stylesheet" href="/css/styles.css?v=<%= appVersion %>" />
     <link rel="stylesheet" href="/css/menu.css?v=<%= appVersion %>" />
     <link
-      href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css"
       rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
     />
   </head>
   <body class="player-body body-menu-player">
     <div id="player-wrapper">
       <header id="menu-header" class="menu-header-layout" style="display: none">
         <h1 id="category-title" class="category-title"></h1>
-        <img src="/assets/campeao.png" alt="Logo" id="header-logo" />
       </header>
       <div id="zone-main" class="player-zone"></div>
       <div id="zone-secondary" class="player-zone"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
     <script type="module" src="/js/player/menu.js?v=<%= appVersion %>"></script>
   </body>
 </html>

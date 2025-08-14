@@ -34,9 +34,11 @@ const createCompany = async (req, res) => {
         message: "Empresa cadastrada com sucesso.",
       },
     });
-    res
-      .status(201)
-      .json({ status: "success", companyId: newCompany.companyId });
+    res.status(201).json({
+      status: "success",
+      companyId: newCompany.companyId,
+      message: "Empresa cadastrada com sucesso.",
+    });
   } catch (err) {
     if (err.code === "23505") {
       return res
@@ -65,7 +67,9 @@ const editCompany = async (req, res) => {
         message: "Empresa atualizada com sucesso.",
       },
     });
-    res.status(200).json({ status: "success" });
+    res
+      .status(200)
+      .json({ status: "success", message: "Empresa atualizada com sucesso." });
   } catch (err) {
     logger.error(`Erro ao editar empresa ${id}.`, err);
     res.status(500).json({ message: "Erro ao atualizar empresa." });
@@ -84,7 +88,9 @@ const deleteCompany = async (req, res) => {
         message: "Empresa excluída com sucesso.",
       },
     });
-    res.status(200).json({ status: "success" });
+    res
+      .status(200)
+      .json({ status: "success", message: "Empresa excluída com sucesso." });
   } catch (err) {
     logger.error(`Erro ao excluir empresa ${id}.`, err);
     res.status(500).json({ message: "Erro ao excluir empresa." });
