@@ -5,32 +5,27 @@
     <a
       href="/dashboard"
       class="navbar-link <%= currentRoute === '/dashboard' ? 'active' : '' %>"
-      >Início</a
+      ><i class="bi bi-speedometer2"></i> <span>Início</span></a
     >
     <a
       href="/companies"
       class="navbar-link <%= currentRoute === '/companies' ? 'active' : '' %>"
-      >Empresas</a
+      ><i class="bi bi-building"></i> <span>Empresas</span></a
     >
     <a
       href="/devices"
       class="navbar-link <%= currentRoute === '/devices' ? 'active' : '' %>"
-      >Dispositivos</a
+      ><i class="bi bi-hdd-stack"></i> <span>Dispositivos</span></a
     >
     <a
       href="/campaigns"
       class="navbar-link <%= currentRoute === '/campaigns' ? 'active' : '' %>"
-      >Campanhas</a
+      ><i class="bi bi-megaphone"></i> <span>Campanhas</span></a
     >
     <a
       href="/products"
       class="navbar-link <%= currentRoute === '/products' ? 'active' : '' %>"
-      >Produtos</a
-    >
-    <a
-      href="/reports"
-      class="navbar-link <%= currentRoute === '/reports' ? 'active' : '' %>"
-      >Relatórios</a
+      ><i class="bi bi-box-seam"></i> <span>Produtos</span></a
     >
   </div>
 
@@ -54,20 +49,3 @@
     </a>
   </div>
 </nav>
-
-<link
-  href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css"
-  rel="stylesheet"
-/>
-<script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
-
-<script>
-  if (
-    window.location.pathname === "/login" &&
-    window.location.search.includes("logout=true")
-  ) {
-    setTimeout(() => {
-      window.location.href = "/login";
-    }, 2000);
-  }
-</script>

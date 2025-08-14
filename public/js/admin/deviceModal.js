@@ -103,7 +103,6 @@ export function setupDeviceModal() {
         notyf.error(json.message || `Erro ${res.status}`);
         return;
       }
-      notyf.success(json.message);
       deviceModal.style.display = "none";
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");

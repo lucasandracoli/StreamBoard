@@ -10,7 +10,6 @@ const playerRoutes = require("./player.routes");
 const apiRoutes = require("./api.routes");
 const productRoutes = require("./product.routes");
 const logRoutes = require("./log.routes");
-const reportRoutes = require("./report.routes");
 
 router.use(adminRoutes);
 router.use(authRoutes);
@@ -21,6 +20,5 @@ router.use(playerRoutes);
 router.use(apiRoutes);
 router.use(productRoutes);
 router.use("/api", logRoutes);
-router.use(reportRoutes);
 
 module.exports = router;

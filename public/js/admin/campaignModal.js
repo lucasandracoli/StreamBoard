@@ -690,8 +690,6 @@ export function setupCampaignModal() {
         notyf.error(json.message || `Erro ${res.status}`);
         return;
       }
-
-      notyf.success(json.message);
       campaignModal.style.display = "none";
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");

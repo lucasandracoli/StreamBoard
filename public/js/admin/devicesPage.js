@@ -68,7 +68,6 @@ export const addDeviceRow = (device) => {
   if (tableBody) {
     const newRow = createDeviceRow(device);
     tableBody.prepend(newRow);
-    notyf.success(`Dispositivo "${device.name}" adicionado.`);
   }
 };
 
@@ -80,14 +79,12 @@ export const updateDeviceRow = (device) => {
   }
   const newRow = createDeviceRow(device);
   row.innerHTML = newRow.innerHTML;
-  notyf.success(`Dispositivo "${device.name}" atualizado.`);
 };
 
 export const removeDeviceRow = (deviceId) => {
   const row = document.querySelector(`tr[data-device-id="${deviceId}"]`);
   if (row) {
     row.remove();
-    notyf.success("Dispositivo removido.");
   }
   const tableBody = document.getElementById("devices-table-body");
   if (tableBody && tableBody.rows.length === 0) {

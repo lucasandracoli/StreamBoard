@@ -25,7 +25,9 @@
           </div>
           <div class="stat-card-info">
             <span class="stat-card-title">Total de Dispositivos</span>
-            <span id="total-devices-value" class="stat-card-value"><%= stats.totalDevices %></span>
+            <span id="total-devices-value" class="stat-card-value"
+              ><%= stats.totalDevices %></span
+            >
           </div>
         </div>
 
@@ -35,17 +37,21 @@
           </div>
           <div class="stat-card-info">
             <span class="stat-card-title">Online</span>
-            <span id="online-devices-value" class="stat-card-value"><%= stats.onlineDevices %></span>
+            <span id="online-devices-value" class="stat-card-value"
+              ><%= stats.onlineDevices %></span
+            >
           </div>
         </div>
-        
+
         <div class="stat-card">
           <div class="stat-card-icon offline">
             <i class="bi bi-wifi-off"></i>
           </div>
           <div class="stat-card-info">
             <span class="stat-card-title">Offline</span>
-            <span id="offline-devices-value" class="stat-card-value"><%= stats.offlineDevices %></span>
+            <span id="offline-devices-value" class="stat-card-value"
+              ><%= stats.offlineDevices %></span
+            >
           </div>
         </div>
 
@@ -55,17 +61,21 @@
           </div>
           <div class="stat-card-info">
             <span class="stat-card-title">Revogados</span>
-            <span id="revoked-devices-value" class="stat-card-value"><%= stats.revokedDevices %></span>
+            <span id="revoked-devices-value" class="stat-card-value"
+              ><%= stats.revokedDevices %></span
+            >
           </div>
         </div>
-        
+
         <div class="stat-card">
           <div class="stat-card-icon campaigns">
             <i class="bi bi-megaphone-fill"></i>
           </div>
           <div class="stat-card-info">
             <span class="stat-card-title">Campanhas Ativas</span>
-            <span id="active-campaigns-value" class="stat-card-value"><%= stats.activeCampaigns %></span>
+            <span id="active-campaigns-value" class="stat-card-value"
+              ><%= stats.activeCampaigns %></span
+            >
           </div>
         </div>
 
@@ -75,13 +85,42 @@
           </div>
           <div class="stat-card-info">
             <span class="stat-card-title">Empresas</span>
-            <span id="total-companies-value" class="stat-card-value"><%= stats.totalCompanies %></span>
+            <span id="total-companies-value" class="stat-card-value"
+              ><%= stats.totalCompanies %></span
+            >
+          </div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3><i class="bi bi-graph-up"></i> Exibições nos Últimos 7 Dias</h3>
+          <div class="chart-container">
+            <canvas id="playsOverTimeChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h3>
+            <i class="bi bi-play-btn-fill"></i> Top 5 Mídias Mais Exibidas
+          </h3>
+          <div class="chart-container">
+            <canvas id="topMediaChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <h3>
+            <i class="bi bi-megaphone-fill"></i> Top 5 Campanhas Mais Exibidas
+          </h3>
+          <div class="chart-container">
+            <canvas id="topCampaignsChart"></canvas>
           </div>
         </div>
       </div>
     </main>
 
     <%- include("partials/footer") %>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
     <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>
   </body>

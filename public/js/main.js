@@ -9,7 +9,7 @@ import { connectAdminWs } from "./admin/adminWs.js";
 import { setupProductModal } from "./admin/productModal.js";
 import { setupProductWs } from "./admin/productWs.js";
 import { setupTableSearch } from "./admin/tableSearch.js";
-import { setupReportsPage } from "./admin/reportsPage.js";
+import { setupDashboardCharts } from "./admin/reportsPage.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   setupLoginForm();
@@ -35,5 +35,5 @@ document.addEventListener("DOMContentLoaded", () => {
   setupTableSearch("devices-search-input", "devices-table-body");
   setupTableSearch("campaigns-search-input", "campaigns-table-body");
 
-  setupReportsPage();
+  setupDashboardCharts();
 });

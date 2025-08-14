@@ -73,7 +73,6 @@ export const addCampaignRow = (campaign) => {
   if (tableBody) {
     const newRow = createCampaignRow(campaign);
     tableBody.prepend(newRow);
-    notyf.success(`Campanha "${campaign.name}" criada.`);
   }
 };
 
@@ -83,14 +82,12 @@ export const updateCampaignRow = (campaign) => {
 
   const newRow = createCampaignRow(campaign);
   row.innerHTML = newRow.innerHTML;
-  notyf.success(`Campanha "${campaign.name}" atualizada.`);
 };
 
 export const removeCampaignRow = (campaignId) => {
   const row = document.querySelector(`tr[data-campaign-id="${campaignId}"]`);
   if (row) {
     row.remove();
-    notyf.success("Campanha removida.");
   }
   const tableBody = document.getElementById("campaigns-table-body");
   if (tableBody && tableBody.rows.length === 0) {

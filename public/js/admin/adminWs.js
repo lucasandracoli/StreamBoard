@@ -56,32 +56,41 @@ export function connectAdminWs(detailsModalHandler) {
           break;
         case "DEVICE_CREATED":
           if (isDevicesPage) addDeviceRow(data.payload);
+          notyf.success(`Dispositivo "${data.payload.name}" criado.`);
           break;
         case "DEVICE_UPDATED":
           if (isDevicesPage) updateDeviceRow(data.payload);
+          notyf.success(`Dispositivo "${data.payload.name}" atualizado.`);
           break;
         case "DEVICE_DELETED":
           if (isDevicesPage) removeDeviceRow(data.payload.deviceId);
+          notyf.success(`Dispositivo removido com sucesso.`);
           break;
 
         case "COMPANY_CREATED":
           if (isCompaniesPage) addCompanyRow(data.payload);
+          notyf.success(`Empresa "${data.payload.name}" criada.`);
           break;
         case "COMPANY_UPDATED":
           if (isCompaniesPage) updateCompanyRow(data.payload);
+          notyf.success(`Empresa "${data.payload.name}" atualizada.`);
           break;
         case "COMPANY_DELETED":
           if (isCompaniesPage) removeCompanyRow(data.payload.companyId);
+          notyf.success(`Empresa removida com sucesso.`);
           break;
-        
+
         case "CAMPAIGN_CREATED":
           if (isCampaignsPage) addCampaignRow(data.payload);
+          notyf.success(`Campanha "${data.payload.name}" criada.`);
           break;
         case "CAMPAIGN_UPDATED":
           if (isCampaignsPage) updateCampaignRow(data.payload);
+          notyf.success(`Campanha "${data.payload.name}" atualizada.`);
           break;
         case "CAMPAIGN_DELETED":
           if (isCampaignsPage) removeCampaignRow(data.payload.campaignId);
+          notyf.success(`Campanha removida com sucesso.`);
           break;
 
         case "PRODUCT_UPDATE":

@@ -171,13 +171,13 @@ export function setupCompanyModal() {
       form.name.value = company.name;
 
       if (cnpjMask) {
-        cnpjMask.value = company.cnpj;
+        cnpjMask.unmaskedValue = company.cnpj || "";
       } else {
         form.cnpj.value = company.cnpj;
       }
 
       if (cepMask) {
-        cepMask.value = company.cep;
+        cepMask.unmaskedValue = company.cep || "";
       } else {
         form.cep.value = company.cep;
       }
@@ -222,7 +222,6 @@ export function setupCompanyModal() {
         notyf.error(json.message || `Erro ${res.status}`);
         return;
       }
-      notyf.success(json.message || "Operação realizada com sucesso.");
       companyModal.style.display = "none";
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");

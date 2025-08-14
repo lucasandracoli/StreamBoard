@@ -53,7 +53,6 @@ export function setupConfirmationModal() {
           if (!res.ok) {
             throw new Error(json.message || `Erro ${res.status}`);
           }
-          notyf.success(json.message || "Item excluído com sucesso.");
           if (config.reload) {
             setTimeout(() => window.location.reload(), 1200);
           }
