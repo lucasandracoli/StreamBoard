@@ -1,4 +1,19 @@
 import { notyf } from "./utils.js";
+import {
+  addCompanyRow,
+  updateCompanyRow,
+  removeCompanyRow,
+} from "./companiesPage.js";
+import {
+  addDeviceRow,
+  updateDeviceRow,
+  removeDeviceRow,
+} from "./devicesPage.js";
+import {
+  addCampaignRow,
+  updateCampaignRow,
+  removeCampaignRow,
+} from "./campaignsPage.js";
 
 function updateDeviceStatusOnPage(payload) {
   const { deviceId, status, deviceName } = payload;
@@ -6,7 +21,7 @@ function updateDeviceStatusOnPage(payload) {
   if (!row) return;
 
   const statusCell = row.querySelector("[data-status-cell]");
-  const nameCell = row.querySelector("td:first-child");
+  const nameCell = row.querySelector('td[data-label="Nome"]');
 
   if (nameCell) {
     nameCell.textContent = deviceName;
@@ -22,15 +37,6 @@ function updateDeviceStatusOnPage(payload) {
   }
 }
 
-function handlePageUpdate(data, pageId, path) {
-    notyf.success(data.payload.message || "Operação concluída.");
-    const isOnPage = document.getElementById(pageId);
-    if (isOnPage && window.location.pathname.includes(path)) {
-        setTimeout(() => window.location.reload(), 1200);
-    }
-}
-
-
 export function connectAdminWs(detailsModalHandler) {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${protocol}//${window.location.host}/admin-ws`;
@@ -39,23 +45,56 @@ export function connectAdminWs(detailsModalHandler) {
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
+      const isDevicesPage = document.getElementById("devices-page");
+      const isCompaniesPage = document.getElementById("companies-page");
+      const isCampaignsPage = document.getElementById("campaigns-page");
 
       switch (data.type) {
         case "DEVICE_STATUS_UPDATE":
         case "DEVICE_NEWLY_ACTIVE":
-          if (document.getElementById("devices-page")) {
-            updateDeviceStatusOnPage(data.payload);
-          }
+          if (isDevicesPage) updateDeviceStatusOnPage(data.payload);
+          break;
+        case "DEVICE_CREATED":
+          if (isDevicesPage) addDeviceRow(data.payload);
+          break;
+        case "DEVICE_UPDATED":
+          if (isDevicesPage) updateDeviceRow(data.payload);
+          break;
+        case "DEVICE_DELETED":
+          if (isDevicesPage) removeDeviceRow(data.payload.deviceId);
+          break;
+
+        case "COMPANY_CREATED":
+          if (isCompaniesPage) addCompanyRow(data.payload);
+          break;
+        case "COMPANY_UPDATED":
+          if (isCompaniesPage) updateCompanyRow(data.payload);
           break;
         case "COMPANY_DELETED":
-           notyf.success(data.payload.message || "Empresa excluída.");
-           break;
+          if (isCompaniesPage) removeCompanyRow(data.payload.companyId);
+          break;
+        
+        case "CAMPAIGN_CREATED":
+          if (isCampaignsPage) addCampaignRow(data.payload);
+          break;
+        case "CAMPAIGN_UPDATED":
+          if (isCampaignsPage) updateCampaignRow(data.payload);
+          break;
+        case "CAMPAIGN_DELETED":
+          if (isCampaignsPage) removeCampaignRow(data.payload.campaignId);
+          break;
+
         case "PRODUCT_UPDATE":
-           handlePageUpdate(data, 'products-page', '/products');
-           break;
-        case "CAMPAIGN_UPDATE":
-           handlePageUpdate(data, 'campaigns-page', '/campaigns');
-           break;
+          if (
+            document.getElementById("products-page") &&
+            window.location.pathname.includes("/products")
+          ) {
+            notyf.success(
+              data.payload.message || "Operação de produto concluída."
+            );
+            setTimeout(() => window.location.reload(), 1200);
+          }
+          break;
       }
     } catch (e) {
       console.error("Erro ao processar mensagem WebSocket:", e);

@@ -230,7 +230,7 @@ export function setupCompanyModal() {
         return;
       }
       notyf.success(json.message || "Operação realizada com sucesso.");
-      setTimeout(() => location.reload(), 1200);
+      companyModal.style.display = "none";
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");
     } finally {

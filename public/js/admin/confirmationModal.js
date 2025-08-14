@@ -16,19 +16,16 @@ export function setupConfirmationModal() {
         config = {
           url: `/campaigns/${id}/delete`,
           msg: "Deseja realmente excluir esta campanha?",
-          reload: true,
         };
       } else if (pageId === "devices-page") {
         config = {
           url: `/devices/${id}/delete`,
           msg: "Deseja realmente excluir este dispositivo?",
-          targetRow: row,
         };
       } else if (pageId === "companies-page") {
         config = {
           url: `/companies/${id}/delete`,
           msg: "Excluir esta empresa removerá todos os dados associados. Confirma?",
-          targetRow: row,
         };
       } else if (pageId === "products-page") {
         config = {
@@ -55,16 +52,6 @@ export function setupConfirmationModal() {
             const json = await res.json();
             if (!res.ok) {
               throw new Error(json.message || `Erro ${res.status}`);
-            }
-
-            if (pageId !== "products-page") {
-              notyf.success(
-                json.message || "Operação realizada com sucesso."
-              );
-            }
-
-            if (config.targetRow) {
-              config.targetRow.remove();
             }
             if (config.reload) {
               setTimeout(() => window.location.reload(), 1200);

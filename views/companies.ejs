@@ -18,6 +18,15 @@
 
     <main class="container">
       <div class="device-header">
+        <div class="search-wrapper">
+          <i class="bi bi-search"></i>
+          <input
+            type="text"
+            id="companies-search-input"
+            class="search-input"
+            placeholder="Buscar empresa..."
+          />
+        </div>
         <button class="device-button" id="openCompanyModal">
           <i class="bi bi-plus-lg"></i>
           <span>Nova Empresa</span>
@@ -36,7 +45,7 @@
               <th>Ações</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="companies-table-body">
             <% if (companies.length === 0) { %>
             <tr id="no-companies-row">
               <td colspan="6" style="text-align: center">

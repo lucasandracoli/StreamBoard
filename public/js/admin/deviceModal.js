@@ -111,7 +111,7 @@ export function setupDeviceModal() {
         return;
       }
       notyf.success(json.message);
-      setTimeout(() => location.reload(), 1200);
+      deviceModal.style.display = "none";
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");
     } finally {

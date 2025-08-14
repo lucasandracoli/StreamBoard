@@ -11,10 +11,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const playerWrapper = document.getElementById("player-wrapper");
   let playlists = { main: [], secondary: [] };
+  let currentCampaignId = null;
   let currentIndices = { main: -1, secondary: -1 };
   let mediaTimers = { main: null, secondary: null };
   let playlistInterval = null;
   let clockInterval = null;
+
+  const logPlayback = async (uploadId, campaignId) => {
+    if (!uploadId || !campaignId) return;
+    try {
+      await fetch("/api/logs/play", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ uploadId, campaignId }),
+      });
+    } catch (err) {
+      console.error("Falha ao registrar log de exibição.", err);
+    }
+  };
 
   const setupLayout = (layoutType = "fullscreen") => {
     playerWrapper.innerHTML = "";
@@ -82,6 +98,8 @@ document.addEventListener("DOMContentLoaded", () => {
       playNextInZone(zone);
       return;
     }
+
+    logPlayback(mediaItem.id, currentCampaignId);
 
     const isImage = mediaItem.file_type.startsWith("image/");
     const isVideo = mediaItem.file_type.startsWith("video/");
@@ -163,11 +181,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!data) {
       playlists = { main: [], secondary: [] };
+      currentCampaignId = null;
       showWaitingScreen();
       return;
     }
 
     setupLayout(data.layout_type);
+    currentCampaignId = data.campaign_id;
 
     playlists.main = (data.uploads || []).filter(
       (u) => u.zone === "main" || !u.zone
@@ -310,15 +330,16 @@ document.addEventListener("DOMContentLoaded", () => {
     renderClock();
   };
 
+  const requestPlaylist = () => {
+    wsManager.sendMessage({ type: "REQUEST_PLAYLIST" });
+  };
+
   const handleServerMessage = (data) => {
     switch (data.type) {
       case "CONNECTION_ESTABLISHED":
-        wsManager.sendMessage({ type: "REQUEST_PLAYLIST" });
+        requestPlaylist();
         if (playlistInterval) clearInterval(playlistInterval);
-        playlistInterval = setInterval(
-          () => wsManager.sendMessage({ type: "REQUEST_PLAYLIST" }),
-          30 * 60 * 1000
-        );
+        playlistInterval = setInterval(requestPlaylist, 30 * 60 * 1000);
         break;
       case "PLAYLIST_UPDATE":
         startPlayback(data.payload);
@@ -326,7 +347,7 @@ document.addEventListener("DOMContentLoaded", () => {
       case "NEW_CAMPAIGN":
       case "UPDATE_CAMPAIGN":
       case "DELETE_CAMPAIGN":
-        wsManager.sendMessage({ type: "REQUEST_PLAYLIST" });
+        requestPlaylist();
         break;
       case "DEVICE_REVOKED":
         wsManager.disconnect(false);
@@ -341,8 +362,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }, 4000);
         break;
       case "FORCE_REFRESH":
-        wsManager.disconnect(false);
-        window.location.reload(true);
+      case "REMOTE_COMMAND":
+        if (data.payload?.command === "RELOAD_PAGE") {
+          wsManager.disconnect(false);
+          window.location.reload(true);
+        } else if (data.payload?.command === "REFRESH_PLAYLIST") {
+          requestPlaylist();
+        }
         break;
       case "TYPE_CHANGED":
         wsManager.disconnect(false);

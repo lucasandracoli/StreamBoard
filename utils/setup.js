@@ -129,6 +129,13 @@ CREATE TABLE IF NOT EXISTS "user_sessions" (
 );
 CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "user_sessions" ("expire");
 
+CREATE TABLE IF NOT EXISTS play_logs (
+    id SERIAL PRIMARY KEY,
+    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    upload_id INTEGER NOT NULL REFERENCES campaign_uploads(id) ON DELETE CASCADE,
+    played_at TIMESTAMPTZ DEFAULT NOW()
+);
 
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_tokens_refresh_token ON tokens (refresh_token);
@@ -144,6 +151,9 @@ CREATE INDEX IF NOT EXISTS idx_campaign_uploads_campaign_id ON campaign_uploads 
 CREATE INDEX IF NOT EXISTS idx_otp_pairing_device_id ON otp_pairing (device_id);
 CREATE INDEX IF NOT EXISTS idx_magic_links_device_id ON magic_links (device_id);
 CREATE INDEX IF NOT EXISTS idx_butcher_products_company_id ON butcher_products (company_id);
+CREATE INDEX IF NOT EXISTS idx_play_logs_device_id ON play_logs (device_id);
+CREATE INDEX IF NOT EXISTS idx_play_logs_campaign_id ON play_logs (campaign_id);
+CREATE INDEX IF NOT EXISTS idx_play_logs_upload_id ON play_logs (upload_id);
 
 `;
 

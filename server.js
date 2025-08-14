@@ -10,19 +10,8 @@ const cookieParser = require("cookie-parser");
 const path = require("path");
 const mainRouter = require("./src/routes");
 const webSocketManager = require("./src/websocket/manager");
-const productSyncService = require("./src/services/productSync.service");
-
-const logger = {
-  info: (message) => {
-    console.log(`[${new Date().toISOString()}] [INFO] ${message}`);
-  },
-  error: (message, error) => {
-    console.error(
-      `[${new Date().toISOString()}] [ERROR] ${message}`,
-      error || ""
-    );
-  },
-};
+const productSyncQueue = require("./src/jobs/productSyncQueue");
+const logger = require("./src/utils/logger");
 
 Settings.defaultZone = "America/Sao_Paulo";
 
@@ -75,16 +64,28 @@ app.use(bodyParser.json());
 
 app.use("/", mainRouter);
 
-const ONE_HOUR_IN_MS = 60 * 60 * 1000;
+const scheduleHourlySync = async () => {
+  await productSyncQueue.removeRepeatableByKey(
+    "sync-all-companies:hourly:0 * * * *:"
+  );
 
-const startProductSyncScheduler = () => {
-  productSyncService.syncAllProducts();
-  setInterval(() => {
-    productSyncService.syncAllProducts();
-  }, ONE_HOUR_IN_MS);
+  await productSyncQueue.add(
+    "sync-all-companies",
+    {},
+    {
+      repeat: {
+        cron: "0 * * * *",
+      },
+      jobId: "sync-all-hourly",
+    }
+  );
+
+  logger.info(
+    "Job de sincronização de produtos agendado para rodar a cada hora."
+  );
 };
 
 server.listen(PORT, () => {
   logger.info(`🔥 Server Running in http://127.0.0.1:${PORT}`);
-  startProductSyncScheduler();
+  scheduleHourlySync();
 });

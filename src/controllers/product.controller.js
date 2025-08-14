@@ -1,11 +1,11 @@
 const localProductService = require("../services/localProduct.service");
-const productSyncService = require("../services/productSync.service");
 const sysmoService = require("../services/sysmo.service");
 const companyService = require("../services/company.service");
 const deviceService = require("../services/device.service");
 const logger = require("../utils/logger");
 const xlsx = require("xlsx");
 const formatUtils = require("../utils/format.utils");
+const productSyncQueue = require("../jobs/productSyncQueue");
 
 const notifyPlayers = async (companyId, { sendUpdateToDevice }) => {
   const deviceIds = await deviceService.getActiveDigitalMenuDevicesByCompany(
@@ -82,21 +82,18 @@ const deleteProduct = async (req, res) => {
 const triggerSyncForCompany = async (req, res) => {
   const { companyId } = req.params;
   try {
-    await productSyncService.syncProductsForCompany(companyId);
-
-    const { broadcastToAdmins, sendUpdateToDevice } = req.app.locals;
-    broadcastToAdmins({
-      type: "PRODUCT_UPDATE",
-      payload: {
-        companyId: companyId,
-        message: "Sincronização da loja concluída!",
-      },
+    await productSyncQueue.add("sync-single-company", {
+      companyId: parseInt(companyId, 10),
     });
-    notifyPlayers(companyId, { sendUpdateToDevice });
-
-    res.status(200).json({ message: "Comando de sincronização processado." });
+    res.status(202).json({
+      message: "Sincronização da loja iniciada em segundo plano.",
+    });
   } catch (err) {
-    res.status(500).json({ message: "Erro durante a sincronização da loja." });
+    logger.error(
+      `Erro ao adicionar job de sincronização para a empresa ${companyId}.`,
+      err
+    );
+    res.status(500).json({ message: "Erro ao iniciar a sincronização." });
   }
 };
 

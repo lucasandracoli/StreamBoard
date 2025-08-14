@@ -27,6 +27,10 @@
     <main class="container">
       <% if (companies.length > 0) { %>
       <div class="device-header">
+        <div class="search-wrapper">
+           <i class="bi bi-search"></i>
+           <input type="text" id="campaigns-search-input" class="search-input" placeholder="Buscar campanha...">
+        </div>
         <button class="device-button" id="openCampaignModal">
           <svg
             xmlns="http://www.w3.org/2000/svg"

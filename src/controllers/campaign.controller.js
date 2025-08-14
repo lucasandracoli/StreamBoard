@@ -7,6 +7,54 @@ const companyService = require("../services/company.service");
 const formatUtils = require("../utils/format.utils");
 const logger = require("../utils/logger");
 
+const getFullCampaignDetailsForBroadcast = async (campaignId) => {
+  const campaign = await campaignService.getCampaignWithDetails(campaignId);
+  if (!campaign) return null;
+
+  const now = DateTime.now().setZone("America/Sao_Paulo");
+  const startDate = DateTime.fromJSDate(campaign.start_date, {
+    zone: "America/Sao_Paulo",
+  });
+  const endDate = DateTime.fromJSDate(campaign.end_date, {
+    zone: "America/Sao_Paulo",
+  });
+  let status;
+  if (now < startDate) {
+    status = { text: "Agendada", class: "scheduled" };
+  } else if (now > endDate) {
+    status = { text: "Finalizada", class: "offline" };
+  } else {
+    status = { text: "Ativa", class: "online" };
+  }
+
+  let campaign_type = "Sem Mídia";
+  const uploadsCount = campaign.uploads ? campaign.uploads.length : 0;
+  if (uploadsCount > 1) {
+    campaign_type = "Playlist";
+  } else if (uploadsCount === 1) {
+    const firstUpload = campaign.uploads[0];
+    if (firstUpload.file_type?.startsWith("image/")) campaign_type = "Imagem";
+    else if (firstUpload.file_type?.startsWith("video/"))
+      campaign_type = "Vídeo";
+    else campaign_type = "Arquivo";
+  }
+
+  const allTargetNames = await campaignService.getTargetNamesForCampaign(
+    campaignId
+  );
+
+  return {
+    ...campaign,
+    status,
+    target_names: allTargetNames,
+    periodo_formatado: formatUtils.formatarPeriodo(
+      campaign.start_date,
+      campaign.end_date
+    ),
+    campaign_type,
+  };
+};
+
 const listCampaignsPage = async (req, res) => {
   try {
     const campaignList = await campaignService.getAllCampaigns();
@@ -61,7 +109,7 @@ const listCampaignsPage = async (req, res) => {
 
     res.render("campaigns", { campaigns, companies, sectors: [] });
   } catch (err) {
-    logger.error("Erro ao carregar campanhas.", err);
+    logger.error({ err }, "Erro ao carregar campanhas.");
     res.status(500).send("Erro ao carregar campanhas.");
   }
 };
@@ -147,7 +195,7 @@ const createCampaign = async (req, res) => {
     const affectedDeviceIds =
       await campaignService.getAffectedDevicesForCampaign(newCampaign.id);
 
-    const { sendUpdateToDevice } = req.app.locals;
+    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
     affectedDeviceIds.forEach((deviceId) => {
       sendUpdateToDevice(deviceId, {
         type: "NEW_CAMPAIGN",
@@ -155,10 +203,21 @@ const createCampaign = async (req, res) => {
       });
     });
 
+    const fullCampaignDetails = await getFullCampaignDetailsForBroadcast(
+      newCampaign.id
+    );
+    if (fullCampaignDetails) {
+      broadcastToAdmins({
+        type: "CAMPAIGN_CREATED",
+        payload: fullCampaignDetails,
+      });
+    }
+
     res
       .status(200)
       .json({ message: "Campanha criada.", campaign: newCampaign });
   } catch (err) {
+    logger.error({ err }, "Erro interno ao criar campanha.");
     res.status(500).json({ message: "Erro interno ao criar campanha." });
   }
 };
@@ -176,24 +235,29 @@ const deleteCampaign = async (req, res) => {
     }
 
     for (const filePath of filesToDelete) {
-      const fullPath = path.join(__dirname, "../../", filePath);
+      const fullPath = path.join(process.cwd(), filePath.substring(1));
       fsPromises.unlink(fullPath).catch((err) => {
-        logger.error(`Falha ao excluir arquivo de mídia: ${fullPath}`, err);
+        logger.error({ err }, `Falha ao excluir arquivo de mídia: ${fullPath}`);
       });
     }
 
-    const { sendUpdateToDevice } = req.app.locals;
+    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
     affectedDeviceIds.forEach((deviceId) => {
       sendUpdateToDevice(deviceId, {
         type: "DELETE_CAMPAIGN",
         payload: { campaignId: Number(id) },
       });
     });
+    broadcastToAdmins({
+      type: "CAMPAIGN_DELETED",
+      payload: { campaignId: Number(id) },
+    });
 
     res.status(200).json({
       message: "Campanha e mídias associadas foram excluídas com sucesso.",
     });
   } catch (err) {
+    logger.error({ err }, "Erro ao excluir campanha.");
     res.status(500).json({ message: "Erro ao excluir campanha." });
   }
 };
@@ -207,7 +271,7 @@ const getCampaignDetails = async (req, res) => {
     }
     res.json(campaign);
   } catch (err) {
-    logger.error(`Erro ao buscar detalhes da campanha ${id}.`, err);
+    logger.error({ err }, `Erro ao buscar detalhes da campanha ${id}.`);
     res.status(500).json({ message: "Erro interno do servidor." });
   }
 };
@@ -317,9 +381,12 @@ const editCampaign = async (req, res) => {
       if (uploadsToDelete.length > 0) {
         for (const upload of uploadsToDelete) {
           fsPromises
-            .unlink(path.join(__dirname, "../../", upload.file_path))
+            .unlink(path.join(process.cwd(), upload.file_path.substring(1)))
             .catch((err) =>
-              logger.error(`Falha ao remover arquivo: ${upload.file_path}`, err)
+              logger.error(
+                { err },
+                `Falha ao remover arquivo: ${upload.file_path}`
+              )
             );
         }
         await client.query(
@@ -387,7 +454,7 @@ const editCampaign = async (req, res) => {
       ...new Set([...oldAffectedDeviceIds, ...newAffectedDeviceIds]),
     ];
 
-    const { sendUpdateToDevice } = req.app.locals;
+    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
     allAffectedDeviceIds.forEach((deviceId) => {
       sendUpdateToDevice(deviceId, {
         type: "UPDATE_CAMPAIGN",
@@ -395,64 +462,21 @@ const editCampaign = async (req, res) => {
       });
     });
 
-    const campaignFromDb = await campaignService.getCampaignWithDetails(id);
-
-    const now = DateTime.now().setZone("America/Sao_Paulo");
-    const startDate = DateTime.fromJSDate(campaignFromDb.start_date, {
-      zone: "America/Sao_Paulo",
-    });
-    const endDate = DateTime.fromJSDate(campaignFromDb.end_date, {
-      zone: "America/Sao_Paulo",
-    });
-
-    let status;
-    if (now < startDate) {
-      status = { text: "Agendada", class: "scheduled" };
-    } else if (now > endDate) {
-      status = { text: "Finalizada", class: "offline" };
-    } else {
-      status = { text: "Ativa", class: "online" };
+    const fullCampaignDetails = await getFullCampaignDetailsForBroadcast(id);
+    if (fullCampaignDetails) {
+      broadcastToAdmins({
+        type: "CAMPAIGN_UPDATED",
+        payload: fullCampaignDetails,
+      });
     }
-
-    let campaign_type = "Sem Mídia";
-    const uploadsCount = campaignFromDb.uploads.length;
-    if (uploadsCount > 1) {
-      campaign_type = "Playlist";
-    } else if (uploadsCount === 1) {
-      if (campaignFromDb.uploads[0].file_type?.startsWith("image/"))
-        campaign_type = "Imagem";
-      else if (campaignFromDb.uploads[0].file_type?.startsWith("video/"))
-        campaign_type = "Vídeo";
-      else campaign_type = "Arquivo";
-    }
-
-    let target_names = [];
-    if (campaignFromDb.sector_names && campaignFromDb.sector_names.length > 0)
-      target_names = campaignFromDb.sector_names;
-    else if (
-      campaignFromDb.device_names &&
-      campaignFromDb.device_names.length > 0
-    )
-      target_names = campaignFromDb.device_names;
-
-    const campaignForResponse = {
-      ...campaignFromDb,
-      status,
-      target_names,
-      periodo_formatado: formatUtils.formatarPeriodo(
-        campaignFromDb.start_date,
-        campaignFromDb.end_date
-      ),
-      campaign_type,
-    };
 
     res.status(200).json({
       message: "Campanha atualizada com sucesso.",
-      campaign: campaignForResponse,
+      campaign: fullCampaignDetails,
     });
   } catch (err) {
     await client.query("ROLLBACK");
-    logger.error(`Erro ao editar campanha ${id}.`, err);
+    logger.error({ err }, `Erro ao editar campanha ${id}.`);
     res.status(500).json({ message: "Erro ao atualizar campanha." });
   } finally {
     client.release();

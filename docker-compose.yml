@@ -1,10 +1,8 @@
 version: "3.8"
 
 services:
-  # Serviço da aplicação principal (Node.js)
   application:
     build: .
-    # Define o nome exato do contentor como 'streamboard-application'.
     container_name: streamboard-application
     ports:
       - "3000:3000"
@@ -16,12 +14,29 @@ services:
     depends_on:
       database:
         condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    command: npm start
+
+  worker:
+    build: .
+    container_name: streamboard-worker
+    command: node src/jobs/worker.js
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    env_file:
+      - .env
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
     restart: unless-stopped
 
-  # Serviço do banco de dados PostgreSQL
   database:
     image: postgres:15-alpine
-    # Define o nome exato do contentor como 'streamboard-database'.
     container_name: streamboard-database
     environment:
       POSTGRES_USER: ${DB_USER}
@@ -38,6 +53,10 @@ services:
       retries: 5
     restart: unless-stopped
 
-# Volume para persistência dos dados do PostgreSQL
+  redis:
+    image: redis:7-alpine
+    container_name: streamboard-redis
+    restart: unless-stopped
+
 volumes:
   postgres_data:

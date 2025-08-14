@@ -8,6 +8,8 @@ import { setupGlobalListeners } from "./admin/globalListeners.js";
 import { connectAdminWs } from "./admin/adminWs.js";
 import { setupProductModal } from "./admin/productModal.js";
 import { setupProductWs } from "./admin/productWs.js";
+import { setupTableSearch } from "./admin/tableSearch.js";
+import { setupReportsPage } from "./admin/reportsPage.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   setupLoginForm();
@@ -20,4 +22,10 @@ document.addEventListener("DOMContentLoaded", () => {
   connectAdminWs(detailsModalHandler);
   setupProductModal();
   setupProductWs();
+
+  setupTableSearch("companies-search-input", "companies-table-body");
+  setupTableSearch("devices-search-input", "devices-table-body");
+  setupTableSearch("campaigns-search-input", "campaigns-table-body");
+
+  setupReportsPage();
 });

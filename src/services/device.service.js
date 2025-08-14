@@ -30,8 +30,14 @@ const getDeviceById = async (id) => {
 const createDevice = async (name, device_type, company_id, sector_id) => {
   const query = `
     INSERT INTO devices (name, device_type, company_id, sector_id, is_active)
-    VALUES ($1, $2, $3, $4, TRUE)`;
-  await db.query(query, [name, device_type, company_id, sector_id]);
+    VALUES ($1, $2, $3, $4, TRUE) RETURNING id`;
+  const result = await db.query(query, [
+    name,
+    device_type,
+    company_id,
+    sector_id,
+  ]);
+  return result.rows[0];
 };
 
 const updateDevice = async (id, data) => {
@@ -180,6 +186,7 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId, deviceType) => {
         ORDER BY zone, execution_order ASC`;
     const uploadsResult = await db.query(uploadsQuery, [campaign.id]);
     const playlistData = {
+      campaign_id: campaign.id,
       layout_type: campaign.layout_type,
       uploads: uploadsResult.rows,
       city: campaign.city,
@@ -208,9 +215,11 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId, deviceType) => {
   let primaryMedia = [];
   let secondaryMedia = null;
   let layout_type = "fullscreen";
+  let campaign_id = null;
 
   if (campaign) {
     layout_type = campaign.layout_type;
+    campaign_id = campaign.id;
     const uploadsResult = await db.query(
       `SELECT id, file_path, file_type, duration, zone
        FROM campaign_uploads
@@ -255,6 +264,7 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId, deviceType) => {
   }
 
   return {
+    campaign_id,
     layout_type: layout_type,
     product_groups: butcherProductsGroups,
     primary_media: primaryMedia,

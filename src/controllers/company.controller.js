@@ -27,13 +27,19 @@ const createCompany = async (req, res) => {
       sectors
     );
     const { broadcastToAdmins } = req.app.locals;
+
+    const companyDetails = await companyService.getCompanyById(
+      newCompany.companyId
+    );
+
     broadcastToAdmins({
       type: "COMPANY_CREATED",
       payload: {
-        companyId: newCompany.companyId,
-        message: "Empresa cadastrada com sucesso.",
+        ...companyDetails,
+        formatted_cnpj: formatUtils.formatarCNPJ(companyDetails.cnpj),
       },
     });
+
     res.status(201).json({
       status: "success",
       companyId: newCompany.companyId,
@@ -60,11 +66,14 @@ const editCompany = async (req, res) => {
   try {
     await companyService.updateCompany(id, req.body);
     const { broadcastToAdmins } = req.app.locals;
+
+    const companyDetails = await companyService.getCompanyById(id);
+
     broadcastToAdmins({
       type: "COMPANY_UPDATED",
       payload: {
-        companyId: id,
-        message: "Empresa atualizada com sucesso.",
+        ...companyDetails,
+        formatted_cnpj: formatUtils.formatarCNPJ(companyDetails.cnpj),
       },
     });
     res
@@ -85,7 +94,6 @@ const deleteCompany = async (req, res) => {
       type: "COMPANY_DELETED",
       payload: {
         companyId: id,
-        message: "Empresa excluída com sucesso.",
       },
     });
     res
