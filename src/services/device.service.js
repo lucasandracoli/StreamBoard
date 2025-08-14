@@ -170,86 +170,109 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId, deviceType) => {
     sectorId,
   ]);
 
-  if (campaignResult.rows.length === 0) {
-    return null;
+  if (deviceType !== "digital_menu") {
+    if (campaignResult.rows.length === 0) return null;
+    const campaign = campaignResult.rows[0];
+    const uploadsQuery = `
+        SELECT id, file_path, file_type, duration, zone
+        FROM campaign_uploads
+        WHERE campaign_id = $1
+        ORDER BY zone, execution_order ASC`;
+    const uploadsResult = await db.query(uploadsQuery, [campaign.id]);
+    const playlistData = {
+      layout_type: campaign.layout_type,
+      uploads: uploadsResult.rows,
+      city: campaign.city,
+      state: campaign.state,
+      cep: campaign.cep,
+    };
+    if (playlistData.layout_type === "split-80-20-weather") {
+      try {
+        playlistData.weather = await weatherService.getWeather(
+          playlistData.city,
+          playlistData.state,
+          playlistData.cep
+        );
+      } catch (weatherError) {
+        logger.error("Falha ao buscar clima.", weatherError);
+        playlistData.weather = null;
+      }
+    }
+    return playlistData;
   }
 
-  const campaign = campaignResult.rows[0];
+  const butcherProductsGroups = await butcherService.getButcherProducts(
+    companyId
+  );
+  let campaign = campaignResult.rows.length > 0 ? campaignResult.rows[0] : null;
+  let primaryMedia = [];
+  let secondaryMedia = null;
+  let layout_type = "fullscreen";
 
-  const uploadsQuery = `
-      SELECT id, file_path, file_type, duration, zone
-      FROM campaign_uploads
-      WHERE campaign_id = $1
-      ORDER BY zone, execution_order ASC`;
-
-  const uploadsResult = await db.query(uploadsQuery, [campaign.id]);
-
-  const standardPlaylistData = {
-    layout_type: campaign.layout_type,
-    uploads: uploadsResult.rows,
-    city: campaign.city,
-    state: campaign.state,
-    cep: campaign.cep,
-  };
-
-  if (deviceType === "digital_menu") {
-    const butcherProductsGroups = await butcherService.getButcherProducts(
-      companyId
+  if (campaign) {
+    layout_type = campaign.layout_type;
+    const uploadsResult = await db.query(
+      `SELECT id, file_path, file_type, duration, zone
+       FROM campaign_uploads
+       WHERE campaign_id = $1
+       ORDER BY zone, execution_order ASC`,
+      [campaign.id]
     );
-    const primaryMedia =
-      standardPlaylistData?.uploads?.filter(
-        (u) => u.zone === "main" || !u.zone
-      ) || [];
-    const secondaryMedia = standardPlaylistData?.uploads?.find(
-      (u) => u.zone === "secondary"
+    primaryMedia = uploadsResult.rows.filter(
+      (u) => u.zone === "main" || !u.zone
     );
+    secondaryMedia = uploadsResult.rows.find((u) => u.zone === "secondary");
 
-    let interleavedPlaylist = [];
+    if (layout_type === "split-80-20-weather") {
+      try {
+        const weatherData = await weatherService.getWeather(
+          campaign.city,
+          campaign.state,
+          campaign.cep
+        );
+        if (weatherData) {
+          secondaryMedia = {
+            type: "weather",
+            weather: weatherData,
+            city: campaign.city,
+          };
+        } else {
+          secondaryMedia = null;
+        }
+      } catch (weatherError) {
+        logger.error("Falha ao buscar clima para menu.", weatherError);
+        secondaryMedia = null;
+      }
+    }
+
+    if (layout_type.startsWith("split-") && !secondaryMedia) {
+      layout_type = "fullscreen";
+    }
+  }
+
+  let playlist = [];
+  if (butcherProductsGroups.length > 0) {
     let mediaIndex = 0;
-
     butcherProductsGroups.forEach((group) => {
-      interleavedPlaylist.push(group);
+      playlist.push(group);
       if (primaryMedia.length > 0) {
-        interleavedPlaylist.push({
-          type: "media",
-          ...primaryMedia[mediaIndex],
-        });
+        playlist.push({ type: "media", ...primaryMedia[mediaIndex] });
         mediaIndex = (mediaIndex + 1) % primaryMedia.length;
       }
     });
-
-    if (interleavedPlaylist.length === 0) {
-      interleavedPlaylist = primaryMedia.map((m) => ({ type: "media", ...m }));
-    }
-
-    return {
-      layout_type: standardPlaylistData?.layout_type || "fullscreen",
-      playlist: interleavedPlaylist,
-      secondary_media: secondaryMedia || null,
-    };
+  } else {
+    playlist = primaryMedia.map((m) => ({ type: "media", ...m }));
   }
 
-  if (
-    standardPlaylistData &&
-    standardPlaylistData.layout_type === "split-80-20-weather"
-  ) {
-    try {
-      const weather = await weatherService.getWeather(
-        standardPlaylistData.city,
-        standardPlaylistData.state,
-        standardPlaylistData.cep
-      );
-      standardPlaylistData.weather = weather;
-    } catch (weatherError) {
-      logger.error(
-        "Falha ao buscar dados de clima, continuando sem eles.",
-        weatherError
-      );
-      standardPlaylistData.weather = null;
-    }
+  if (!campaign && butcherProductsGroups.length > 0) {
+    layout_type = "fullscreen";
   }
 
-  return standardPlaylistData;
+  return {
+    layout_type: layout_type,
+    playlist,
+    secondary_media: secondaryMedia,
+  };
 };
 
 const getActiveDigitalMenuDevicesByCompany = async (companyId) => {

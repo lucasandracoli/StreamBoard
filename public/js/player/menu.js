@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const secondaryZone = document.getElementById("zone-secondary");
   const categoryTitle = document.getElementById("category-title");
   const header = document.getElementById("menu-header");
+  let clockInterval = null;
 
   let playlist = [];
   let secondaryMedia = null;
@@ -14,12 +15,86 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const setupLayout = (layoutType = "fullscreen") => {
     playerWrapper.className = `player-wrapper layout-${layoutType}`;
+    
+    if (layoutType === 'fullscreen') {
+      mainZone.style.width = '100%';
+      secondaryZone.style.display = 'none';
+      header.classList.remove('split');
+    } else {
+      mainZone.style.width = '80%';
+      secondaryZone.style.display = 'flex';
+      header.classList.add('split');
+    }
+  };
+
+  const getWeatherIcon = (code) => {
+    if (code >= 200 && code < 300) return { iconClass: "bi-cloud-lightning-rain-fill", colorClass: "weather-stormy" };
+    if (code >= 300 && code < 400) return { iconClass: "bi-cloud-drizzle-fill", colorClass: "weather-rainy" };
+    if (code >= 500 && code < 600) return { iconClass: "bi-cloud-rain-heavy-fill", colorClass: "weather-rainy" };
+    if (code >= 600 && code < 700) return { iconClass: "bi-cloud-snow-fill", colorClass: "weather-snowy" };
+    if (code >= 700 && code < 800) return { iconClass: "bi-cloud-fog2-fill", colorClass: "weather-misty" };
+    if (code === 800) return { iconClass: "bi-sun-fill", colorClass: "weather-sunny" };
+    if (code === 801) return { iconClass: "bi-cloud-sun-fill", colorClass: "weather-sunny" };
+    if (code > 801 && code < 805) return { iconClass: "bi-cloud-fill", colorClass: "weather-cloudy" };
+    return { iconClass: "bi-thermometer-half", colorClass: "weather-cloudy" };
+  };
+
+  const getCurrentTime = () => {
+    const now = new Date();
+    const options = { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hour12: false };
+    const timeString = now.toLocaleTimeString("pt-BR", options);
+    const dateOptions = { timeZone: "America/Sao_Paulo", weekday: "long", day: "2-digit", month: "long" };
+    const dateString = new Intl.DateTimeFormat("pt-BR", dateOptions).format(now);
+    return { time: timeString, date: dateString.charAt(0).toUpperCase() + dateString.slice(1) };
+  };
+
+  const renderClock = () => {
+    const clockContainer = document.getElementById("clock-container");
+    if (!clockContainer) return;
+    if (clockInterval) clearInterval(clockInterval);
+    const updateClock = () => {
+      const { time, date } = getCurrentTime();
+      clockContainer.innerHTML = `<div class="clock-time">${time}</div><div class="clock-date">${date}</div>`;
+    };
+    updateClock();
+    clockInterval = setInterval(updateClock, 1000);
+  };
+  
+  const renderWeather = (weatherData, city) => {
+    let weatherContentHtml;
+    if (weatherData) {
+      const { current, daily } = weatherData;
+      const temp = Math.round(current.temperature_2m);
+      const maxTemp = Math.round(daily.temperature_2m_max[0]);
+      const minTemp = Math.round(daily.temperature_2m_min[0]);
+      const { iconClass, colorClass } = getWeatherIcon(current.weather_code);
+      weatherContentHtml = `
+          <div class="weather-city">${city || ""}</div>
+          <i class="bi ${iconClass} weather-icon ${colorClass}"></i>
+          <div class="weather-temp">${temp}°C</div>
+          <div class="weather-minmax">
+            <i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°
+          </div>`;
+    } else {
+      weatherContentHtml = `<div class="weather-error">Não foi possível carregar o clima.</div>`;
+    }
+    secondaryZone.innerHTML = `
+        <div class="weather-widget">
+            <div class="weather-main-content">${weatherContentHtml}</div>
+            <div id="clock-container" class="clock-display"></div>
+        </div>`;
+    renderClock();
   };
 
   const renderSecondaryMedia = () => {
-    if (!secondaryZone || !secondaryMedia) {
+    if (!secondaryMedia) {
       secondaryZone.innerHTML = "";
       return;
+    }
+
+    if (secondaryMedia.type === 'weather') {
+       renderWeather(secondaryMedia.weather, secondaryMedia.city);
+       return;
     }
 
     const mediaElement = document.createElement(
@@ -39,7 +114,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const renderProductTable = (item) => {
     header.style.display = "flex";
-    mainZone.style.backgroundColor = "transparent";
+    mainZone.style.paddingTop = 'var(--header-height)';
+    mainZone.style.backgroundColor = "#f0f0f0";
     mainZone.innerHTML = `
             <div class="menu-table">
                 <ul id="product-list"></ul>
@@ -48,9 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const productListEl = document.getElementById("product-list");
     categoryTitle.textContent = item.category;
 
-    const productsToShow = Array.isArray(item.products)
-      ? item.products.slice(0, 8)
-      : [];
+    const productsToShow = Array.isArray(item.products) ? item.products.slice(0, 8) : [];
 
     productsToShow.forEach((p, index) => {
       const li = document.createElement("li");
@@ -70,15 +144,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const renderMedia = (item) => {
     header.style.display = "none";
+    mainZone.style.paddingTop = '0';
     mainZone.innerHTML = "";
     mainZone.style.backgroundColor = "#000";
 
-    const isVideo = item.file_type && item.file_type.startsWith("video/");
     if (!item.file_path) {
       playNextItem();
       return;
     }
-
+    const isVideo = item.file_type && item.file_type.startsWith("video/");
     const newElement = document.createElement(isVideo ? "video" : "img");
     newElement.src = item.file_path;
     newElement.className = "media-element";
@@ -89,20 +163,20 @@ document.addEventListener("DOMContentLoaded", () => {
       newElement.playsInline = true;
       newElement.onended = () => playNextItem();
     } else {
-      mediaTimer = setTimeout(
-        () => playNextItem(),
-        (item.duration || 10) * 1000
-      );
+      mediaTimer = setTimeout(() => playNextItem(), (item.duration || 10) * 1000);
     }
-
+    
+    newElement.onerror = () => playNextItem();
     mainZone.appendChild(newElement);
     requestAnimationFrame(() => newElement.classList.add("active"));
   };
 
   const showWaitingScreen = () => {
     header.style.display = "none";
+    mainZone.style.paddingTop = '0';
     mainZone.style.backgroundColor = "#000";
     secondaryZone.innerHTML = "";
+    setupLayout('fullscreen');
     mainZone.innerHTML = `
       <div class="player-message-card info">
         <i class="icon bi bi-clock-history"></i>
@@ -126,10 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (currentItem.type === "products") {
       renderProductTable(currentItem);
-      mediaTimer = setTimeout(
-        () => playNextItem(),
-        currentItem.duration || 15000
-      );
+      mediaTimer = setTimeout(() => playNextItem(), currentItem.duration || 15000);
     } else if (currentItem.type === "media") {
       renderMedia(currentItem);
     }
@@ -158,11 +229,7 @@ document.addEventListener("DOMContentLoaded", () => {
         connector.sendMessage({ type: "REQUEST_PLAYLIST" });
         break;
       case "PLAYLIST_UPDATE":
-        if (data.payload) {
-          startPlayback(data.payload);
-        } else {
-          connector.sendMessage({ type: "REQUEST_PLAYLIST" });
-        }
+        startPlayback(data.payload);
         break;
       case "NEW_CAMPAIGN":
       case "UPDATE_CAMPAIGN":
