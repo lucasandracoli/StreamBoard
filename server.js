@@ -2,6 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const session = require("express-session");
+const pgSession = require("connect-pg-simple")(session);
+const dbPool = require("./config/streamboard");
 const bodyParser = require("body-parser");
 const { Settings } = require("luxon");
 const cookieParser = require("cookie-parser");
@@ -36,8 +38,16 @@ app.locals.sendUpdateToDevice = webSocketManager.sendUpdateToDevice;
 app.locals.broadcastToAdmins = webSocketManager.broadcastToAdmins;
 
 app.use(cookieParser());
+
+const sessionStore = new pgSession({
+  pool: dbPool,
+  tableName: "user_sessions",
+  createTableIfMissing: true,
+});
+
 app.use(
   session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -45,6 +55,7 @@ app.use(
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       sameSite: "strict",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     },
   })
 );
@@ -67,7 +78,7 @@ app.use("/", mainRouter);
 const ONE_HOUR_IN_MS = 60 * 60 * 1000;
 
 const startProductSyncScheduler = () => {
-  productSyncService.syncAllProducts(); 
+  productSyncService.syncAllProducts();
   setInterval(() => {
     productSyncService.syncAllProducts();
   }, ONE_HOUR_IN_MS);

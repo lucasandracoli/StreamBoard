@@ -48,7 +48,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const productListEl = document.getElementById("product-list");
     categoryTitle.textContent = item.category;
 
-    const productsToShow = item.products.slice(0, 8);
+    const productsToShow = Array.isArray(item.products)
+      ? item.products.slice(0, 8)
+      : [];
 
     productsToShow.forEach((p, index) => {
       const li = document.createElement("li");
@@ -71,7 +73,12 @@ document.addEventListener("DOMContentLoaded", () => {
     mainZone.innerHTML = "";
     mainZone.style.backgroundColor = "#000";
 
-    const isVideo = item.file_type.startsWith("video/");
+    const isVideo = item.file_type && item.file_type.startsWith("video/");
+    if (!item.file_path) {
+      playNextItem();
+      return;
+    }
+
     const newElement = document.createElement(isVideo ? "video" : "img");
     newElement.src = item.file_path;
     newElement.className = "media-element";
@@ -93,13 +100,18 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const showWaitingScreen = () => {
-    header.style.display = "flex";
-    categoryTitle.textContent = "Aguardando conteúdo";
-    mainZone.innerHTML = `
-            <div class="menu-table">
-                <ul id="product-list"></ul>
-            </div>`;
+    header.style.display = "none";
+    mainZone.style.backgroundColor = "#000";
     secondaryZone.innerHTML = "";
+    mainZone.innerHTML = `
+      <div class="player-message-card info">
+        <i class="icon bi bi-clock-history"></i>
+        <div class="message-content">
+          <p class="message-title">Aguardando Conteúdo</p>
+          <p class="message-subtitle">Nenhuma campanha ou lista de produtos ativa foi encontrada.</p>
+        </div>
+      </div>
+    `;
   };
 
   const playNextItem = () => {
@@ -136,9 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
     currentIndex = -1;
 
     setupLayout(data.layout_type);
-
     renderSecondaryMedia();
-
     playNextItem();
   };
 
@@ -148,6 +158,12 @@ document.addEventListener("DOMContentLoaded", () => {
         connector.sendMessage({ type: "REQUEST_PLAYLIST" });
         break;
       case "PLAYLIST_UPDATE":
+        if (data.payload) {
+          startPlayback(data.payload);
+        } else {
+          connector.sendMessage({ type: "REQUEST_PLAYLIST" });
+        }
+        break;
       case "NEW_CAMPAIGN":
       case "UPDATE_CAMPAIGN":
       case "DELETE_CAMPAIGN":

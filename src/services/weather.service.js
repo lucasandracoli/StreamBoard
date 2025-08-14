@@ -2,7 +2,7 @@ const axios = require("axios");
 const logger = require("../utils/logger");
 
 const GEO_API_URL = "http://api.openweathermap.org/geo/1.0/direct";
-const WEATHER_API_URL = "https://api.openweathermap.org/data/2.5/onecall";
+const WEATHER_API_URL = "https://api.openweathermap.org/data/3.0/onecall";
 
 const getCoordinates = async (city, state) => {
   try {

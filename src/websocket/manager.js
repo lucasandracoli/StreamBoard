@@ -120,11 +120,12 @@ const initializeWebSocket = (server) => {
           ws.deviceId &&
           ws.deviceDetails
         ) {
-          const { id, company_id, sector_id } = ws.deviceDetails;
+          const { id, company_id, sector_id, device_type } = ws.deviceDetails;
           const playlistData = await deviceService.getDevicePlaylist(
             id,
             company_id,
-            sector_id
+            sector_id,
+            device_type
           );
           sendUpdateToDevice(ws.deviceId, {
             type: "PLAYLIST_UPDATE",

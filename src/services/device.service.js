@@ -1,4 +1,8 @@
 const db = require("../../config/streamboard");
+const weatherService = require("./weather.service");
+const butcherService = require("./butcher.service");
+const logger = require("../utils/logger");
+const crypto = require("crypto");
 
 const getFullDeviceList = async () => {
   const query = `
@@ -140,7 +144,7 @@ const getDeviceDetails = async (id) => {
   return device;
 };
 
-const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
+const getDevicePlaylist = async (deviceId, companyId, sectorId, deviceType) => {
   const campaignQuery = `
       SELECT c.id, c.layout_type, comp.city, comp.state, comp.cep
       FROM campaigns c
@@ -180,13 +184,72 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
 
   const uploadsResult = await db.query(uploadsQuery, [campaign.id]);
 
-  return {
+  const standardPlaylistData = {
     layout_type: campaign.layout_type,
     uploads: uploadsResult.rows,
     city: campaign.city,
     state: campaign.state,
     cep: campaign.cep,
   };
+
+  if (deviceType === "digital_menu") {
+    const butcherProductsGroups = await butcherService.getButcherProducts(
+      companyId
+    );
+    const primaryMedia =
+      standardPlaylistData?.uploads?.filter(
+        (u) => u.zone === "main" || !u.zone
+      ) || [];
+    const secondaryMedia = standardPlaylistData?.uploads?.find(
+      (u) => u.zone === "secondary"
+    );
+
+    let interleavedPlaylist = [];
+    let mediaIndex = 0;
+
+    butcherProductsGroups.forEach((group) => {
+      interleavedPlaylist.push(group);
+      if (primaryMedia.length > 0) {
+        interleavedPlaylist.push({
+          type: "media",
+          ...primaryMedia[mediaIndex],
+        });
+        mediaIndex = (mediaIndex + 1) % primaryMedia.length;
+      }
+    });
+
+    if (interleavedPlaylist.length === 0) {
+      interleavedPlaylist = primaryMedia.map((m) => ({ type: "media", ...m }));
+    }
+
+    return {
+      layout_type: standardPlaylistData?.layout_type || "fullscreen",
+      playlist: interleavedPlaylist,
+      secondary_media: secondaryMedia || null,
+    };
+  }
+
+  if (
+    standardPlaylistData &&
+    standardPlaylistData.layout_type === "split-80-20-weather"
+  ) {
+    try {
+      const weather = await weatherService.getWeather(
+        standardPlaylistData.city,
+        standardPlaylistData.state,
+        standardPlaylistData.cep
+      );
+      standardPlaylistData.weather = weather;
+    } catch (weatherError) {
+      logger.error(
+        "Falha ao buscar dados de clima, continuando sem eles.",
+        weatherError
+      );
+      standardPlaylistData.weather = null;
+    }
+  }
+
+  return standardPlaylistData;
 };
 
 const getActiveDigitalMenuDevicesByCompany = async (companyId) => {
