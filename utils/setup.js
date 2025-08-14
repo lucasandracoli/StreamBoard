@@ -121,6 +121,15 @@ CREATE TABLE IF NOT EXISTS butcher_products (
     UNIQUE (company_id, product_name)
 );
 
+CREATE TABLE IF NOT EXISTS "user_sessions" (
+  "sid" varchar NOT NULL,
+  "sess" json NOT NULL,
+  "expire" timestamp(6) NOT NULL,
+  CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+);
+CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "user_sessions" ("expire");
+
+
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_tokens_refresh_token ON tokens (refresh_token);
 CREATE INDEX IF NOT EXISTS idx_tokens_device_id ON tokens (device_id);
