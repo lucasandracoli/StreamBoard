@@ -44,18 +44,16 @@ const createCampaignRow = (campaign) => {
 };
 
 export const addCampaignRow = (campaign) => {
-  const tableBody = document.getElementById("campaigns-table-body");
-  if (!tableBody) return;
+  const container = document.querySelector(".container");
+  if (!container) return;
 
-  const emptyState = document.querySelector(".empty-state-container");
+  const emptyState = container.querySelector(".empty-state-container");
   if (emptyState) {
-    emptyState.remove();
-    const tableWrapper = document.createElement("div");
-    tableWrapper.className = "device-table-wrapper";
-    tableWrapper.innerHTML = `
+    emptyState.outerHTML = `
+      <div class="device-table-wrapper">
         <table class="device-table">
           <thead>
-             <tr>
+            <tr>
               <th class="col-name">Nome</th>
               <th class="col-status">Status</th>
               <th class="col-company">Empresa</th>
@@ -67,17 +65,16 @@ export const addCampaignRow = (campaign) => {
           </thead>
           <tbody id="campaigns-table-body"></tbody>
         </table>
+      </div>
     `;
-    document.querySelector(".container").appendChild(tableWrapper);
-    const newTableBody = document.getElementById("campaigns-table-body");
-    const newRow = createCampaignRow(campaign);
-    newTableBody.prepend(newRow);
-  } else {
-    const newRow = createCampaignRow(campaign);
-    tableBody.prepend(newRow);
   }
 
-  notyf.success(`Campanha "${campaign.name}" criada.`);
+  const tableBody = document.getElementById("campaigns-table-body");
+  if (tableBody) {
+    const newRow = createCampaignRow(campaign);
+    tableBody.prepend(newRow);
+    notyf.success(`Campanha "${campaign.name}" criada.`);
+  }
 };
 
 export const updateCampaignRow = (campaign) => {
@@ -98,13 +95,13 @@ export const removeCampaignRow = (campaignId) => {
   const tableBody = document.getElementById("campaigns-table-body");
   if (tableBody && tableBody.rows.length === 0) {
     const tableWrapper = document.querySelector(".device-table-wrapper");
-    if (tableWrapper) tableWrapper.remove();
-    const emptyStateHTML = `
+    if (tableWrapper) {
+      tableWrapper.outerHTML = `
       <div class="empty-state-container">
         <div class="empty-state-icon"><i class="bi bi-megaphone"></i></div>
         <h3 class="empty-state-title">Nenhuma Campanha Criada</h3>
         <p class="empty-state-subtitle">Ainda não há campanhas para exibir...</p>
       </div>`;
-    document.querySelector(".container").insertAdjacentHTML('beforeend', emptyStateHTML);
+    }
   }
 };

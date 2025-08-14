@@ -579,11 +579,11 @@ export function setupCampaignModal() {
     handleInputOrClick
   );
 
-  document.querySelectorAll(".action-icon-editar").forEach((btn) => {
-    if (document.body.id === "campaigns-page") {
-      btn.addEventListener("click", (e) =>
-        openEditCampaignModal(e.currentTarget.dataset.id)
-      );
+  document.body.addEventListener("click", (e) => {
+    const editButton = e.target.closest(".action-icon-editar");
+    if (document.body.id === "campaigns-page" && editButton) {
+      e.stopPropagation();
+      openEditCampaignModal(editButton.dataset.id);
     }
   });
 

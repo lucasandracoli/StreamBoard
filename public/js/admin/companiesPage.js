@@ -1,5 +1,3 @@
-import { notyf } from "./utils.js";
-
 const createCompanyRow = (company) => {
   const row = document.createElement("tr");
   row.dataset.companyId = company.id;
@@ -38,7 +36,6 @@ export const addCompanyRow = (company) => {
 
   const newRow = createCompanyRow(company);
   tableBody.prepend(newRow);
-  notyf.success(`Empresa "${company.name}" adicionada.`);
 };
 
 export const updateCompanyRow = (company) => {
@@ -47,14 +44,12 @@ export const updateCompanyRow = (company) => {
 
   const newRow = createCompanyRow(company);
   row.innerHTML = newRow.innerHTML;
-  notyf.success(`Empresa "${company.name}" atualizada.`);
 };
 
 export const removeCompanyRow = (companyId) => {
   const row = document.querySelector(`tr[data-company-id="${companyId}"]`);
   if (row) {
     row.remove();
-    notyf.success("Empresa removida.");
   }
   const tableBody = document.getElementById("companies-table-body");
   if (tableBody && tableBody.rows.length === 0) {

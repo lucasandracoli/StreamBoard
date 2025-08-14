@@ -5,7 +5,8 @@ const createDeviceRow = (device) => {
   row.dataset.deviceId = device.id;
   row.title = "Clique para ver detalhes";
 
-  const typeName = deviceTypeNames[device.device_type] || deviceTypeNames.default;
+  const typeName =
+    deviceTypeNames[device.device_type] || deviceTypeNames.default;
 
   row.innerHTML = `
     <td data-label="Nome">${device.name}</td>
@@ -39,17 +40,36 @@ const createDeviceRow = (device) => {
 };
 
 export const addDeviceRow = (device) => {
-  const tableBody = document.getElementById("devices-table-body");
-  if (!tableBody) return;
+  const container = document.querySelector(".container");
+  if (!container) return;
 
-  const emptyRow = tableBody.querySelector(".empty-state-container");
-  if (emptyRow) {
-    emptyRow.parentElement.remove();
+  const emptyState = container.querySelector(".empty-state-container");
+  if (emptyState) {
+    emptyState.outerHTML = `
+      <div class="device-table-wrapper">
+        <table class="device-table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Status</th>
+              <th>Empresa</th>
+              <th>Setor</th>
+              <th>Tipo</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="devices-table-body"></tbody>
+        </table>
+      </div>
+    `;
   }
 
-  const newRow = createDeviceRow(device);
-  tableBody.prepend(newRow);
-  notyf.success(`Dispositivo "${device.name}" adicionado.`);
+  const tableBody = document.getElementById("devices-table-body");
+  if (tableBody) {
+    const newRow = createDeviceRow(device);
+    tableBody.prepend(newRow);
+    notyf.success(`Dispositivo "${device.name}" adicionado.`);
+  }
 };
 
 export const updateDeviceRow = (device) => {
@@ -58,12 +78,10 @@ export const updateDeviceRow = (device) => {
     addDeviceRow(device);
     return;
   }
-  
   const newRow = createDeviceRow(device);
   row.innerHTML = newRow.innerHTML;
   notyf.success(`Dispositivo "${device.name}" atualizado.`);
 };
-
 
 export const removeDeviceRow = (deviceId) => {
   const row = document.querySelector(`tr[data-device-id="${deviceId}"]`);
@@ -73,14 +91,14 @@ export const removeDeviceRow = (deviceId) => {
   }
   const tableBody = document.getElementById("devices-table-body");
   if (tableBody && tableBody.rows.length === 0) {
-    const emptyStateHTML = `
-      <div class="empty-state-container">
-        <div class="empty-state-icon"><i class="bi bi-hdd-stack"></i></div>
-        <h3 class="empty-state-title">Nenhum Dispositivo Encontrado</h3>
-        <p class="empty-state-subtitle">Você ainda não adicionou nenhum dispositivo...</p>
-      </div>`;
-    
-    const tableWrapper = document.querySelector('.device-table-wrapper');
-    if(tableWrapper) tableWrapper.innerHTML = emptyStateHTML;
+    const tableWrapper = document.querySelector(".device-table-wrapper");
+    if (tableWrapper) {
+      tableWrapper.outerHTML = `
+        <div class="empty-state-container">
+          <div class="empty-state-icon"><i class="bi bi-hdd-stack"></i></div>
+          <h3 class="empty-state-title">Nenhum Dispositivo Encontrado</h3>
+          <p class="empty-state-subtitle">Você ainda não adicionou nenhum dispositivo...</p>
+        </div>`;
+    }
   }
 };

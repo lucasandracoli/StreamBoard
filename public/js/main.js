@@ -13,12 +13,20 @@ import { setupReportsPage } from "./admin/reportsPage.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   setupLoginForm();
-  setupCompanyModal();
-  setupDeviceModal();
-  setupCampaignModal();
+  const companyModalHandler = setupCompanyModal();
+  const deviceModalHandler = setupDeviceModal();
+  const campaignModalHandler = setupCampaignModal();
   const detailsModalHandler = setupDetailsModal();
+
   setupConfirmationModal();
-  setupGlobalListeners(detailsModalHandler);
+
+  setupGlobalListeners({
+    details: detailsModalHandler,
+    device: deviceModalHandler,
+    company: companyModalHandler,
+    campaign: campaignModalHandler,
+  });
+
   connectAdminWs(detailsModalHandler);
   setupProductModal();
   setupProductWs();

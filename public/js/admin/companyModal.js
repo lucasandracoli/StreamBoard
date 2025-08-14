@@ -198,13 +198,6 @@ export function setupCompanyModal() {
     "click",
     () => (companyModal.style.display = "none")
   );
-  document.querySelectorAll(".action-icon-editar").forEach((btn) => {
-    if (document.body.id === "companies-page") {
-      btn.addEventListener("click", (e) =>
-        openEditModal(e.currentTarget.dataset.id)
-      );
-    }
-  });
 
   form.addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -238,4 +231,6 @@ export function setupCompanyModal() {
       submitButton.innerHTML = originalButtonText;
     }
   });
+
+  return { openEditModal };
 }

@@ -69,7 +69,7 @@ export function setupDeviceModal() {
       modalTitle.textContent = "Editar Dispositivo";
       submitButton.textContent = "Salvar";
       form.action = `/devices/${device.id}/edit`;
-      form.name.value = device.name ? device.name.replace(/\s+/g, "") : "";
+      form.name.value = device.name;
       form.device_type.value = device.device_type;
       form.company_id.value = device.company_id;
       await populateSectors(device.company_id, device.sector_id);
@@ -84,13 +84,6 @@ export function setupDeviceModal() {
     "click",
     () => (deviceModal.style.display = "none")
   );
-  document.querySelectorAll(".action-icon-editar").forEach((btn) => {
-    if (document.body.id === "devices-page") {
-      btn.addEventListener("click", (e) =>
-        openEditModal(e.currentTarget.dataset.id)
-      );
-    }
-  });
 
   form.addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -119,4 +112,6 @@ export function setupDeviceModal() {
       submitButton.innerHTML = originalButtonText;
     }
   });
+
+  return { openEditModal };
 }
