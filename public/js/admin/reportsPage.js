@@ -1,6 +1,6 @@
 import { notyf } from "./utils.js";
 
-const PALETTE = ["#264653", "#2a9d8f", "#e9c46a", "#f4a261", "#e76f51"];
+const PALETTE = ["#00c86f", "#3b82f6", "#f59e0b", "#8b5cf6", "#ef4444"];
 
 const setupChart = (ctx, type, data, options) => {
   return new Chart(ctx, { type, data, options });
@@ -25,28 +25,29 @@ const commonChartOptions = {
   maintainAspectRatio: false,
   plugins: {
     legend: {
-      labels: {
-        font: {
-          family: "'Inter', sans-serif",
-          size: 13,
-        },
-        color: "#666",
-      },
+      display: false,
     },
     tooltip: {
-      backgroundColor: "#2c2c2c",
-      titleFont: {
+      enabled: true,
+      backgroundColor: "var(--color-gray-dark)",
+      titleColor: "white",
+      bodyColor: "white",
+      borderColor: "var(--color-border)",
+      borderWidth: 1,
+      padding: 12,
+      cornerRadius: 8,
+      displayColors: true,
+      boxPadding: 4,
+      caretSize: 6,
+      bodyFont: {
+        size: 13,
         family: "'Inter', sans-serif",
+      },
+      titleFont: {
         size: 14,
+        family: "'Inter', sans-serif",
         weight: "bold",
       },
-      bodyFont: {
-        family: "'Inter', sans-serif",
-        size: 13,
-      },
-      padding: 10,
-      cornerRadius: 5,
-      boxPadding: 5,
     },
   },
   scales: {
@@ -61,11 +62,13 @@ const commonChartOptions = {
         },
         color: "#888",
       },
+      border: {
+        display: false,
+      },
     },
     y: {
       grid: {
-        color: "#e5e7eb",
-        borderDash: [5, 5],
+        color: "#f1f5f9",
       },
       ticks: {
         font: {
@@ -73,6 +76,10 @@ const commonChartOptions = {
           size: 12,
         },
         color: "#888",
+        maxTicksLimit: 6,
+      },
+      border: {
+        display: false,
       },
       beginAtZero: true,
     },
@@ -86,7 +93,9 @@ export function setupDashboardCharts() {
   const playsOverTimeCtx = document
     .getElementById("playsOverTimeChart")
     ?.getContext("2d");
-  const topMediaCtx = document.getElementById("topMediaChart")?.getContext("2d");
+  const topMediaCtx = document
+    .getElementById("topMediaChart")
+    ?.getContext("2d");
   const topCampaignsCtx = document
     .getElementById("topCampaignsChart")
     ?.getContext("2d");
@@ -106,9 +115,18 @@ export function setupDashboardCharts() {
           DateTime.fromISO(d.play_date).toFormat("dd/MM")
         );
         const playsOverTimeData = data.playsOverTime.map((d) => d.play_count);
+
+        const primaryColor = PALETTE[0];
+        const hexToRgba = (hex, alpha) => {
+          const r = parseInt(hex.slice(1, 3), 16);
+          const g = parseInt(hex.slice(3, 5), 16);
+          const b = parseInt(hex.slice(5, 7), 16);
+          return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        };
+
         const gradient = playsOverTimeCtx.createLinearGradient(0, 0, 0, 300);
-        gradient.addColorStop(0, "rgba(42, 157, 143, 0.6)");
-        gradient.addColorStop(1, "rgba(42, 157, 143, 0.1)");
+        gradient.addColorStop(0, hexToRgba(primaryColor, 0.5));
+        gradient.addColorStop(1, hexToRgba(primaryColor, 0.05));
 
         setupChart(
           playsOverTimeCtx,
@@ -120,13 +138,16 @@ export function setupDashboardCharts() {
                 label: "Exibições por Dia",
                 data: playsOverTimeData,
                 backgroundColor: gradient,
-                borderColor: "#2a9d8f",
-                borderWidth: 3,
+                borderColor: primaryColor,
+                borderWidth: 2.5,
                 fill: true,
                 tension: 0.4,
-                pointBackgroundColor: "#2a9d8f",
-                pointRadius: 4,
-                pointHoverRadius: 6,
+                pointBackgroundColor: primaryColor,
+                pointBorderColor: "#ffffff",
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                pointHoverBorderWidth: 2,
               },
             ],
           },
@@ -153,25 +174,21 @@ export function setupDashboardCharts() {
               {
                 label: "Total de Exibições",
                 data: topMediaData,
-                backgroundColor: PALETTE.map((color) => `${color}B3`),
-                borderColor: PALETTE,
-                borderWidth: 1,
-                borderRadius: 5,
+                backgroundColor: PALETTE.map((color) => `${color}E6`),
+                borderWidth: 0,
+                borderRadius: 6,
+                barPercentage: 0.6,
               },
             ],
           },
           {
             ...commonChartOptions,
             indexAxis: "y",
-            plugins: {
-              ...commonChartOptions.plugins,
-              legend: { display: false },
-            },
             scales: {
               ...commonChartOptions.scales,
               x: {
                 ...commonChartOptions.scales.x,
-                grid: { display: true, color: "#e5e7eb", borderDash: [5, 5] },
+                grid: { display: true, color: "#f1f5f9" },
               },
               y: { ...commonChartOptions.scales.y, grid: { display: false } },
             },
@@ -189,32 +206,31 @@ export function setupDashboardCharts() {
 
         setupChart(
           topCampaignsCtx,
-          "doughnut",
+          "bar",
           {
             labels: topCampaignsLabels,
             datasets: [
               {
                 label: "Exibições",
                 data: topCampaignsData,
-                backgroundColor: PALETTE,
-                hoverOffset: 4,
+                backgroundColor: PALETTE.map((color) => `${color}E6`),
                 borderWidth: 0,
+                borderRadius: 6,
+                barPercentage: 0.6,
               },
             ],
           },
           {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: "top",
-                labels: {
-                  font: {
-                    family: "'Inter', sans-serif",
-                    size: 13,
-                  },
-                  color: "#666",
-                },
+            ...commonChartOptions,
+            scales: {
+              ...commonChartOptions.scales,
+              y: {
+                ...commonChartOptions.scales.y,
+                grid: { display: false },
+              },
+              x: {
+                ...commonChartOptions.scales.x,
+                grid: { display: true, color: "#f1f5f9" },
               },
             },
           }

@@ -170,7 +170,12 @@ body {
 }
 .navbar-links {
   display: flex;
-  gap: 20px;
+  gap: 28px;
+  align-items: center;
+}
+
+.navbar-link span {
+  vertical-align: middle;
 }
 .navbar-link {
   text-decoration: none;
@@ -2576,10 +2581,10 @@ body.player-body {
 
 .chart-card h3 {
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--color-text);
-  margin-bottom: 1.5rem;
-  text-align: center;
+  margin-bottom: 0;
+  text-align: left;
 }
 .search-wrapper {
   position: relative;
@@ -2650,6 +2655,8 @@ body.player-body {
   padding: 24px;
   box-shadow: var(--shadow-sm);
   transition: all var(--transition-normal);
+  display: flex;
+  flex-direction: column;
 }
 
 .chart-card:hover {
@@ -2658,25 +2665,75 @@ body.player-body {
 }
 
 .chart-card h3 {
-  font-size: var(--text-lg);
+  font-size: 1.1rem;
   font-weight: 600;
   color: var(--color-text);
-  margin-bottom: 1.5rem;
-  text-align: center;
+  margin-bottom: 2rem;
+  text-align: left;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .chart-card h3 i {
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   color: var(--color-primary);
 }
 
 .chart-container {
   position: relative;
   width: 100%;
-  height: 320px;
+  flex-grow: 1;
+  min-height: 320px;
 }
 
+.chart-no-data {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--color-muted);
+}
+
+.chart-no-data-icon {
+  font-size: 3rem;
+  color: var(--color-border);
+  margin-bottom: 1rem;
+}
+
+.chart-no-data-title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--color-gray-medium);
+}
+
+.chart-no-data-subtitle {
+  font-size: 0.9rem;
+  max-width: 250px;
+  margin-top: 0.5rem;
+  line-height: 1.5;
+}
+
+.chart-card {
+  padding: 0;
+}
+
+.chart-card-header {
+  background-color: var(--color-input-bg);
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+}
+
+.chart-card h3 {
+  margin-bottom: 0;
+  text-align: left;
+}
+
+.chart-card .chart-container {
+  padding: 24px;
+  padding-top: 1.5rem;
+}

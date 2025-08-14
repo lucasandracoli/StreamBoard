@@ -17,7 +17,7 @@
   <body id="dashboard-page" class="dashboard">
     <%- include("partials/navbar") %>
 
-    <main class="container">
+    <main class="container" style="padding-bottom: 5rem">
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-card-icon devices">
@@ -88,31 +88,6 @@
             <span id="total-companies-value" class="stat-card-value"
               ><%= stats.totalCompanies %></span
             >
-          </div>
-        </div>
-      </div>
-
-      <div class="charts-grid">
-        <div class="chart-card">
-          <h3><i class="bi bi-graph-up"></i> Exibições nos Últimos 7 Dias</h3>
-          <div class="chart-container">
-            <canvas id="playsOverTimeChart"></canvas>
-          </div>
-        </div>
-        <div class="chart-card">
-          <h3>
-            <i class="bi bi-play-btn-fill"></i> Top 5 Mídias Mais Exibidas
-          </h3>
-          <div class="chart-container">
-            <canvas id="topMediaChart"></canvas>
-          </div>
-        </div>
-        <div class="chart-card">
-          <h3>
-            <i class="bi bi-megaphone-fill"></i> Top 5 Campanhas Mais Exibidas
-          </h3>
-          <div class="chart-container">
-            <canvas id="topCampaignsChart"></canvas>
           </div>
         </div>
       </div>

@@ -105,6 +105,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const isVideo = mediaItem.file_type.startsWith("video/");
     let newElement;
 
+    const setupNext = () => playNextInZone(zone);
+
     if (isImage) {
       newElement = document.createElement("img");
     } else if (isVideo) {
@@ -113,7 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
       newElement.muted = true;
       newElement.playsInline = true;
     } else {
-      playNextInZone(zone);
+      setupNext();
       return;
     }
 
@@ -122,8 +124,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const oldElement = zoneContainer.querySelector(".media-element.active");
     zoneContainer.appendChild(newElement);
-
-    const setupNext = () => playNextInZone(zone);
 
     const onMediaReady = () => {
       requestAnimationFrame(() => {
@@ -141,7 +141,6 @@ document.addEventListener("DOMContentLoaded", () => {
             },
             { once: true }
           );
-
           setTimeout(() => {
             if (oldElement && oldElement.parentNode) {
               if (oldElement.tagName === "VIDEO") {
@@ -156,17 +155,27 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     if (isImage) {
-      newElement.onerror = setupNext;
       const duration = (mediaItem.duration || 10) * 1000;
       mediaTimers[zone] = setTimeout(setupNext, duration);
       if (newElement.complete) {
         onMediaReady();
       } else {
         newElement.onload = onMediaReady;
+        newElement.onerror = setupNext;
       }
     } else if (isVideo) {
-      newElement.onloadeddata = onMediaReady;
-      newElement.onended = setupNext;
+      newElement.oncanplay = () => {
+        const playPromise = newElement.play();
+        if (playPromise !== undefined) {
+          playPromise.then(onMediaReady).catch((error) => {
+            console.error("Video play failed:", error);
+            setupNext();
+          });
+        }
+      };
+      newElement.onended = () => {
+        setTimeout(setupNext, 50);
+      };
       newElement.onerror = setupNext;
     }
   };
@@ -372,8 +381,14 @@ document.addEventListener("DOMContentLoaded", () => {
         break;
       case "TYPE_CHANGED":
         wsManager.disconnect(false);
-        window.location.href =
-          data.payload.newType === "terminal_consulta" ? "/price" : "/player";
+        const newType = data.payload.newType;
+        if (newType === "terminal_consulta") {
+          window.location.href = "/price";
+        } else if (newType === "digital_menu") {
+          window.location.href = "/menu";
+        } else {
+          window.location.href = "/player";
+        }
         break;
     }
   };

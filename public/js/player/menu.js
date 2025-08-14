@@ -181,8 +181,25 @@ document.addEventListener("DOMContentLoaded", () => {
       playNextItem();
       return;
     }
+
     const isVideo = item.file_type && item.file_type.startsWith("video/");
-    const newElement = document.createElement(isVideo ? "video" : "img");
+    const isImage = item.file_type && item.file_type.startsWith("image/");
+    let newElement;
+
+    const setupNext = () => playNextItem();
+
+    if (isImage) {
+      newElement = document.createElement("img");
+    } else if (isVideo) {
+      newElement = document.createElement("video");
+      newElement.autoplay = true;
+      newElement.muted = true;
+      newElement.playsInline = true;
+    } else {
+      setupNext();
+      return;
+    }
+
     newElement.src = item.file_path;
     newElement.className = "media-element";
 
@@ -218,19 +235,28 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     };
 
-    if (isVideo) {
-      newElement.autoplay = true;
-      newElement.muted = true;
-      newElement.playsInline = true;
-      newElement.onloadeddata = onMediaReady;
-      newElement.onended = () => playNextItem();
-      newElement.onerror = () => playNextItem();
-    } else {
-      newElement.onload = onMediaReady;
-      mediaTimer = setTimeout(
-        () => playNextItem(),
-        (item.duration || 10) * 1000
-      );
+    if (isImage) {
+      mediaTimer = setTimeout(setupNext, (item.duration || 10) * 1000);
+      if (newElement.complete) {
+        onMediaReady();
+      } else {
+        newElement.onload = onMediaReady;
+        newElement.onerror = setupNext;
+      }
+    } else if (isVideo) {
+      newElement.oncanplay = () => {
+        const playPromise = newElement.play();
+        if (playPromise !== undefined) {
+          playPromise.then(onMediaReady).catch((error) => {
+            console.error("Video play failed:", error);
+            setupNext();
+          });
+        }
+      };
+      newElement.onended = () => {
+        setTimeout(setupNext, 50);
+      };
+      newElement.onerror = setupNext;
     }
   };
 
@@ -339,6 +365,8 @@ document.addEventListener("DOMContentLoaded", () => {
           window.location.href = "/price";
         } else if (newType === "midia_indoor") {
           window.location.href = "/player";
+        } else {
+          window.location.href = "/menu";
         }
         break;
     }
