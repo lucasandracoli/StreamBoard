@@ -122,35 +122,12 @@ document.addEventListener("DOMContentLoaded", () => {
     newElement.src = mediaItem.file_path;
     newElement.className = "media-element";
 
-    const oldElement = zoneContainer.querySelector(".media-element.active");
+    zoneContainer.innerHTML = "";
     zoneContainer.appendChild(newElement);
 
     const onMediaReady = () => {
       requestAnimationFrame(() => {
         newElement.classList.add("active");
-        if (oldElement) {
-          oldElement.classList.remove("active");
-          oldElement.addEventListener(
-            "transitionend",
-            () => {
-              if (oldElement.tagName === "VIDEO") {
-                oldElement.pause();
-                oldElement.src = "";
-              }
-              oldElement.remove();
-            },
-            { once: true }
-          );
-          setTimeout(() => {
-            if (oldElement && oldElement.parentNode) {
-              if (oldElement.tagName === "VIDEO") {
-                oldElement.pause();
-                oldElement.src = "";
-              }
-              oldElement.remove();
-            }
-          }, 1000);
-        }
       });
     };
 
@@ -173,9 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         }
       };
-      newElement.onended = () => {
-        setTimeout(setupNext, 50);
-      };
+      newElement.onended = setupNext;
       newElement.onerror = setupNext;
     }
   };
