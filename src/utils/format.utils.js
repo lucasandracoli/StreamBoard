@@ -23,7 +23,15 @@ const formatarCNPJ = (cnpj) => {
   );
 };
 
+const formatarDataHoraCompleta = (data) => {
+  if (!data) return "N/A";
+  return DateTime.fromJSDate(new Date(data))
+    .setZone("America/Sao_Paulo")
+    .toFormat("dd/MM/yyyy HH:mm:ss");
+};
+
 module.exports = {
   formatarPeriodo,
   formatarCNPJ,
+  formatarDataHoraCompleta,
 };

@@ -25,7 +25,12 @@
     <%- include('partials/navbar') %>
 
     <main class="container">
+      <% if (companies.length > 0) { %>
       <div class="device-header">
+        <div class="search-wrapper">
+           <i class="bi bi-search"></i>
+           <input type="text" id="campaigns-search-input" class="search-input" placeholder="Buscar campanha...">
+        </div>
         <button class="device-button" id="openCampaignModal">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -44,7 +49,38 @@
           <span>Nova Campanha</span>
         </button>
       </div>
-
+      <% } %> <% if (companies.length === 0) { %>
+      <div class="empty-state-container">
+        <div class="empty-state-icon">
+          <i class="bi bi-building-slash"></i>
+        </div>
+        <h3 class="empty-state-title">Primeiro, Cadastre uma Empresa</h3>
+        <p class="empty-state-subtitle">
+          Para criar uma campanha, você precisa ter pelo menos uma empresa
+          registrada no sistema. Vá para a página de empresas para começar.
+        </p>
+        <a
+          href="/companies"
+          class="device-button"
+          style="text-decoration: none"
+        >
+          <i class="bi bi-building"></i>
+          <span>Ir para Empresas</span>
+        </a>
+      </div>
+      <% } else if (campaigns.length === 0) { %>
+      <div class="empty-state-container">
+        <div class="empty-state-icon">
+          <i class="bi bi-megaphone"></i>
+        </div>
+        <h3 class="empty-state-title">Nenhuma Campanha Criada</h3>
+        <p class="empty-state-subtitle">
+          Ainda não há campanhas para exibir. Clique no botão "Nova Campanha"
+          para criar sua primeira playlist de mídias e agendá-la para seus
+          dispositivos.
+        </p>
+      </div>
+      <% } else { %>
       <div class="device-table-wrapper">
         <table class="device-table">
           <thead>
@@ -59,13 +95,7 @@
             </tr>
           </thead>
           <tbody id="campaigns-table-body">
-            <% if (campaigns.length === 0) { %>
-            <tr id="no-campaigns-row">
-              <td colspan="7" style="text-align: center">
-                Nenhuma campanha cadastrada.
-              </td>
-            </tr>
-            <% } else { %> <% campaigns.forEach(campaign => { %>
+            <% campaigns.forEach(campaign => { %>
             <tr data-campaign-id="<%= campaign.id %>">
               <td class="break-word col-name"><%= campaign.name %></td>
               <td data-status-cell class="col-status">
@@ -140,10 +170,11 @@
                 </button>
               </td>
             </tr>
-            <% }) %> <% } %>
+            <% }) %>
           </tbody>
         </table>
       </div>
+      <% } %>
     </main>
 
     <div id="campaignModal" class="modal-overlay campaign-modal">
@@ -474,7 +505,9 @@
 
     <div id="confirmationModal" class="confirmation-modal-overlay">
       <div class="confirmation-modal">
-        <div class="confirmation-modal-header"><h3>Confirmar Exclusão</h3></div>
+        <div class="confirmation-modal-header">
+          <h3>Confirmar Exclusão</h3>
+        </div>
         <div class="confirmation-modal-body">
           <p>
             Deseja realmente excluir esta campanha? Esta ação não pode ser

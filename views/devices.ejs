@@ -1,5 +1,8 @@
-<% const deviceIcons = { 'midia_indoor': 'bi-tv', 'terminal_consulta': 'bi-upc-scan', default: 'bi-question-circle' }; %>
-<% const deviceTypeMap = { 'midia_indoor': 'Mídia Indoor', 'terminal_consulta': 'Terminal de Consulta', 'default': 'Tipo Desconhecido' }; %>
+<% const deviceIcons = { 'midia_indoor': 'bi-tv', 'terminal_consulta':
+'bi-upc-scan', 'digital_menu': 'bi-card-list', default: 'bi-question-circle' };
+%> <% const deviceTypeMap = { 'midia_indoor': 'Mídia Indoor',
+'terminal_consulta': 'Terminal de Consulta', 'digital_menu': 'Menu Digital',
+'default': 'Tipo Desconhecido' }; %>
 
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -20,12 +23,54 @@
     <%- include("partials/navbar") %>
 
     <main class="container">
+      <% if (companies.length > 0) { %>
       <div class="device-header">
+        <div class="search-wrapper">
+          <i class="bi bi-search"></i>
+          <input
+            type="text"
+            id="devices-search-input"
+            class="search-input"
+            placeholder="Buscar dispositivo..."
+          />
+        </div>
         <button class="device-button" id="openDeviceModal">
+          <i class="bi bi-plus-lg"></i>
           <span>Novo Dispositivo</span>
         </button>
       </div>
-
+      <% } %> <% if (companies.length === 0) { %>
+      <div class="empty-state-container">
+        <div class="empty-state-icon">
+          <i class="bi bi-building-slash"></i>
+        </div>
+        <h3 class="empty-state-title">Primeiro, Cadastre uma Empresa</h3>
+        <p class="empty-state-subtitle">
+          Para adicionar um dispositivo, você precisa ter pelo menos uma empresa
+          registrada no sistema. Vá para a página de empresas para começar.
+        </p>
+        <a
+          href="/companies"
+          class="device-button"
+          style="text-decoration: none"
+        >
+          <i class="bi bi-building"></i>
+          <span>Ir para Empresas</span>
+        </a>
+      </div>
+      <% } else if (devices.length === 0) { %>
+      <div class="empty-state-container">
+        <div class="empty-state-icon">
+          <i class="bi bi-hdd-stack"></i>
+        </div>
+        <h3 class="empty-state-title">Nenhum Dispositivo Encontrado</h3>
+        <p class="empty-state-subtitle">
+          Você ainda não adicionou nenhum dispositivo. Clique no botão "Novo
+          Dispositivo" para cadastrar seu primeiro terminal e começar a exibir
+          conteúdo.
+        </p>
+      </div>
+      <% } else { %>
       <div class="device-table-wrapper">
         <table class="device-table">
           <thead>
@@ -38,14 +83,8 @@
               <th>Ações</th>
             </tr>
           </thead>
-          <tbody>
-            <% if (devices.length === 0) { %>
-            <tr id="no-devices-row">
-              <td colspan="6" style="text-align: center">
-                Nenhum dispositivo cadastrado.
-              </td>
-            </tr>
-            <% } else { %> <% devices.forEach(device => { %>
+          <tbody id="devices-table-body">
+            <% devices.forEach(device => { %>
             <tr
               data-device-id="<%= device.id %>"
               title="Clique para ver detalhes"
@@ -98,10 +137,11 @@
                 </button>
               </td>
             </tr>
-            <% }) %> <% } %>
+            <% }) %>
           </tbody>
         </table>
       </div>
+      <% } %>
     </main>
 
     <div id="deviceDetailsModal" class="modal-overlay">
@@ -146,6 +186,30 @@
                   <span class="details-label">Campanhas Ativas:</span>
                   <span id="modalActiveCampaigns"></span>
                 </p>
+              </div>
+            </fieldset>
+
+            <fieldset
+              class="form-fieldset"
+              id="remote-commands-fieldset"
+              style="display: none"
+            >
+              <legend class="fieldset-legend">Comandos Remotos</legend>
+              <div class="remote-commands-wrapper">
+                <button
+                  class="device-button device-button-secondary"
+                  data-command="REFRESH_PLAYLIST"
+                >
+                  <i class="bi bi-arrow-clockwise"></i>
+                  <span>Atualizar Conteúdo</span>
+                </button>
+                <button
+                  class="device-button device-button-secondary"
+                  data-command="RELOAD_PAGE"
+                >
+                  <i class="bi bi-power"></i>
+                  <span>Reiniciar Player</span>
+                </button>
               </div>
             </fieldset>
           </div>
@@ -255,6 +319,7 @@
             >
               <option value="midia_indoor" selected>Mídia Indoor</option>
               <option value="terminal_consulta">Terminal de Consulta</option>
+              <option value="digital_menu">Menu Digital</option>
             </select>
           </div>
           <div class="modal-actions">

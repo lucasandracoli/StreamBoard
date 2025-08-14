@@ -22,8 +22,29 @@ const createCompany = async (req, res) => {
   const { sectors, ...companyData } = req.body;
 
   try {
-    await companyService.createCompanyWithSectors(companyData, sectors);
-    res.status(201).json({ message: "Empresa cadastrada com sucesso." });
+    const newCompany = await companyService.createCompanyWithSectors(
+      companyData,
+      sectors
+    );
+    const { broadcastToAdmins } = req.app.locals;
+
+    const companyDetails = await companyService.getCompanyById(
+      newCompany.companyId
+    );
+
+    broadcastToAdmins({
+      type: "COMPANY_CREATED",
+      payload: {
+        ...companyDetails,
+        formatted_cnpj: formatUtils.formatarCNPJ(companyDetails.cnpj),
+      },
+    });
+
+    res.status(201).json({
+      status: "success",
+      companyId: newCompany.companyId,
+      message: "Empresa cadastrada com sucesso.",
+    });
   } catch (err) {
     if (err.code === "23505") {
       return res
@@ -44,7 +65,20 @@ const editCompany = async (req, res) => {
 
   try {
     await companyService.updateCompany(id, req.body);
-    res.status(200).json({ message: "Empresa atualizada com sucesso." });
+    const { broadcastToAdmins } = req.app.locals;
+
+    const companyDetails = await companyService.getCompanyById(id);
+
+    broadcastToAdmins({
+      type: "COMPANY_UPDATED",
+      payload: {
+        ...companyDetails,
+        formatted_cnpj: formatUtils.formatarCNPJ(companyDetails.cnpj),
+      },
+    });
+    res
+      .status(200)
+      .json({ status: "success", message: "Empresa atualizada com sucesso." });
   } catch (err) {
     logger.error(`Erro ao editar empresa ${id}.`, err);
     res.status(500).json({ message: "Erro ao atualizar empresa." });
@@ -55,7 +89,16 @@ const deleteCompany = async (req, res) => {
   const { id } = req.params;
   try {
     await companyService.deleteCompany(id);
-    res.status(200).json({ message: "Empresa excluída com sucesso." });
+    const { broadcastToAdmins } = req.app.locals;
+    broadcastToAdmins({
+      type: "COMPANY_DELETED",
+      payload: {
+        companyId: id,
+      },
+    });
+    res
+      .status(200)
+      .json({ status: "success", message: "Empresa excluída com sucesso." });
   } catch (err) {
     logger.error(`Erro ao excluir empresa ${id}.`, err);
     res.status(500).json({ message: "Erro ao excluir empresa." });

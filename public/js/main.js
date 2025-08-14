@@ -6,14 +6,31 @@ import { setupDetailsModal } from "./admin/detailsModal.js";
 import { setupConfirmationModal } from "./admin/confirmationModal.js";
 import { setupGlobalListeners } from "./admin/globalListeners.js";
 import { connectAdminWs } from "./admin/adminWs.js";
+import { setupProductModal } from "./admin/productModal.js";
+import { setupProductsPage } from "./admin/productsPage.js";
+import { setupTableSearch } from "./admin/tableSearch.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   setupLoginForm();
-  setupCompanyModal();
-  setupDeviceModal();
-  setupCampaignModal();
+  const companyModalHandler = setupCompanyModal();
+  const deviceModalHandler = setupDeviceModal();
+  const campaignModalHandler = setupCampaignModal();
   const detailsModalHandler = setupDetailsModal();
+
   setupConfirmationModal();
-  setupGlobalListeners(detailsModalHandler);
+
+  setupGlobalListeners({
+    details: detailsModalHandler,
+    device: deviceModalHandler,
+    company: companyModalHandler,
+    campaign: campaignModalHandler,
+  });
+
   connectAdminWs(detailsModalHandler);
+  setupProductModal();
+  setupProductsPage();
+
+  setupTableSearch("companies-search-input", "companies-table-body");
+  setupTableSearch("devices-search-input", "devices-table-body");
+  setupTableSearch("campaigns-search-input", "campaigns-table-body");
 });

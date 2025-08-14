@@ -579,43 +579,11 @@ export function setupCampaignModal() {
     handleInputOrClick
   );
 
-  const updateCampaignRow = (campaign) => {
-    const row = document.querySelector(`tr[data-campaign-id="${campaign.id}"]`);
-    if (!row) return;
-
-    row.querySelector(".col-name").textContent = campaign.name;
-    row.querySelector(".col-company").textContent = campaign.company_name;
-    row.querySelector(".col-type").textContent = campaign.campaign_type;
-    row.querySelector(".col-period").textContent = campaign.periodo_formatado;
-
-    const statusCell = row.querySelector("[data-status-cell]");
-    if (statusCell && campaign.status) {
-      const statusSpan = statusCell.querySelector(".online-status");
-      const statusText = statusCell.querySelector("[data-status-text]");
-      if (statusSpan && statusText) {
-        statusSpan.className = `online-status ${campaign.status.class}`;
-        statusText.textContent = campaign.status.text;
-      }
-    }
-
-    const deviceCell = row.querySelector(".col-devices");
-    let deviceText = "Todos";
-    if (campaign.target_names && campaign.target_names.length > 0) {
-      deviceText = campaign.target_names.slice(0, 2).join(", ");
-      if (campaign.target_names.length > 2) {
-        deviceText += ` <span class="device-badge-extra">+${
-          campaign.target_names.length - 2
-        }</span>`;
-      }
-    }
-    deviceCell.innerHTML = deviceText;
-  };
-
-  document.querySelectorAll(".action-icon-editar").forEach((btn) => {
-    if (document.body.id === "campaigns-page") {
-      btn.addEventListener("click", (e) =>
-        openEditCampaignModal(e.currentTarget.dataset.id)
-      );
+  document.body.addEventListener("click", (e) => {
+    const editButton = e.target.closest(".action-icon-editar");
+    if (document.body.id === "campaigns-page" && editButton) {
+      e.stopPropagation();
+      openEditCampaignModal(editButton.dataset.id);
     }
   });
 
@@ -660,7 +628,6 @@ export function setupCampaignModal() {
     elements.submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
 
     const formData = new FormData();
-    const campaignId = elements.idInput.value;
 
     formData.append("name", elements.nameInput.value);
     formData.append("company_id", elements.companySelect.value);
@@ -723,15 +690,7 @@ export function setupCampaignModal() {
         notyf.error(json.message || `Erro ${res.status}`);
         return;
       }
-
-      notyf.success(json.message);
       campaignModal.style.display = "none";
-
-      if (campaignId && json.campaign) {
-        updateCampaignRow(json.campaign);
-      } else {
-        setTimeout(() => location.reload(), 1200);
-      }
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");
     } finally {

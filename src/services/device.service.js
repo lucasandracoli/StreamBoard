@@ -1,4 +1,8 @@
 const db = require("../../config/streamboard");
+const weatherService = require("./weather.service");
+const butcherService = require("./butcher.service");
+const logger = require("../utils/logger");
+const crypto = require("crypto");
 
 const getFullDeviceList = async () => {
   const query = `
@@ -26,8 +30,14 @@ const getDeviceById = async (id) => {
 const createDevice = async (name, device_type, company_id, sector_id) => {
   const query = `
     INSERT INTO devices (name, device_type, company_id, sector_id, is_active)
-    VALUES ($1, $2, $3, $4, TRUE)`;
-  await db.query(query, [name, device_type, company_id, sector_id]);
+    VALUES ($1, $2, $3, $4, TRUE) RETURNING id`;
+  const result = await db.query(query, [
+    name,
+    device_type,
+    company_id,
+    sector_id,
+  ]);
+  return result.rows[0];
 };
 
 const updateDevice = async (id, data) => {
@@ -140,7 +150,7 @@ const getDeviceDetails = async (id) => {
   return device;
 };
 
-const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
+const getDevicePlaylist = async (deviceId, companyId, sectorId, deviceType) => {
   const campaignQuery = `
       SELECT c.id, c.layout_type, comp.city, comp.state, comp.cep
       FROM campaigns c
@@ -166,27 +176,111 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId) => {
     sectorId,
   ]);
 
-  if (campaignResult.rows.length === 0) {
-    return null;
+  if (deviceType !== "digital_menu") {
+    if (campaignResult.rows.length === 0) return null;
+    const campaign = campaignResult.rows[0];
+    const uploadsQuery = `
+        SELECT id, file_path, file_type, duration, zone
+        FROM campaign_uploads
+        WHERE campaign_id = $1
+        ORDER BY zone, execution_order ASC`;
+    const uploadsResult = await db.query(uploadsQuery, [campaign.id]);
+    const playlistData = {
+      campaign_id: campaign.id,
+      layout_type: campaign.layout_type,
+      uploads: uploadsResult.rows,
+      city: campaign.city,
+      state: campaign.state,
+      cep: campaign.cep,
+    };
+    if (playlistData.layout_type === "split-80-20-weather") {
+      try {
+        playlistData.weather = await weatherService.getWeather(
+          playlistData.city,
+          playlistData.state,
+          playlistData.cep
+        );
+      } catch (weatherError) {
+        logger.error("Falha ao buscar clima.", weatherError);
+        playlistData.weather = null;
+      }
+    }
+    return playlistData;
   }
 
-  const campaign = campaignResult.rows[0];
+  const butcherProductsGroups = await butcherService.getButcherProducts(
+    companyId
+  );
+  let campaign = campaignResult.rows.length > 0 ? campaignResult.rows[0] : null;
+  let primaryMedia = [];
+  let secondaryMedia = null;
+  let layout_type = "fullscreen";
+  let campaign_id = null;
 
-  const uploadsQuery = `
-      SELECT id, file_path, file_type, duration, zone
-      FROM campaign_uploads
-      WHERE campaign_id = $1
-      ORDER BY zone, execution_order ASC`;
+  if (campaign) {
+    layout_type = campaign.layout_type;
+    campaign_id = campaign.id;
+    const uploadsResult = await db.query(
+      `SELECT id, file_path, file_type, duration, zone
+       FROM campaign_uploads
+       WHERE campaign_id = $1
+       ORDER BY zone, execution_order ASC`,
+      [campaign.id]
+    );
+    primaryMedia = uploadsResult.rows.filter(
+      (u) => u.zone === "main" || !u.zone
+    );
+    secondaryMedia = uploadsResult.rows.find((u) => u.zone === "secondary");
 
-  const uploadsResult = await db.query(uploadsQuery, [campaign.id]);
+    if (layout_type === "split-80-20-weather") {
+      try {
+        const weatherData = await weatherService.getWeather(
+          campaign.city,
+          campaign.state,
+          campaign.cep
+        );
+        if (weatherData) {
+          secondaryMedia = {
+            type: "weather",
+            weather: weatherData,
+            city: campaign.city,
+          };
+        } else {
+          secondaryMedia = null;
+        }
+      } catch (weatherError) {
+        logger.error("Falha ao buscar clima para menu.", weatherError);
+        secondaryMedia = null;
+      }
+    }
+
+    if (layout_type.startsWith("split-") && !secondaryMedia) {
+      layout_type = "fullscreen";
+    }
+  }
+
+  if (!campaign && butcherProductsGroups.length > 0) {
+    layout_type = "fullscreen";
+  }
 
   return {
-    layout_type: campaign.layout_type,
-    uploads: uploadsResult.rows,
-    city: campaign.city,
-    state: campaign.state,
-    cep: campaign.cep,
+    campaign_id,
+    layout_type: layout_type,
+    product_groups: butcherProductsGroups,
+    primary_media: primaryMedia,
+    secondary_media: secondaryMedia,
   };
+};
+
+const getActiveDigitalMenuDevicesByCompany = async (companyId) => {
+  const query = `
+        SELECT id FROM devices
+        WHERE company_id = $1
+        AND is_active = TRUE
+        AND device_type = 'digital_menu'
+    `;
+  const result = await db.query(query, [companyId]);
+  return result.rows.map((row) => row.id);
 };
 
 module.exports = {
@@ -201,4 +295,5 @@ module.exports = {
   reactivateDevice,
   getDeviceDetails,
   getDevicePlaylist,
+  getActiveDigitalMenuDevicesByCompany,
 };

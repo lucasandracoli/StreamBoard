@@ -54,6 +54,7 @@ export function setupDetailsModal() {
     const deviceIcons = {
       midia_indoor: "bi-tv",
       terminal_consulta: "bi-upc-scan",
+      digital_menu: "bi-card-list",
       default: "bi-question-circle",
     };
 
@@ -76,19 +77,28 @@ export function setupDetailsModal() {
     const reactivateBtn = getEl("modalReactivateButton");
     const magicLinkBtn = getEl("modalGenerateMagicLinkButton");
     const otpBtn = getEl("modalGenerateOtpButton");
+    const commandsSection = getEl("remote-commands-fieldset");
 
     revokeBtn.dataset.id = device.id;
     reactivateBtn.dataset.id = device.id;
     magicLinkBtn.dataset.id = device.id;
     otpBtn.dataset.id = device.id;
+    if (commandsSection) {
+      commandsSection.dataset.id = device.id;
+    }
 
     const isInactive = device.status.text === "Inativo";
+    const isOnline = device.status.class === "online";
+
     revokeBtn.style.display = device.is_active ? "inline-flex" : "none";
     reactivateBtn.style.display = device.is_active ? "none" : "inline-flex";
     magicLinkBtn.style.display =
       device.is_active && isInactive ? "inline-flex" : "none";
     otpBtn.style.display =
       device.is_active && isInactive ? "inline-flex" : "none";
+    if (commandsSection) {
+      commandsSection.style.display = isOnline ? "block" : "none";
+    }
   };
 
   const openDetailsModal = async (deviceId) => {
@@ -140,11 +150,38 @@ export function setupDetailsModal() {
       const res = await fetch(url, { method: "POST" });
       if (!res.ok) throw new Error(await handleFetchError(res));
       notyf.success(successMessage);
-      setTimeout(() => location.reload(), 1200);
     } catch (err) {
       notyf.error(err.message || "Falha na comunicação.");
     }
   };
+
+  const handleRemoteCommand = async (e) => {
+    const button = e.target.closest("button[data-command]");
+    if (!button) return;
+
+    const command = button.dataset.command;
+    const deviceId = button.closest("[data-id]").dataset.id;
+
+    button.disabled = true;
+    try {
+      const res = await fetch(`/api/devices/${deviceId}/command`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message);
+      notyf.success(json.message);
+    } catch (err) {
+      notyf.error(err.message || "Falha ao enviar comando.");
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  document
+    .getElementById("remote-commands-fieldset")
+    ?.addEventListener("click", handleRemoteCommand);
 
   document
     .getElementById("modalRevokeButton")

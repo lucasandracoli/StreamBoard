@@ -110,6 +110,33 @@ CREATE TABLE IF NOT EXISTS otp_pairing (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS butcher_products (
+    id SERIAL PRIMARY KEY,
+    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    product_name VARCHAR(255) NOT NULL,
+    price NUMERIC(10, 2) NOT NULL,
+    section_id INTEGER NOT NULL,
+    section_name VARCHAR(100) NOT NULL,
+    last_updated TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (company_id, product_name)
+);
+
+CREATE TABLE IF NOT EXISTS "user_sessions" (
+  "sid" varchar NOT NULL,
+  "sess" json NOT NULL,
+  "expire" timestamp(6) NOT NULL,
+  CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+);
+CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "user_sessions" ("expire");
+
+CREATE TABLE IF NOT EXISTS play_logs (
+    id SERIAL PRIMARY KEY,
+    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    upload_id INTEGER NOT NULL REFERENCES campaign_uploads(id) ON DELETE CASCADE,
+    played_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
 CREATE INDEX IF NOT EXISTS idx_tokens_refresh_token ON tokens (refresh_token);
 CREATE INDEX IF NOT EXISTS idx_tokens_device_id ON tokens (device_id);
@@ -123,6 +150,11 @@ CREATE INDEX IF NOT EXISTS idx_campaign_sector_sector_id ON campaign_sector (sec
 CREATE INDEX IF NOT EXISTS idx_campaign_uploads_campaign_id ON campaign_uploads (campaign_id);
 CREATE INDEX IF NOT EXISTS idx_otp_pairing_device_id ON otp_pairing (device_id);
 CREATE INDEX IF NOT EXISTS idx_magic_links_device_id ON magic_links (device_id);
+CREATE INDEX IF NOT EXISTS idx_butcher_products_company_id ON butcher_products (company_id);
+CREATE INDEX IF NOT EXISTS idx_play_logs_device_id ON play_logs (device_id);
+CREATE INDEX IF NOT EXISTS idx_play_logs_campaign_id ON play_logs (campaign_id);
+CREATE INDEX IF NOT EXISTS idx_play_logs_upload_id ON play_logs (upload_id);
+
 `;
 
 const resetDatabase = async () => {

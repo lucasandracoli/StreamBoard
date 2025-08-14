@@ -51,6 +51,17 @@ const getCampaignWithDetails = async (id) => {
   return campaign;
 };
 
+const getTargetNamesForCampaign = async (campaignId) => {
+    const query = `
+        SELECT
+            (SELECT json_agg(s.name) FROM sectors s JOIN campaign_sector cs ON s.id = cs.sector_id WHERE cs.campaign_id = $1) as sector_names,
+            (SELECT json_agg(d.name) FROM devices d JOIN campaign_device cd ON d.id = cd.device_id WHERE cd.campaign_id = $1) as device_names
+    `;
+    const result = await db.query(query, [campaignId]);
+    const { sector_names, device_names } = result.rows[0];
+    return [...(sector_names || []), ...(device_names || [])];
+}
+
 const getAffectedDevicesForCampaign = async (campaignId) => {
   const client = await db.connect();
   try {
@@ -195,6 +206,7 @@ const deleteCampaign = async (id) => {
 module.exports = {
   getAllCampaigns,
   getCampaignWithDetails,
+  getTargetNamesForCampaign,
   getAffectedDevicesForCampaign,
   createCampaign,
   deleteCampaign,

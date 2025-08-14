@@ -1,4 +1,6 @@
 const db = require("../../config/streamboard");
+const reportService = require("../services/report.service");
+const logger = require("../utils/logger");
 
 const rootRedirect = (req, res) => {
   if (req.session.userId) {
@@ -64,8 +66,28 @@ const broadcastRefresh = (req, res) => {
     .json({ message: "Comando de atualização enviado a todos os players." });
 };
 
+const getReportData = async (req, res) => {
+  try {
+    const [topMedia, topCampaigns, playsOverTime] = await Promise.all([
+      reportService.getTopPlayedMedia(),
+      reportService.getPlaysByCampaign(),
+      reportService.getPlaysOverTime(),
+    ]);
+
+    res.json({
+      topMedia,
+      topCampaigns,
+      playsOverTime,
+    });
+  } catch (err) {
+    logger.error("Erro ao buscar dados para os gráficos de relatório.", err);
+    res.status(500).json({ message: "Erro ao buscar dados do relatório." });
+  }
+};
+
 module.exports = {
   rootRedirect,
   renderDashboard,
   broadcastRefresh,
+  getReportData,
 };

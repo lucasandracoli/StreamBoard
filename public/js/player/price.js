@@ -5,12 +5,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const isNewlyPaired = urlParams.has("paired");
 
   if (isNewlyPaired) {
-    const notyf = new Notyf({
-      duration: 5000,
-      position: { x: "right", y: "top" },
-      dismissible: true,
-    });
-    notyf.success("Dispositivo conectado com sucesso!");
     const newUrl = window.location.pathname;
     history.replaceState({}, document.title, newUrl);
   }

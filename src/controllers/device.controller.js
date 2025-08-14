@@ -8,6 +8,34 @@ const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const weatherService = require("../services/weather.service");
 
+const getFullDeviceDetailsForBroadcast = async (deviceId, clients) => {
+  const device = await deviceService.getDeviceDetails(deviceId);
+  if (!device) return null;
+
+  return {
+    ...device,
+    status: deviceUtils.getDeviceStatus(device, clients),
+  };
+};
+
+const sendDeviceCommand = (req, res) => {
+  const { id } = req.params;
+  const { command } = req.body;
+  const { clients, sendUpdateToDevice } = req.app.locals;
+
+  if (!command) {
+    return res.status(400).json({ message: "Comando não especificado." });
+  }
+
+  if (!clients[id]) {
+    return res.status(404).json({ message: "Dispositivo não está online." });
+  }
+
+  sendUpdateToDevice(id, { type: "REMOTE_COMMAND", payload: { command } });
+
+  res.status(200).json({ message: `Comando '${command}' enviado.` });
+};
+
 const listDevicesPage = async (req, res) => {
   try {
     const { clients } = req.app.locals;
@@ -43,7 +71,24 @@ const createDevice = async (req, res) => {
       .json({ message: "Todos os campos são obrigatórios." });
   }
   try {
-    await deviceService.createDevice(name, device_type, company_id, sector_id);
+    const newDevice = await deviceService.createDevice(
+      name,
+      device_type,
+      company_id,
+      sector_id
+    );
+    const { broadcastToAdmins, clients } = req.app.locals;
+    const fullDeviceDetails = await getFullDeviceDetailsForBroadcast(
+      newDevice.id,
+      clients
+    );
+    if (fullDeviceDetails) {
+      broadcastToAdmins({
+        type: "DEVICE_CREATED",
+        payload: fullDeviceDetails,
+      });
+    }
+
     res.json({ message: "Dispositivo cadastrado com sucesso." });
   } catch (err) {
     logger.error("Erro ao cadastrar dispositivo.", err);
@@ -69,8 +114,19 @@ const editDevice = async (req, res) => {
 
     await deviceService.updateDevice(id, req.body);
 
+    const { sendUpdateToDevice, broadcastToAdmins, clients } = req.app.locals;
+    const fullDeviceDetails = await getFullDeviceDetailsForBroadcast(
+      id,
+      clients
+    );
+    if (fullDeviceDetails) {
+      broadcastToAdmins({
+        type: "DEVICE_UPDATED",
+        payload: fullDeviceDetails,
+      });
+    }
+
     if (oldDevice.device_type !== device_type) {
-      const { sendUpdateToDevice } = req.app.locals;
       sendUpdateToDevice(id, {
         type: "TYPE_CHANGED",
         payload: { newType: device_type },
@@ -89,7 +145,8 @@ const deleteDevice = async (req, res) => {
   const { id } = req.params;
   try {
     await deviceService.deleteDevice(id);
-    const { sendUpdateToDevice } = req.app.locals;
+    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
+    broadcastToAdmins({ type: "DEVICE_DELETED", payload: { deviceId: id } });
     sendUpdateToDevice(id, { type: "DEVICE_REVOKED" });
     res.status(200).json({
       message: "Dispositivo excluído e sessão encerrada com sucesso.",
@@ -215,12 +272,18 @@ const getDevicePlaylist = async (req, res) => {
     if (!req.device || !req.device.id) {
       return res.status(401).json({ message: "Dispositivo não autenticado." });
     }
-    const { id, company_id, sector_id } = req.device;
+    const { id, company_id, sector_id, device_type } = req.device;
+
     const playlistData = await deviceService.getDevicePlaylist(
       id,
       company_id,
-      sector_id
+      sector_id,
+      device_type
     );
+
+    if (!playlistData) {
+      return res.json(null);
+    }
 
     const etag = crypto
       .createHash("sha1")
@@ -230,23 +293,6 @@ const getDevicePlaylist = async (req, res) => {
 
     if (req.headers["if-none-match"] === etag) {
       return res.status(304).end();
-    }
-
-    if (playlistData && playlistData.layout_type === "split-80-20-weather") {
-      try {
-        const weather = await weatherService.getWeather(
-          playlistData.city,
-          playlistData.state,
-          playlistData.cep
-        );
-        playlistData.weather = weather;
-      } catch (weatherError) {
-        logger.error(
-          "Falha ao buscar dados de clima, continuando sem eles.",
-          weatherError
-        );
-        playlistData.weather = null;
-      }
     }
 
     res.setHeader(
@@ -307,4 +353,5 @@ module.exports = {
   getDevicePlaylist,
   getDeviceWeather,
   getWsToken,
+  sendDeviceCommand,
 };

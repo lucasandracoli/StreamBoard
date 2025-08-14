@@ -5,22 +5,32 @@ document.addEventListener("DOMContentLoaded", () => {
   const isNewlyPaired = urlParams.has("paired");
 
   if (isNewlyPaired) {
-    const notyf = new Notyf({
-      duration: 5000,
-      position: { x: "right", y: "top" },
-      dismissible: true,
-    });
-    notyf.success("Dispositivo conectado com sucesso!");
     const newUrl = window.location.pathname;
     history.replaceState({}, document.title, newUrl);
   }
 
   const playerWrapper = document.getElementById("player-wrapper");
   let playlists = { main: [], secondary: [] };
+  let currentCampaignId = null;
   let currentIndices = { main: -1, secondary: -1 };
   let mediaTimers = { main: null, secondary: null };
   let playlistInterval = null;
   let clockInterval = null;
+
+  const logPlayback = async (uploadId, campaignId) => {
+    if (!uploadId || !campaignId) return;
+    try {
+      await fetch("/api/logs/play", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ uploadId, campaignId }),
+      });
+    } catch (err) {
+      console.error("Falha ao registrar log de exibição.", err);
+    }
+  };
 
   const setupLayout = (layoutType = "fullscreen") => {
     playerWrapper.innerHTML = "";
@@ -89,9 +99,13 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    logPlayback(mediaItem.id, currentCampaignId);
+
     const isImage = mediaItem.file_type.startsWith("image/");
     const isVideo = mediaItem.file_type.startsWith("video/");
     let newElement;
+
+    const setupNext = () => playNextInZone(zone);
 
     if (isImage) {
       newElement = document.createElement("img");
@@ -101,28 +115,15 @@ document.addEventListener("DOMContentLoaded", () => {
       newElement.muted = true;
       newElement.playsInline = true;
     } else {
-      playNextInZone(zone);
+      setupNext();
       return;
     }
 
     newElement.src = mediaItem.file_path;
     newElement.className = "media-element";
 
-    const oldElement = zoneContainer.querySelector(".media-element.active");
-    if (oldElement) {
-      oldElement.addEventListener(
-        "transitionend",
-        () => {
-          oldElement.remove();
-        },
-        { once: true }
-      );
-      oldElement.classList.remove("active");
-    }
-
+    zoneContainer.innerHTML = "";
     zoneContainer.appendChild(newElement);
-
-    const setupNext = () => playNextInZone(zone);
 
     const onMediaReady = () => {
       requestAnimationFrame(() => {
@@ -131,16 +132,24 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     if (isImage) {
-      newElement.onerror = setupNext;
       const duration = (mediaItem.duration || 10) * 1000;
       mediaTimers[zone] = setTimeout(setupNext, duration);
       if (newElement.complete) {
         onMediaReady();
       } else {
         newElement.onload = onMediaReady;
+        newElement.onerror = setupNext;
       }
     } else if (isVideo) {
-      newElement.onloadeddata = onMediaReady;
+      newElement.oncanplay = () => {
+        const playPromise = newElement.play();
+        if (playPromise !== undefined) {
+          playPromise.then(onMediaReady).catch((error) => {
+            console.error("Video play failed:", error);
+            setupNext();
+          });
+        }
+      };
       newElement.onended = setupNext;
       newElement.onerror = setupNext;
     }
@@ -156,11 +165,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!data) {
       playlists = { main: [], secondary: [] };
+      currentCampaignId = null;
       showWaitingScreen();
       return;
     }
 
     setupLayout(data.layout_type);
+    currentCampaignId = data.campaign_id;
 
     playlists.main = (data.uploads || []).filter(
       (u) => u.zone === "main" || !u.zone
@@ -303,15 +314,16 @@ document.addEventListener("DOMContentLoaded", () => {
     renderClock();
   };
 
+  const requestPlaylist = () => {
+    wsManager.sendMessage({ type: "REQUEST_PLAYLIST" });
+  };
+
   const handleServerMessage = (data) => {
     switch (data.type) {
       case "CONNECTION_ESTABLISHED":
-        wsManager.sendMessage({ type: "REQUEST_PLAYLIST" });
+        requestPlaylist();
         if (playlistInterval) clearInterval(playlistInterval);
-        playlistInterval = setInterval(
-          () => wsManager.sendMessage({ type: "REQUEST_PLAYLIST" }),
-          30 * 60 * 1000
-        );
+        playlistInterval = setInterval(requestPlaylist, 30 * 60 * 1000);
         break;
       case "PLAYLIST_UPDATE":
         startPlayback(data.payload);
@@ -319,7 +331,7 @@ document.addEventListener("DOMContentLoaded", () => {
       case "NEW_CAMPAIGN":
       case "UPDATE_CAMPAIGN":
       case "DELETE_CAMPAIGN":
-        wsManager.sendMessage({ type: "REQUEST_PLAYLIST" });
+        requestPlaylist();
         break;
       case "DEVICE_REVOKED":
         wsManager.disconnect(false);
@@ -334,13 +346,24 @@ document.addEventListener("DOMContentLoaded", () => {
         }, 4000);
         break;
       case "FORCE_REFRESH":
-        wsManager.disconnect(false);
-        window.location.reload(true);
+      case "REMOTE_COMMAND":
+        if (data.payload?.command === "RELOAD_PAGE") {
+          wsManager.disconnect(false);
+          window.location.reload(true);
+        } else if (data.payload?.command === "REFRESH_PLAYLIST") {
+          requestPlaylist();
+        }
         break;
       case "TYPE_CHANGED":
         wsManager.disconnect(false);
-        window.location.href =
-          data.payload.newType === "terminal_consulta" ? "/price" : "/player";
+        const newType = data.payload.newType;
+        if (newType === "terminal_consulta") {
+          window.location.href = "/price";
+        } else if (newType === "digital_menu") {
+          window.location.href = "/menu";
+        } else {
+          window.location.href = "/player";
+        }
         break;
     }
   };

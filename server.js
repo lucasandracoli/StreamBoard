@@ -2,24 +2,18 @@ require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const session = require("express-session");
+const pgSession = require("connect-pg-simple")(session);
+const dbPool = require("./config/streamboard");
 const bodyParser = require("body-parser");
 const { Settings } = require("luxon");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const mainRouter = require("./src/routes");
 const webSocketManager = require("./src/websocket/manager");
-
-const logger = {
-  info: (message) => {
-    console.log(`[${new Date().toISOString()}] [INFO] ${message}`);
-  },
-  error: (message, error) => {
-    console.error(
-      `[${new Date().toISOString()}] [ERROR] ${message}`,
-      error || ""
-    );
-  },
-};
+const productSyncQueue = require("./src/jobs/productSyncQueue");
+const logger = require("./src/utils/logger");
+const { QueueEvents } = require("bullmq");
+const connection = require("./src/jobs/connection");
 
 Settings.defaultZone = "America/Sao_Paulo";
 
@@ -35,8 +29,16 @@ app.locals.sendUpdateToDevice = webSocketManager.sendUpdateToDevice;
 app.locals.broadcastToAdmins = webSocketManager.broadcastToAdmins;
 
 app.use(cookieParser());
+
+const sessionStore = new pgSession({
+  pool: dbPool,
+  tableName: "user_sessions",
+  createTableIfMissing: true,
+});
+
 app.use(
   session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -44,6 +46,7 @@ app.use(
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       sameSite: "strict",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     },
   })
 );
@@ -63,6 +66,66 @@ app.use(bodyParser.json());
 
 app.use("/", mainRouter);
 
+const queueEvents = new QueueEvents("Product Sync", { connection });
+
+queueEvents.on("completed", ({ jobId, returnvalue }) => {
+  productSyncQueue.getJob(jobId).then((job) => {
+    if (job && job.name === "sync-single-company") {
+      const { companyId } = job.data;
+      const { updatedCount } = returnvalue;
+      logger.info(
+        `Job de sincronização para empresa ${companyId} concluído. ${updatedCount} produtos atualizados.`
+      );
+
+      webSocketManager.broadcastToAdmins({
+        type: "PRODUCT_SYNC_COMPLETED",
+        payload: {
+          companyId: companyId,
+          message: `Sincronização concluída! ${updatedCount} produtos foram atualizados.`,
+        },
+      });
+    }
+  });
+});
+
+queueEvents.on("failed", ({ jobId, failedReason }) => {
+  logger.error(`Job ${jobId} falhou: ${failedReason}`);
+  productSyncQueue.getJob(jobId).then((job) => {
+    if (job && job.name === "sync-single-company") {
+      const { companyId } = job.data;
+      webSocketManager.broadcastToAdmins({
+        type: "PRODUCT_SYNC_FAILED",
+        payload: {
+          companyId: companyId,
+          message: `A sincronização de preços falhou. Tente novamente.`,
+        },
+      });
+    }
+  });
+});
+
+const scheduleHourlySync = async () => {
+  await productSyncQueue.removeRepeatableByKey(
+    "sync-all-companies:hourly:0 * * * *:"
+  );
+
+  await productSyncQueue.add(
+    "sync-all-companies",
+    {},
+    {
+      repeat: {
+        cron: "0 * * * *",
+      },
+      jobId: "sync-all-hourly",
+    }
+  );
+
+  logger.info(
+    "Job de sincronização de produtos agendado para rodar a cada hora."
+  );
+};
+
 server.listen(PORT, () => {
   logger.info(`🔥 Server Running in http://127.0.0.1:${PORT}`);
+  scheduleHourlySync();
 });

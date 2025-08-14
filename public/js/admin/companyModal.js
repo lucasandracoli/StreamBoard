@@ -171,13 +171,13 @@ export function setupCompanyModal() {
       form.name.value = company.name;
 
       if (cnpjMask) {
-        cnpjMask.value = company.cnpj;
+        cnpjMask.unmaskedValue = company.cnpj || "";
       } else {
         form.cnpj.value = company.cnpj;
       }
 
       if (cepMask) {
-        cepMask.value = company.cep;
+        cepMask.unmaskedValue = company.cep || "";
       } else {
         form.cep.value = company.cep;
       }
@@ -198,13 +198,6 @@ export function setupCompanyModal() {
     "click",
     () => (companyModal.style.display = "none")
   );
-  document.querySelectorAll(".action-icon-editar").forEach((btn) => {
-    if (document.body.id === "companies-page") {
-      btn.addEventListener("click", (e) =>
-        openEditModal(e.currentTarget.dataset.id)
-      );
-    }
-  });
 
   form.addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -229,8 +222,7 @@ export function setupCompanyModal() {
         notyf.error(json.message || `Erro ${res.status}`);
         return;
       }
-      notyf.success(json.message);
-      setTimeout(() => location.reload(), 1200);
+      companyModal.style.display = "none";
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");
     } finally {
@@ -238,4 +230,6 @@ export function setupCompanyModal() {
       submitButton.innerHTML = originalButtonText;
     }
   });
+
+  return { openEditModal };
 }
