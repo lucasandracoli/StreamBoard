@@ -1013,7 +1013,7 @@ body.player-body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: #000;
+  background-color: transparent;
 }
 .copyable-code:hover {
   background-color: #d1d5db;
@@ -1175,7 +1175,7 @@ body.player-body {
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: var(--color-background);
+  background-color: transparent;
 }
 #idle-screen {
   width: 100vw;
@@ -1202,7 +1202,7 @@ body.player-body {
   object-fit: contain;
 }
 .background-image {
-  display: none;
+  display: block;
   position: absolute;
   top: 0;
   left: 0;
@@ -2717,13 +2717,12 @@ body.player-body {
   left: -10%;
   width: 120%;
   height: 120%;
-  z-index: 1;
+  z-index: -1;
   filter: blur(50px) brightness(0.8);
   transform: scale(1.1);
   opacity: 0;
   transition: opacity 0.7s ease-in-out;
 }
-
 #player-wrapper {
   position: relative;
   z-index: 2;

@@ -37,6 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("resize", resizeCanvas);
 
   const updateBlurredBackground = (mediaElement) => {
+    resizeCanvas();
     if (backgroundAnimationRequest) {
       cancelAnimationFrame(backgroundAnimationRequest);
     }
@@ -143,6 +144,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const isImage = mediaItem.file_type.startsWith("image/");
     const isVideo = mediaItem.file_type.startsWith("video/");
     let newElement;
+
+    const setupNext = () => playNextInZone(zone);
+
     if (isImage) {
       newElement = document.createElement("img");
       newElement.crossOrigin = "anonymous";
@@ -153,32 +157,38 @@ document.addEventListener("DOMContentLoaded", () => {
       newElement.muted = true;
       newElement.playsInline = true;
     } else {
-      playNextInZone(zone);
+      setupNext();
       return;
     }
     newElement.src = mediaItem.file_path;
     newElement.className = "media-element";
-    const oldElement = zoneContainer.querySelector(".media-element.active");
-    if (oldElement) {
-      oldElement.addEventListener("transitionend", () => oldElement.remove(), {
-        once: true,
-      });
-      oldElement.classList.remove("active");
-    }
+    zoneContainer.innerHTML = "";
     zoneContainer.appendChild(newElement);
-    const setupNext = () => playNextInZone(zone);
+
     const onMediaReady = () => {
       if (zone === "main") updateBlurredBackground(newElement);
       requestAnimationFrame(() => newElement.classList.add("active"));
     };
+
     if (isImage) {
-      newElement.onerror = setupNext;
       const duration = (mediaItem.duration || 10) * 1000;
       mediaTimers[zone] = setTimeout(setupNext, duration);
-      if (newElement.complete) onMediaReady();
-      else newElement.onload = onMediaReady;
+      if (newElement.complete) {
+        onMediaReady();
+      } else {
+        newElement.onload = onMediaReady;
+        newElement.onerror = setupNext;
+      }
     } else if (isVideo) {
-      newElement.onloadeddata = onMediaReady;
+      newElement.oncanplay = () => {
+        const playPromise = newElement.play();
+        if (playPromise !== undefined) {
+          playPromise.then(onMediaReady).catch((error) => {
+            console.error("Video play failed:", error);
+            setupNext();
+          });
+        }
+      };
       newElement.onended = setupNext;
       newElement.onerror = setupNext;
     }
@@ -441,40 +451,52 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 100);
   });
 
-  const connector = new DeviceConnector({
-    onOpen: () => {
-      fetchAndResetPlaylist();
-    },
-    onMessage: (data) => {
-      switch (data.type) {
-        case "PLAYLIST_UPDATE":
-        case "NEW_CAMPAIGN":
-        case "UPDATE_CAMPAIGN":
-        case "DELETE_CAMPAIGN":
+  const handleServerMessage = (data) => {
+    switch (data.type) {
+      case "CONNECTION_ESTABLISHED":
+        if (!isDisplayingPrice) {
           fetchAndResetPlaylist();
-          break;
-        case "FORCE_REFRESH":
-          connector.disconnect(false);
-          location.reload(true);
-          break;
-        case "DEVICE_REVOKED":
-          connector.disconnect(false);
-          showMessageScreen(
-            "Dispositivo Desconectado",
-            "Este terminal foi revogado.",
-            "error"
-          );
-          setTimeout(() => {
-            location.href = "/pair?error=revoked";
-          }, 4000);
-          break;
-        case "TYPE_CHANGED":
-          connector.disconnect(false);
-          location.href =
-            data.payload.newType === "terminal_consulta" ? "/price" : "/player";
-          break;
-      }
-    },
+        }
+        break;
+      case "PLAYLIST_UPDATE":
+      case "NEW_CAMPAIGN":
+      case "UPDATE_CAMPAIGN":
+      case "DELETE_CAMPAIGN":
+        if (!isDisplayingPrice) {
+          fetchAndResetPlaylist();
+        }
+        break;
+      case "FORCE_REFRESH":
+        connector.disconnect(false);
+        location.reload(true);
+        break;
+      case "DEVICE_REVOKED":
+        connector.disconnect(false);
+        showMessageScreen(
+          "Dispositivo Desconectado",
+          "Este terminal foi revogado.",
+          "error"
+        );
+        setTimeout(() => {
+          location.href = "/pair?error=revoked";
+        }, 4000);
+        break;
+      case "TYPE_CHANGED":
+        connector.disconnect(false);
+        const newType = data.payload.newType;
+        if (newType === "terminal_consulta") {
+          window.location.href = "/price";
+        } else if (newType === "digital_menu") {
+          window.location.href = "/menu";
+        } else {
+          window.location.href = "/player";
+        }
+        break;
+    }
+  };
+
+  const connector = new DeviceConnector({
+    onMessage: handleServerMessage,
     onReconnecting: () => {
       if (!isDisplayingPrice) {
         showMessageScreen(

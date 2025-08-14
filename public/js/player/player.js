@@ -30,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("resize", resizeCanvas);
 
   const updateBlurredBackground = (mediaElement) => {
+    resizeCanvas();
     if (backgroundAnimationRequest) {
       cancelAnimationFrame(backgroundAnimationRequest);
     }
