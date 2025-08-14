@@ -112,6 +112,23 @@ export function connectAdminWs(detailsModalHandler) {
             }
           }
           break;
+        case "PRODUCT_SYNC_FAILED":
+          if (isProductsPage) {
+            const currentCompanyId = window.location.pathname.split("/").pop();
+            if (data.payload.companyId == currentCompanyId) {
+              notyf.error(data.payload.message);
+              const syncCompanyBtn = document.getElementById(
+                "syncCompanyProductsBtn"
+              );
+              if (syncCompanyBtn) {
+                syncCompanyBtn.disabled = false;
+                syncCompanyBtn.querySelector("span").textContent =
+                  "Sincronizar Preços";
+                syncCompanyBtn.querySelector("i").classList.remove("spinning");
+              }
+            }
+          }
+          break;
       }
     } catch (e) {
       console.error("Erro ao processar mensagem WebSocket:", e);

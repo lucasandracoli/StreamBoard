@@ -10,12 +10,17 @@ const worker = new Worker(
     logger.info(`Processando job '${job.name}' com dados:`, job.data);
     try {
       if (job.name === "sync-all-companies") {
-        await productSyncService.syncAllProducts();
+        return await productSyncService.syncAllProducts();
       } else if (job.name === "sync-single-company") {
-        await productSyncService.syncProductsForCompany(job.data.companyId);
+        return await productSyncService.syncProductsForCompany(
+          job.data.companyId
+        );
       }
     } catch (error) {
-      logger.error(`Falha ao processar job '${job.name}' (ID: ${job.id}).`, error);
+      logger.error(
+        `Falha ao processar job '${job.name}' (ID: ${job.id}).`,
+        error
+      );
       throw error;
     }
   },
@@ -27,7 +32,11 @@ worker.on("completed", (job) => {
 });
 
 worker.on("failed", (job, err) => {
-  logger.error(`Job '${job.name}' (ID: ${job.id}) falhou. Erro: ${err.message}`);
+  logger.error(
+    `Job '${job.name}' (ID: ${job.id}) falhou. Erro: ${err.message}`
+  );
 });
 
-logger.info("🚀 Worker de sincronização de produtos iniciado e aguardando jobs...");
+logger.info(
+  "🚀 Worker de sincronização de produtos iniciado e aguardando jobs..."
+);

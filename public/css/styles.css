@@ -2695,3 +2695,18 @@ body.player-body {
   padding: 24px;
   padding-top: 1.5rem;
 }
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.login-body.logged-out .login-form {
+  animation: fadeInUp 0.6s ease-out forwards;
+}

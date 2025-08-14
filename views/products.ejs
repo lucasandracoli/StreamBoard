@@ -60,7 +60,7 @@
               </td>
               <td data-label="Categoria"><%= product.section_name %></td>
               <td data-label="Atualização">
-                <%= new Date(product.last_updated).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short'}) %>
+                <%= formatUtils.formatarDataHoraCompleta(product.last_updated) %>
               </td>
               <td class="actions-cell">
                 <button

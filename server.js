@@ -12,6 +12,8 @@ const mainRouter = require("./src/routes");
 const webSocketManager = require("./src/websocket/manager");
 const productSyncQueue = require("./src/jobs/productSyncQueue");
 const logger = require("./src/utils/logger");
+const { QueueEvents } = require("bullmq");
+const connection = require("./src/jobs/connection");
 
 Settings.defaultZone = "America/Sao_Paulo";
 
@@ -63,6 +65,44 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 app.use("/", mainRouter);
+
+const queueEvents = new QueueEvents("Product Sync", { connection });
+
+queueEvents.on("completed", ({ jobId, returnvalue }) => {
+  productSyncQueue.getJob(jobId).then((job) => {
+    if (job && job.name === "sync-single-company") {
+      const { companyId } = job.data;
+      const { updatedCount } = returnvalue;
+      logger.info(
+        `Job de sincronização para empresa ${companyId} concluído. ${updatedCount} produtos atualizados.`
+      );
+
+      webSocketManager.broadcastToAdmins({
+        type: "PRODUCT_SYNC_COMPLETED",
+        payload: {
+          companyId: companyId,
+          message: `Sincronização concluída! ${updatedCount} produtos foram atualizados.`,
+        },
+      });
+    }
+  });
+});
+
+queueEvents.on("failed", ({ jobId, failedReason }) => {
+  logger.error(`Job ${jobId} falhou: ${failedReason}`);
+  productSyncQueue.getJob(jobId).then((job) => {
+    if (job && job.name === "sync-single-company") {
+      const { companyId } = job.data;
+      webSocketManager.broadcastToAdmins({
+        type: "PRODUCT_SYNC_FAILED",
+        payload: {
+          companyId: companyId,
+          message: `A sincronização de preços falhou. Tente novamente.`,
+        },
+      });
+    }
+  });
+});
 
 const scheduleHourlySync = async () => {
   await productSyncQueue.removeRepeatableByKey(

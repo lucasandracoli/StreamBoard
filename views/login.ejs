@@ -13,7 +13,7 @@
       rel="stylesheet"
     />
   </head>
-  <body class="login-body">
+  <body class="login-body <%= showLogoutNotification ? 'logged-out' : '' %>">
     <form id="loginForm" class="login-form" method="POST" action="/login">
       <img src="/assets/logo.png" alt="Logo" class="login-logo" />
 
@@ -33,6 +33,19 @@
 
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
     <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>
-    <%- include("partials/footer") %>
+
+    <% if (showLogoutNotification) { %>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const notyf = new Notyf({
+          duration: 3000,
+          position: { x: "right", y: "top" },
+          dismissible: true,
+        });
+        notyf.success("Logout efetuado com sucesso!");
+        history.replaceState(null, "", window.location.pathname);
+      });
+    </script>
+    <% } %> <%- include("partials/footer") %>
   </body>
 </html>

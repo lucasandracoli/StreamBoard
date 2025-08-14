@@ -5,7 +5,8 @@ const renderLoginPage = (req, res) => {
   if (req.session.userId) {
     return res.redirect("/dashboard");
   }
-  res.render("login");
+  const showLogoutNotification = req.query.logout === "true";
+  res.render("login", { showLogoutNotification });
 };
 
 const handleLogin = async (req, res) => {

@@ -42,6 +42,7 @@ const listProductsByCompanyPage = async (req, res) => {
       totalPages: productData.totalPages,
       companyId: productData.companyId,
       companyName: productData.companyName,
+      formatUtils,
     });
   } catch (err) {
     logger.error(
