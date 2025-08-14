@@ -6,8 +6,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const secondaryZone = document.getElementById("zone-secondary");
   const categoryTitle = document.getElementById("category-title");
   const header = document.getElementById("menu-header");
-  let clockInterval = null;
+  const backgroundCanvas = document.getElementById("background-canvas");
+  const bgCtx = backgroundCanvas.getContext("2d");
 
+  let clockInterval = null;
   let productGroups = [];
   let primaryMedia = [];
   let secondaryMedia = null;
@@ -15,6 +17,43 @@ document.addEventListener("DOMContentLoaded", () => {
   let mediaIndex = 0;
   let mediaTimer = null;
   let isDisplayingProducts = true;
+  let backgroundAnimationRequest = null;
+
+  const resizeCanvas = () => {
+    backgroundCanvas.width = window.innerWidth;
+    backgroundCanvas.height = window.innerHeight;
+  };
+
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
+
+  const updateBlurredBackground = (mediaElement) => {
+    if (backgroundAnimationRequest) {
+      cancelAnimationFrame(backgroundAnimationRequest);
+    }
+    const draw = () => {
+      bgCtx.drawImage(
+        mediaElement,
+        0,
+        0,
+        backgroundCanvas.width,
+        backgroundCanvas.height
+      );
+      if (mediaElement.tagName === "VIDEO" && !mediaElement.paused) {
+        backgroundAnimationRequest = requestAnimationFrame(draw);
+      }
+    };
+    draw();
+    backgroundCanvas.style.opacity = "1";
+  };
+
+  const hideBlurredBackground = () => {
+    backgroundCanvas.style.opacity = "0";
+    if (backgroundAnimationRequest) {
+      cancelAnimationFrame(backgroundAnimationRequest);
+      backgroundAnimationRequest = null;
+    }
+  };
 
   const setupLayout = (layoutType = "fullscreen") => {
     playerWrapper.className = `player-wrapper layout-${layoutType}`;
@@ -95,21 +134,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const maxTemp = Math.round(daily.temperature_2m_max[0]);
       const minTemp = Math.round(daily.temperature_2m_min[0]);
       const { iconClass, colorClass } = getWeatherIcon(current.weather_code);
-      weatherContentHtml = `
-          <div class="weather-city">${city || ""}</div>
-          <i class="bi ${iconClass} weather-icon ${colorClass}"></i>
-          <div class="weather-temp">${temp}°C</div>
-          <div class="weather-minmax">
-            <i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°
-          </div>`;
+      weatherContentHtml = `<div class="weather-city">${
+        city || ""
+      }</div><i class="bi ${iconClass} weather-icon ${colorClass}"></i><div class="weather-temp">${temp}°C</div><div class="weather-minmax"><i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°</div>`;
     } else {
       weatherContentHtml = `<div class="weather-error">Não foi possível carregar o clima.</div>`;
     }
-    secondaryZone.innerHTML = `
-        <div class="weather-widget">
-            <div class="weather-main-content">${weatherContentHtml}</div>
-            <div id="clock-container" class="clock-display"></div>
-        </div>`;
+    secondaryZone.innerHTML = `<div class="weather-widget"><div class="weather-main-content">${weatherContentHtml}</div><div id="clock-container" class="clock-display"></div></div>`;
     renderClock();
   };
 
@@ -118,12 +149,10 @@ document.addEventListener("DOMContentLoaded", () => {
       secondaryZone.innerHTML = "";
       return;
     }
-
     if (secondaryMedia.type === "weather") {
       renderWeather(secondaryMedia.weather, secondaryMedia.city);
       return;
     }
-
     const mediaElement = document.createElement(
       secondaryMedia.file_type.startsWith("video/") ? "video" : "img"
     );
@@ -140,29 +169,23 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const renderProductTable = (item) => {
+    hideBlurredBackground();
     header.style.display = "flex";
     mainZone.style.paddingTop = "var(--header-height)";
-    mainZone.style.backgroundColor = "#f0f0f0";
-    mainZone.innerHTML = `
-            <div class="menu-table">
-                <ul id="product-list"></ul>
-            </div>
-        `;
+    mainZone.style.backgroundColor = "transparent";
+    mainZone.innerHTML = `<div class="menu-table"><ul id="product-list"></ul></div>`;
     const productListEl = document.getElementById("product-list");
     categoryTitle.textContent = item.category;
 
     const productsToShow = Array.isArray(item.products)
       ? item.products.slice(0, 6)
       : [];
-
     productsToShow.forEach((p, index) => {
       const li = document.createElement("li");
       li.style.opacity = "0";
       li.style.transform = "translateY(10px)";
       li.style.transition = "opacity 0.5s, transform 0.5s";
-      li.innerHTML = `
-                <div class="product-name">${p.name}</div>
-                <div class="product-price">R$ ${p.price}</div>`;
+      li.innerHTML = `<div class="product-name">${p.name}</div><div class="product-price">R$ ${p.price}</div>`;
       productListEl.appendChild(li);
       setTimeout(() => {
         li.style.opacity = "1";
@@ -175,7 +198,7 @@ document.addEventListener("DOMContentLoaded", () => {
     header.style.display = "none";
     mainZone.style.paddingTop = "0";
     mainZone.innerHTML = "";
-    mainZone.style.backgroundColor = "#000";
+    mainZone.style.backgroundColor = "transparent";
 
     if (!item.file_path) {
       playNextItem();
@@ -190,8 +213,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (isImage) {
       newElement = document.createElement("img");
+      newElement.crossOrigin = "anonymous";
     } else if (isVideo) {
       newElement = document.createElement("video");
+      newElement.crossOrigin = "anonymous";
       newElement.autoplay = true;
       newElement.muted = true;
       newElement.playsInline = true;
@@ -207,6 +232,7 @@ document.addEventListener("DOMContentLoaded", () => {
     mainZone.appendChild(newElement);
 
     const onMediaReady = () => {
+      updateBlurredBackground(newElement);
       requestAnimationFrame(() => {
         newElement.classList.add("active");
         if (oldElement) {
@@ -263,9 +289,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const showWaitingScreen = () => {
     header.style.display = "none";
     mainZone.style.paddingTop = "0";
-    mainZone.style.backgroundColor = "#000";
+    mainZone.style.backgroundColor = "transparent";
     secondaryZone.innerHTML = "";
     setupLayout("fullscreen");
+    hideBlurredBackground();
     mainZone.innerHTML = `
       <div class="player-message-card info">
         <i class="icon bi bi-clock-history"></i>
@@ -273,8 +300,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <p class="message-title">Aguardando Conteúdo</p>
           <p class="message-subtitle">Nenhuma campanha ou lista de produtos ativa foi encontrada.</p>
         </div>
-      </div>
-    `;
+      </div>`;
   };
 
   const playNextItem = () => {
@@ -291,7 +317,6 @@ document.addEventListener("DOMContentLoaded", () => {
         () => playNextItem(),
         currentProductGroup.duration || 15000
       );
-
       productIndex++;
       if (productIndex >= productGroups.length) {
         isDisplayingProducts = false;
@@ -300,7 +325,6 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (primaryMedia.length > 0) {
       const currentMediaItem = primaryMedia[mediaIndex];
       renderMedia({ type: "media", ...currentMediaItem });
-
       mediaIndex = (mediaIndex + 1) % primaryMedia.length;
       isDisplayingProducts = true;
     } else if (productGroups.length > 0) {
@@ -323,14 +347,12 @@ document.addEventListener("DOMContentLoaded", () => {
       showWaitingScreen();
       return;
     }
-
     productGroups = data.product_groups || [];
     primaryMedia = data.primary_media || [];
     secondaryMedia = data.secondary_media || null;
     productIndex = 0;
     mediaIndex = 0;
     isDisplayingProducts = productGroups.length > 0;
-
     setupLayout(data.layout_type);
     renderSecondaryMedia();
     playNextItem();

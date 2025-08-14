@@ -17,6 +17,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const productPriceEl = document.getElementById("product-price");
   const productBarcodeEl = document.getElementById("product-barcode");
   const footer = document.querySelector(".price-check-footer");
+  const backgroundCanvas = document.getElementById("background-canvas");
+  const bgCtx = backgroundCanvas.getContext("2d");
 
   let priceViewTimeout;
   let isDisplayingPrice = false;
@@ -24,6 +26,43 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentIndices = { main: -1, secondary: -1 };
   let mediaTimers = { main: null, secondary: null };
   let clockInterval = null;
+  let backgroundAnimationRequest = null;
+
+  const resizeCanvas = () => {
+    backgroundCanvas.width = window.innerWidth;
+    backgroundCanvas.height = window.innerHeight;
+  };
+
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
+
+  const updateBlurredBackground = (mediaElement) => {
+    if (backgroundAnimationRequest) {
+      cancelAnimationFrame(backgroundAnimationRequest);
+    }
+    const draw = () => {
+      bgCtx.drawImage(
+        mediaElement,
+        0,
+        0,
+        backgroundCanvas.width,
+        backgroundCanvas.height
+      );
+      if (mediaElement.tagName === "VIDEO" && !mediaElement.paused) {
+        backgroundAnimationRequest = requestAnimationFrame(draw);
+      }
+    };
+    draw();
+    backgroundCanvas.style.opacity = "1";
+  };
+
+  const hideBlurredBackground = () => {
+    backgroundCanvas.style.opacity = "0";
+    if (backgroundAnimationRequest) {
+      cancelAnimationFrame(backgroundAnimationRequest);
+      backgroundAnimationRequest = null;
+    }
+  };
 
   const configureFullyKioskVoice = () => {
     if (typeof fully !== "undefined") {
@@ -60,16 +99,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const showIdleWithBackground = () => {
     isDisplayingPrice = false;
     Object.values(mediaTimers).forEach(clearTimeout);
-    viewWrapper.innerHTML = `<div id="idle-screen" style="width: 100%; height: 100%;"><div class="background-image"></div></div>`;
-    viewWrapper.className = "player-wrapper-centered";
-    const bgImage = viewWrapper.querySelector(".background-image");
-    bgImage.style.backgroundImage = "url('/assets/price.jpg')";
-    bgImage.style.display = "block";
+    viewWrapper.innerHTML = `<div id="idle-screen" style="width: 100%; height: 100%;"><div class="background-image" style="background-image: url('/assets/price.jpg');"></div></div>`;
+    viewWrapper.className = "";
     footer.style.display = "flex";
+    hideBlurredBackground();
   };
 
   const showMessageScreen = (title, subtitle, state = "info") => {
     Object.values(mediaTimers).forEach(clearTimeout);
+    hideBlurredBackground();
     viewWrapper.innerHTML = "";
     viewWrapper.className = "player-wrapper-centered";
     const icons = {
@@ -92,7 +130,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const playlist = playlists[zone];
     if (!playlist || playlist.length === 0) {
       zoneContainer.innerHTML = "";
-      zoneContainer.style.backgroundColor = "#000";
+      zoneContainer.style.backgroundColor = "transparent";
+      if (zone === "main") hideBlurredBackground();
       return;
     }
     currentIndices[zone] = (currentIndices[zone] + 1) % playlist.length;
@@ -106,8 +145,10 @@ document.addEventListener("DOMContentLoaded", () => {
     let newElement;
     if (isImage) {
       newElement = document.createElement("img");
+      newElement.crossOrigin = "anonymous";
     } else if (isVideo) {
       newElement = document.createElement("video");
+      newElement.crossOrigin = "anonymous";
       newElement.autoplay = true;
       newElement.muted = true;
       newElement.playsInline = true;
@@ -127,6 +168,7 @@ document.addEventListener("DOMContentLoaded", () => {
     zoneContainer.appendChild(newElement);
     const setupNext = () => playNextInZone(zone);
     const onMediaReady = () => {
+      if (zone === "main") updateBlurredBackground(newElement);
       requestAnimationFrame(() => newElement.classList.add("active"));
     };
     if (isImage) {
@@ -149,7 +191,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (clockInterval) clearInterval(clockInterval);
     Object.values(mediaTimers).forEach(clearTimeout);
 
-    if (!data) {
+    if (!data || !data.uploads || data.uploads.length === 0) {
       playlists = { main: [], secondary: [] };
       showIdleWithBackground();
       return;
@@ -173,19 +215,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (playlists.main.length > 0) {
       playNextInZone("main");
-    }
-
-    const mainZone = document.getElementById("zone-main");
-    if (playlists.main.length === 0 && mainZone) {
-      mainZone.innerHTML = "";
-    }
-
-    if (
-      playlists.main.length === 0 &&
-      playlists.secondary.length === 0 &&
-      data.layout_type !== "split-80-20-weather"
-    ) {
-      showIdleWithBackground();
     }
   };
 
@@ -250,10 +279,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const updateClock = () => {
       const { time, date } = getCurrentTime();
-      clockContainer.innerHTML = `
-            <div class="clock-time">${time}</div>
-            <div class="clock-date">${date}</div>
-        `;
+      clockContainer.innerHTML = `<div class="clock-time">${time}</div><div class="clock-date">${date}</div>`;
     };
     updateClock();
     clockInterval = setInterval(updateClock, 1000);
@@ -262,39 +288,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const renderWeather = (weatherData, city) => {
     const weatherContainer = document.getElementById("zone-secondary");
     if (!weatherContainer) return;
-
     let weatherContentHtml;
-
     if (weatherData) {
       const { current, daily } = weatherData;
       const temp = Math.round(current.temperature_2m);
       const maxTemp = Math.round(daily.temperature_2m_max[0]);
       const minTemp = Math.round(daily.temperature_2m_min[0]);
       const { iconClass, colorClass } = getWeatherIcon(current.weather_code);
-
-      weatherContentHtml = `
-          <div class="weather-city">${city || ""}</div>
-          <i class="bi ${iconClass} weather-icon ${colorClass}"></i>
-          <div class="weather-temp">${temp}°C</div>
-          <div class="weather-minmax">
-            <i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°
-          </div>
-      `;
+      weatherContentHtml = `<div class="weather-city">${
+        city || ""
+      }</div><i class="bi ${iconClass} weather-icon ${colorClass}"></i><div class="weather-temp">${temp}°C</div><div class="weather-minmax"><i class="bi bi-arrow-up"></i> ${maxTemp}° <i class="bi bi-arrow-down"></i> ${minTemp}°</div>`;
     } else {
-      weatherContentHtml = `
-          <div class="weather-error">Não foi possível carregar o clima.</div>
-      `;
+      weatherContentHtml = `<div class="weather-error">Não foi possível carregar o clima.</div>`;
     }
-
-    weatherContainer.innerHTML = `
-        <div class="weather-widget">
-            <div class="weather-main-content">
-                ${weatherContentHtml}
-            </div>
-            <div id="clock-container" class="clock-display"></div>
-        </div>
-    `;
-
+    weatherContainer.innerHTML = `<div class="weather-widget"><div class="weather-main-content">${weatherContentHtml}</div><div id="clock-container" class="clock-display"></div></div>`;
     renderClock();
   };
 
@@ -323,6 +330,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const showPriceCard = () => {
     isDisplayingPrice = true;
     Object.values(mediaTimers).forEach(clearTimeout);
+    hideBlurredBackground();
     viewWrapper.innerHTML = "";
     viewWrapper.className = "player-wrapper-centered";
     viewWrapper.appendChild(priceCheckCard);
@@ -345,7 +353,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const speakPrice = (price, onComplete) => {
     const textToSpeak = `O preço é R$ ${price}`;
-
     if (typeof fully !== "undefined" && fully.textToSpeech) {
       fully.textToSpeech(textToSpeak);
       if (onComplete) setTimeout(onComplete, 2000);

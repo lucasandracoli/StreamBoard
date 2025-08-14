@@ -10,12 +10,52 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const playerWrapper = document.getElementById("player-wrapper");
+  const backgroundCanvas = document.getElementById("background-canvas");
+  const bgCtx = backgroundCanvas.getContext("2d");
+
   let playlists = { main: [], secondary: [] };
   let currentCampaignId = null;
   let currentIndices = { main: -1, secondary: -1 };
   let mediaTimers = { main: null, secondary: null };
   let playlistInterval = null;
   let clockInterval = null;
+  let backgroundAnimationRequest = null;
+
+  const resizeCanvas = () => {
+    backgroundCanvas.width = window.innerWidth;
+    backgroundCanvas.height = window.innerHeight;
+  };
+
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
+
+  const updateBlurredBackground = (mediaElement) => {
+    if (backgroundAnimationRequest) {
+      cancelAnimationFrame(backgroundAnimationRequest);
+    }
+    const draw = () => {
+      bgCtx.drawImage(
+        mediaElement,
+        0,
+        0,
+        backgroundCanvas.width,
+        backgroundCanvas.height
+      );
+      if (mediaElement.tagName === "VIDEO" && !mediaElement.paused) {
+        backgroundAnimationRequest = requestAnimationFrame(draw);
+      }
+    };
+    draw();
+    backgroundCanvas.style.opacity = "1";
+  };
+
+  const hideBlurredBackground = () => {
+    backgroundCanvas.style.opacity = "0";
+    if (backgroundAnimationRequest) {
+      cancelAnimationFrame(backgroundAnimationRequest);
+      backgroundAnimationRequest = null;
+    }
+  };
 
   const logPlayback = async (uploadId, campaignId) => {
     if (!uploadId || !campaignId) return;
@@ -55,6 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
     state = "info"
   ) => {
     Object.values(mediaTimers).forEach(clearTimeout);
+    hideBlurredBackground();
     playerWrapper.innerHTML = "";
     playerWrapper.className = "player-wrapper-centered";
 
@@ -87,7 +128,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const playlist = playlists[zone];
     if (!playlist || playlist.length === 0) {
       zoneContainer.innerHTML = "";
-      zoneContainer.style.backgroundColor = "#000";
+      zoneContainer.style.backgroundColor = "transparent";
+      if (zone === "main") hideBlurredBackground();
       return;
     }
 
@@ -109,8 +151,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (isImage) {
       newElement = document.createElement("img");
+      newElement.crossOrigin = "anonymous";
     } else if (isVideo) {
       newElement = document.createElement("video");
+      newElement.crossOrigin = "anonymous";
       newElement.autoplay = true;
       newElement.muted = true;
       newElement.playsInline = true;
@@ -126,6 +170,9 @@ document.addEventListener("DOMContentLoaded", () => {
     zoneContainer.appendChild(newElement);
 
     const onMediaReady = () => {
+      if (zone === "main") {
+        updateBlurredBackground(newElement);
+      }
       requestAnimationFrame(() => {
         newElement.classList.add("active");
       });
@@ -194,6 +241,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const mainZone = document.getElementById("zone-main");
     if (playlists.main.length === 0 && mainZone) {
       mainZone.innerHTML = "";
+      hideBlurredBackground();
     }
 
     if (
