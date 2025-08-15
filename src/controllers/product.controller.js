@@ -33,7 +33,7 @@ const listProductsByCompanyPage = async (req, res) => {
     const productData = await localProductService.getProductsByCompany(
       companyId,
       page,
-      5
+      100
     );
 
     res.render("products", {
@@ -202,7 +202,7 @@ const addSingleProduct = async (req, res) => {
 
     const newProduct = await localProductService.addProduct({
       company_id: companyId,
-      product_name: productData.dsc,
+      product_name: `${productData.dsc} ${productCode}`,
       price: productData.pv2,
       section_id: productData.sec,
       section_name: sectionMap[productData.sec] || `SEÇÃO ${productData.sec}`,
@@ -215,7 +215,10 @@ const addSingleProduct = async (req, res) => {
     });
     notifyPlayers(companyId, { sendUpdateToDevice });
 
-    res.status(201).json({ message: "Comando de adição processado." });
+    res.status(201).json({
+      message: `Produto "${newProduct.product_name}" foi adicionado.`,
+      product: newProduct,
+    });
   } catch (error) {
     if (error.code === "23505") {
       return res

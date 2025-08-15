@@ -32,6 +32,10 @@ const syncProductsForCompany = async (companyId) => {
       if (!productCodeMatch) continue;
 
       const productCode = productCodeMatch[0];
+      console.log(
+        `[DEBUG] SYNC: Buscando produto do Sysmo com código: ${productCode}`
+      );
+
       const sysmoData = await sysmoService.fetchProductFromSysmoByCode(
         productCode,
         companyId

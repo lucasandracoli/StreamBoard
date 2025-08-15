@@ -179,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
     categoryTitle.textContent = item.category;
 
     const productsToShow = Array.isArray(item.products)
-      ? item.products.slice(0, 6)
+      ? item.products.slice(0, 8)
       : [];
     productsToShow.forEach((p, index) => {
       const li = document.createElement("li");

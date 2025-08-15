@@ -115,11 +115,13 @@ export function setupProductModal() {
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.message);
-        modal.style.display = "none";
+        notyf.success(json.message);
+        resetSingleProductForm();
       } catch (err) {
         notyf.error(err.message || "Falha na comunicação.");
-        addSingleProductBtn.disabled = false;
         addSingleProductBtn.textContent = "Confirmar e Adicionar";
+      } finally {
+        addSingleProductBtn.disabled = false;
       }
     }
   });
