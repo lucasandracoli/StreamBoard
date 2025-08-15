@@ -30,8 +30,24 @@ const formatarDataHoraCompleta = (data) => {
     .toFormat("dd/MM/yyyy HH:mm:ss");
 };
 
+const formatarDataHoraSmart = (data) => {
+  if (!data) return "N/A";
+  const date = DateTime.fromJSDate(new Date(data)).setZone("America/Sao_Paulo");
+  const today = DateTime.local().setZone("America/Sao_Paulo");
+  const yesterday = today.minus({ days: 1 });
+
+  if (date.hasSame(today, "day")) {
+    return `Hoje às ${date.toFormat("HH:mm")}`;
+  } else if (date.hasSame(yesterday, "day")) {
+    return `Ontem às ${date.toFormat("HH:mm")}`;
+  } else {
+    return date.toFormat("dd/MM/yyyy 'às' HH:mm");
+  }
+};
+
 module.exports = {
   formatarPeriodo,
   formatarCNPJ,
   formatarDataHoraCompleta,
+  formatarDataHoraSmart,
 };

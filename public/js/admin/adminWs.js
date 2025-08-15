@@ -1,4 +1,4 @@
-import { notyf } from "./utils.js";
+import { notyf, handleFetchError } from "./utils.js";
 import {
   addCompanyRow,
   updateCompanyRow,
@@ -14,7 +14,12 @@ import {
   updateCampaignRow,
   removeCampaignRow,
 } from "./campaignsPage.js";
-import { addProductRow, removeProductRow } from "./productsPage.js";
+import {
+  addProductRow,
+  removeProductRow,
+  refreshProductTable,
+  resetSyncButton,
+} from "./productsPage.js";
 
 function updateDeviceStatusOnPage(payload) {
   const { deviceId, status, deviceName } = payload;
@@ -108,7 +113,7 @@ export function connectAdminWs(detailsModalHandler) {
             const currentCompanyId = window.location.pathname.split("/").pop();
             if (data.payload.companyId == currentCompanyId) {
               notyf.success(data.payload.message);
-              setTimeout(() => window.location.reload(), 1500);
+              refreshProductTable();
             }
           }
           break;
@@ -117,15 +122,7 @@ export function connectAdminWs(detailsModalHandler) {
             const currentCompanyId = window.location.pathname.split("/").pop();
             if (data.payload.companyId == currentCompanyId) {
               notyf.error(data.payload.message);
-              const syncCompanyBtn = document.getElementById(
-                "syncCompanyProductsBtn"
-              );
-              if (syncCompanyBtn) {
-                syncCompanyBtn.disabled = false;
-                syncCompanyBtn.querySelector("span").textContent =
-                  "Sincronizar Preços";
-                syncCompanyBtn.querySelector("i").classList.remove("spinning");
-              }
+              resetSyncButton();
             }
           }
           break;

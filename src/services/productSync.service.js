@@ -13,7 +13,7 @@ const syncProductsForCompany = async (companyId) => {
     );
 
     const localProductsResult = await client.query(
-      "SELECT id, product_name FROM butcher_products WHERE company_id = $1",
+      "SELECT id, sysmo_product_code FROM butcher_products WHERE company_id = $1",
       [companyId]
     );
     const localProducts = localProductsResult.rows;
@@ -28,10 +28,15 @@ const syncProductsForCompany = async (companyId) => {
     await client.query("BEGIN");
 
     for (const localProduct of localProducts) {
-      const productCodeMatch = localProduct.product_name.match(/(\d+)$/);
-      if (!productCodeMatch) continue;
+      const productCode = localProduct.sysmo_product_code;
 
-      const productCode = productCodeMatch[0];
+      if (!productCode) {
+        logger.warn(
+          `Sincronização ignorada para o produto com ID ${localProduct.id}. O código Sysmo não foi encontrado.`
+        );
+        continue;
+      }
+
       console.log(
         `[DEBUG] SYNC: Buscando produto do Sysmo com código: ${productCode}`
       );
@@ -43,8 +48,8 @@ const syncProductsForCompany = async (companyId) => {
 
       if (sysmoData) {
         await client.query(
-          "UPDATE butcher_products SET product_name = $1, price = $2, last_updated = NOW() WHERE id = $3",
-          [sysmoData.dsc, sysmoData.pv2, localProduct.id]
+          "UPDATE butcher_products SET price = $1, last_updated = NOW() WHERE id = $2",
+          [sysmoData.pv2, localProduct.id]
         );
         updatedCount++;
       }

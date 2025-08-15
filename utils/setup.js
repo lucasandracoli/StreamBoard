@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS butcher_products (
     id SERIAL PRIMARY KEY,
     company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     product_name VARCHAR(255) NOT NULL,
+    sysmo_product_code VARCHAR(255),
     price NUMERIC(10, 2) NOT NULL,
     section_id INTEGER NOT NULL,
     section_name VARCHAR(100) NOT NULL,
@@ -168,6 +169,10 @@ const resetDatabase = async () => {
 
   try {
     await adminClient.connect();
+    await adminClient.query(`SELECT pg_terminate_backend(pg_stat_activity.pid)
+      FROM pg_stat_activity
+      WHERE pg_stat_activity.datname = '${DB_NAME}'
+      AND pid <> pg_backend_pid();`);
     await adminClient.query(`DROP DATABASE IF EXISTS ${DB_NAME}`);
     await adminClient.query(`CREATE DATABASE ${DB_NAME}`);
   } catch (err) {

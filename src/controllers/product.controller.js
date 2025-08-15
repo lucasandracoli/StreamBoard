@@ -202,7 +202,8 @@ const addSingleProduct = async (req, res) => {
 
     const newProduct = await localProductService.addProduct({
       company_id: companyId,
-      product_name: `${productData.dsc} ${productCode}`,
+      product_name: productData.dsc,
+      sysmo_product_code: productCode,
       price: productData.pv2,
       section_id: productData.sec,
       section_name: sectionMap[productData.sec] || `SEÇÃO ${productData.sec}`,

@@ -2496,7 +2496,7 @@ body.player-body {
   font-size: var(--text-base);
   flex-shrink: 0;
 }
-.price-cell {
+.products-table .price-cell {
   color: var(--color-primary);
   font-weight: 600;
 }

@@ -69,4 +69,33 @@ export const removeProductRow = (productId) => {
   }
 };
 
+export async function refreshProductTable() {
+  const companyId = window.location.pathname.split("/").pop();
+  try {
+    const res = await fetch(`/products/${companyId}`);
+    if (!res.ok) throw new Error("Falha ao buscar a tabela atualizada.");
+    const html = await res.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const newTableBody = doc.getElementById("products-table-body");
+    const oldTableBody = document.getElementById("products-table-body");
+    if (newTableBody && oldTableBody) {
+      oldTableBody.innerHTML = newTableBody.innerHTML;
+    }
+  } catch (err) {
+    notyf.error(err.message);
+  } finally {
+    resetSyncButton();
+  }
+}
+
+export function resetSyncButton() {
+  const syncCompanyBtn = document.getElementById("syncCompanyProductsBtn");
+  if (syncCompanyBtn) {
+    syncCompanyBtn.disabled = false;
+    syncCompanyBtn.querySelector("span").textContent = "Sincronizar Preços";
+    syncCompanyBtn.querySelector("i").classList.remove("spinning");
+  }
+}
+
 export function setupProductsPage() {}

@@ -115,8 +115,8 @@ export function setupProductModal() {
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.message);
-        notyf.success(json.message);
         resetSingleProductForm();
+        modal.style.display = "none";
       } catch (err) {
         notyf.error(err.message || "Falha na comunicação.");
         addSingleProductBtn.textContent = "Confirmar e Adicionar";
@@ -190,17 +190,19 @@ export function setupProductModal() {
     syncCompanyBtn.querySelector("span").textContent = "Sincronizando...";
     icon.classList.add("spinning");
 
-    try {
-      const res = await fetch(`/products/sync/${companyId}`, {
-        method: "POST",
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message);
-    } catch (error) {
-      notyf.error(error.message || "Erro de comunicação.");
-      syncCompanyBtn.disabled = false;
-      syncCompanyBtn.querySelector("span").textContent = originalText;
-      icon.classList.remove("spinning");
-    }
+    setTimeout(async () => {
+      try {
+        const res = await fetch(`/products/sync/${companyId}`, {
+          method: "POST",
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message);
+      } catch (error) {
+        notyf.error(error.message || "Erro de comunicação.");
+        syncCompanyBtn.disabled = false;
+        syncCompanyBtn.querySelector("span").textContent = originalText;
+        icon.classList.remove("spinning");
+      }
+    }, 2000);
   });
 }
