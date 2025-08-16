@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     start_date TIMESTAMPTZ,
     end_date TIMESTAMPTZ,
     layout_type VARCHAR(50) DEFAULT 'fullscreen',
+    created_by_user_id INTEGER REFERENCES users(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -119,7 +120,7 @@ CREATE TABLE IF NOT EXISTS butcher_products (
     section_id INTEGER NOT NULL,
     section_name VARCHAR(100) NOT NULL,
     last_updated TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (company_id, product_name)
+    UNIQUE (company_id, sysmo_product_code)
 );
 
 CREATE TABLE IF NOT EXISTS "user_sessions" (

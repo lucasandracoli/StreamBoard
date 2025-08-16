@@ -217,6 +217,7 @@ const createCampaign = async (req, res) => {
     parsedStartDate,
     parsedEndDate,
     media_metadata: mediaMetadata,
+    created_by_user_id: req.user.id,
   };
 
   try {

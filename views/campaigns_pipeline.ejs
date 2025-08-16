@@ -37,8 +37,11 @@
       <% } else { %>
       <div class="pipeline-container">
         <div class="pipeline-timeline">
-          <% pipeline.forEach(campaign => { %>
-          <div class="pipeline-item">
+          <% pipeline.forEach((campaign, index) => { %>
+          <div
+            class="pipeline-item"
+            style="animation-delay: <%= index * 100 %>ms"
+          >
             <div class="pipeline-icon <%= campaign.status_class %>">
               <i class="bi <%= campaign.status_icon %>"></i>
             </div>
@@ -60,7 +63,24 @@
                   formatUtils.formatarPeriodo(campaign.start_date,
                   campaign.end_date) %></span
                 >
+                <span
+                  ><i class="bi bi-person-circle"></i> <%= campaign.author_name
+                  || 'N/A' %></span
+                >
+                <span
+                  ><i class="bi bi-bullseye"></i> <%= campaign.targeting_info
+                  %></span
+                >
               </div>
+              <% if (campaign.pausedBy) { %>
+              <div class="pipeline-paused-by">
+                <i class="bi bi-exclamation-diamond-fill"></i>
+                <span
+                  >Sobreposta pela campanha:
+                  <strong><%= campaign.pausedBy %></strong></span
+                >
+              </div>
+              <% } %>
             </div>
           </div>
           <% }) %>

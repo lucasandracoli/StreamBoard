@@ -161,10 +161,12 @@ const getCampaignPipeline = async () => {
     SELECT
       c.id, c.name, c.start_date, c.end_date, c.created_at, c.company_id,
       co.name as company_name,
+      u.display_name as author_name,
       (SELECT json_agg(cd.device_id) FROM campaign_device cd WHERE cd.campaign_id = c.id) as device_ids,
       (SELECT json_agg(cs.sector_id) FROM campaign_sector cs WHERE cs.campaign_id = c.id) as sector_ids
     FROM campaigns c
     JOIN companies co ON c.company_id = co.id
+    LEFT JOIN users u ON c.created_by_user_id = u.id
     ORDER BY c.start_date ASC
   `;
   const allCampaigns = (await db.query(query)).rows;
@@ -174,6 +176,7 @@ const getCampaignPipeline = async () => {
     (c) => now >= new Date(c.start_date) && now <= new Date(c.end_date)
   );
   const deviceTargetsCache = new Map();
+  const winnerCampaigns = new Map();
 
   for (const campaign of activeTimeCampaigns) {
     let targetDevices = deviceTargetsCache.get(campaign.id);
@@ -190,33 +193,50 @@ const getCampaignPipeline = async () => {
       }
 
       const campaignSpec =
-        campaign.device_ids && campaign.device_ids.length > 0
+        campaign.device_ids?.length > 0
           ? 3
-          : campaign.sector_ids && campaign.sector_ids.length > 0
+          : campaign.sector_ids?.length > 0
           ? 2
           : 1;
       const winnerSpec =
-        currentWinner.device_ids && currentWinner.device_ids.length > 0
+        currentWinner.device_ids?.length > 0
           ? 3
-          : currentWinner.sector_ids && currentWinner.sector_ids.length > 0
+          : currentWinner.sector_ids?.length > 0
           ? 2
           : 1;
 
+      let newWinner = currentWinner;
       if (campaignSpec > winnerSpec) {
-        deviceEffectiveCampaign.set(deviceId, campaign);
+        newWinner = campaign;
       } else if (campaignSpec === winnerSpec) {
         if (
           new Date(campaign.created_at) > new Date(currentWinner.created_at)
         ) {
-          deviceEffectiveCampaign.set(deviceId, campaign);
+          newWinner = campaign;
+        }
+      }
+      deviceEffectiveCampaign.set(deviceId, newWinner);
+    }
+  }
+
+  deviceEffectiveCampaign.forEach((campaign, deviceId) => {
+    winnerCampaigns.set(campaign.id, campaign.name);
+  });
+
+  const effectiveCampaignIds = new Set(deviceEffectiveCampaign.values());
+  const pausedCampaigns = new Map();
+  for (const campaign of activeTimeCampaigns) {
+    if (!effectiveCampaignIds.has(campaign)) {
+      const targetDevices = await getAffectedDevicesForCampaign(campaign.id);
+      for (const deviceId of targetDevices) {
+        const winningCampaign = deviceEffectiveCampaign.get(deviceId);
+        if (winningCampaign && winningCampaign.id !== campaign.id) {
+          pausedCampaigns.set(campaign.id, winningCampaign.name);
+          break;
         }
       }
     }
   }
-
-  const effectiveCampaignIds = new Set(
-    Array.from(deviceEffectiveCampaign.values()).map((c) => c.id)
-  );
 
   const pipeline = allCampaigns.map((campaign) => {
     const campaignStatus = {
@@ -224,7 +244,15 @@ const getCampaignPipeline = async () => {
       status: "Finalizada",
       status_class: "offline",
       status_icon: "bi-check-circle-fill",
+      targeting_info: "Todos",
+      pausedBy: null,
     };
+
+    if (campaign.device_ids?.length > 0) {
+      campaignStatus.targeting_info = "Por Dispositivos";
+    } else if (campaign.sector_ids?.length > 0) {
+      campaignStatus.targeting_info = "Por Setores";
+    }
 
     if (now < new Date(campaign.start_date)) {
       campaignStatus.status = "Agendada";
@@ -234,14 +262,15 @@ const getCampaignPipeline = async () => {
       now >= new Date(campaign.start_date) &&
       now <= new Date(campaign.end_date)
     ) {
-      if (effectiveCampaignIds.has(campaign.id)) {
+      if (winnerCampaigns.has(campaign.id)) {
         campaignStatus.status = "Ativa";
         campaignStatus.status_class = "online";
         campaignStatus.status_icon = "bi-play-circle-fill";
       } else {
-        campaignStatus.status = "Pausada (Sobreposta)";
+        campaignStatus.status = "Pausada";
         campaignStatus.status_class = "paused";
         campaignStatus.status_icon = "bi-pause-circle-fill";
+        campaignStatus.pausedBy = pausedCampaigns.get(campaign.id) || "outra campanha";
       }
     }
 
@@ -259,13 +288,21 @@ const createCampaign = async (data, files, deviceIds, sectorIds) => {
     company_id,
     media_metadata,
     layout_type,
+    created_by_user_id,
   } = data;
   const client = await db.connect();
   try {
     await client.query("BEGIN");
     const campaignResult = await client.query(
-      `INSERT INTO campaigns (name, start_date, end_date, company_id, layout_type) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, parsedStartDate, parsedEndDate, company_id, layout_type]
+      `INSERT INTO campaigns (name, start_date, end_date, company_id, layout_type, created_by_user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [
+        name,
+        parsedStartDate,
+        parsedEndDate,
+        company_id,
+        layout_type,
+        created_by_user_id,
+      ]
     );
     const newCampaign = campaignResult.rows[0];
 
