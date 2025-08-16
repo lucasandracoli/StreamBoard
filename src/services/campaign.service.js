@@ -1,6 +1,59 @@
 const db = require("../../config/streamboard");
 const logger = require("../utils/logger");
 
+const findOverlappingCampaigns = async (
+  startDate,
+  endDate,
+  companyId,
+  deviceIds,
+  sectorIds,
+  campaignIdToIgnore = null
+) => {
+  const hasDeviceTargets = deviceIds && deviceIds.length > 0;
+  const hasSectorTargets = sectorIds && sectorIds.length > 0;
+  const isTargetingAll = !hasDeviceTargets && !hasSectorTargets;
+
+  let params = [startDate, endDate, companyId, campaignIdToIgnore || 0];
+  let paramIndex = 5;
+  let conflictConditions = [];
+
+  conflictConditions.push(`(
+    NOT EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id) AND
+    NOT EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id)
+  )`);
+
+  if (hasDeviceTargets) {
+    conflictConditions.push(
+      `c.id IN (SELECT campaign_id FROM campaign_device WHERE device_id = ANY($${paramIndex}::uuid[]))`
+    );
+    params.push(deviceIds);
+    paramIndex++;
+  }
+
+  if (hasSectorTargets) {
+    conflictConditions.push(
+      `c.id IN (SELECT campaign_id FROM campaign_sector WHERE sector_id = ANY($${paramIndex}::int[]))`
+    );
+    params.push(sectorIds);
+    paramIndex++;
+  }
+
+  const conflictQueryPart = isTargetingAll
+    ? "true"
+    : `(${conflictConditions.join(" OR ")})`;
+
+  const query = `
+    SELECT c.name FROM campaigns c
+    WHERE c.company_id = $3
+      AND c.id != $4
+      AND (c.start_date, c.end_date) OVERLAPS ($1::timestamptz, $2::timestamptz)
+      AND ${conflictQueryPart}
+  `;
+
+  const result = await db.query(query, params);
+  return result.rows.map((r) => r.name);
+};
+
 const getAllCampaigns = async () => {
   const query = `
     SELECT
@@ -52,15 +105,15 @@ const getCampaignWithDetails = async (id) => {
 };
 
 const getTargetNamesForCampaign = async (campaignId) => {
-    const query = `
+  const query = `
         SELECT
             (SELECT json_agg(s.name) FROM sectors s JOIN campaign_sector cs ON s.id = cs.sector_id WHERE cs.campaign_id = $1) as sector_names,
             (SELECT json_agg(d.name) FROM devices d JOIN campaign_device cd ON d.id = cd.device_id WHERE cd.campaign_id = $1) as device_names
     `;
-    const result = await db.query(query, [campaignId]);
-    const { sector_names, device_names } = result.rows[0];
-    return [...(sector_names || []), ...(device_names || [])];
-}
+  const result = await db.query(query, [campaignId]);
+  const { sector_names, device_names } = result.rows[0];
+  return [...(sector_names || []), ...(device_names || [])];
+};
 
 const getAffectedDevicesForCampaign = async (campaignId) => {
   const client = await db.connect();
@@ -210,4 +263,5 @@ module.exports = {
   getAffectedDevicesForCampaign,
   createCampaign,
   deleteCampaign,
+  findOverlappingCampaigns,
 };

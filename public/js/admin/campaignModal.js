@@ -579,51 +579,13 @@ export function setupCampaignModal() {
     handleInputOrClick
   );
 
-  document.body.addEventListener("click", (e) => {
-    const editButton = e.target.closest(".action-icon-editar");
-    if (document.body.id === "campaigns-page" && editButton) {
-      e.stopPropagation();
-      openEditCampaignModal(editButton.dataset.id);
-    }
-  });
-
   elements.openBtn?.addEventListener("click", openCreateCampaignModal);
   elements.cancelBtn?.addEventListener(
     "click",
     () => (campaignModal.style.display = "none")
   );
 
-  elements.form.addEventListener("submit", async function (e) {
-    e.preventDefault();
-
-    const selectedLayout = document.querySelector(
-      'input[name="layout_type"]:checked'
-    ).value;
-
-    if (stagedFiles.main.length === 0) {
-      notyf.error("A zona Principal deve conter pelo menos uma mídia.");
-      return;
-    }
-
-    if (
-      selectedLayout === "split-80-20" &&
-      stagedFiles.secondary.length === 0
-    ) {
-      notyf.error(
-        "Para o layout 80/20, a zona Secundária também deve conter ao menos uma mídia."
-      );
-      return;
-    }
-
-    if (
-      fpStart.selectedDates[0] &&
-      fpEnd.selectedDates[0] &&
-      fpEnd.selectedDates[0] < fpStart.selectedDates[0]
-    ) {
-      notyf.error("A data de término não pode ser anterior à data de início.");
-      return;
-    }
-
+  const submitForm = async (force = false) => {
     elements.submitButton.disabled = true;
     elements.submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
 
@@ -637,6 +599,10 @@ export function setupCampaignModal() {
       "layout_type",
       document.querySelector('input[name="layout_type"]:checked').value
     );
+
+    if (force) {
+      formData.append("force", "true");
+    }
 
     const segmentationType = document.querySelector(
       'input[name="segmentation_type"]:checked'
@@ -681,15 +647,33 @@ export function setupCampaignModal() {
     }
 
     try {
-      const res = await fetch(this.action, {
+      const res = await fetch(elements.form.action, {
         method: "POST",
         body: formData,
       });
+
       const json = await res.json();
+
+      if (res.status === 409 && json.conflict) {
+        window.showConfirmationModal({
+          title: "Aviso de Sobreposição",
+          message: json.message,
+          confirmText: "Salvar Mesmo Assim",
+          type: "warning",
+          onConfirm: () => {
+            const modal = document.getElementById("confirmationModal");
+            modal.style.display = "none";
+            submitForm(true);
+          },
+        });
+        return;
+      }
+
       if (!res.ok) {
         notyf.error(json.message || `Erro ${res.status}`);
         return;
       }
+
       campaignModal.style.display = "none";
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");
@@ -697,5 +681,41 @@ export function setupCampaignModal() {
       elements.submitButton.disabled = false;
       elements.submitButton.innerHTML = "Salvar";
     }
+  };
+
+  elements.form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const selectedLayout = document.querySelector(
+      'input[name="layout_type"]:checked'
+    ).value;
+
+    if (stagedFiles.main.length === 0) {
+      notyf.error("A zona Principal deve conter pelo menos uma mídia.");
+      return;
+    }
+
+    if (
+      selectedLayout === "split-80-20" &&
+      stagedFiles.secondary.length === 0
+    ) {
+      notyf.error(
+        "Para o layout 80/20, a zona Secundária também deve conter ao menos uma mídia."
+      );
+      return;
+    }
+
+    if (
+      fpStart.selectedDates[0] &&
+      fpEnd.selectedDates[0] &&
+      fpEnd.selectedDates[0] < fpStart.selectedDates[0]
+    ) {
+      notyf.error("A data de término não pode ser anterior à data de início.");
+      return;
+    }
+
+    submitForm(false);
   });
+
+  return { openEditCampaignModal };
 }

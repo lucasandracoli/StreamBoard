@@ -28,8 +28,13 @@
       <% if (companies.length > 0) { %>
       <div class="device-header">
         <div class="search-wrapper">
-           <i class="bi bi-search"></i>
-           <input type="text" id="campaigns-search-input" class="search-input" placeholder="Buscar campanha...">
+          <i class="bi bi-search"></i>
+          <input
+            type="text"
+            id="campaigns-search-input"
+            class="search-input"
+            placeholder="Buscar campanha..."
+          />
         </div>
         <button class="device-button" id="openCampaignModal">
           <svg
@@ -88,7 +93,8 @@
               <th class="col-name">Nome</th>
               <th class="col-status">Status</th>
               <th class="col-company">Empresa</th>
-              <th class="col-type">Tipo</th>
+              <th class="col-layout">Layout</th>
+              <th class="col-media-count">Mídias</th>
               <th class="col-period">Período</th>
               <th class="col-devices">Alvos</th>
               <th class="col-actions">Ações</th>
@@ -107,7 +113,14 @@
               <td class="break-word col-company">
                 <%= campaign.company_name %>
               </td>
-              <td class="break-word col-type"><%= campaign.campaign_type %></td>
+              <td class="layout-cell col-layout">
+                <% if (campaign.layout_type === 'split-80-20') { %> Split 80/20
+                <% } else if (campaign.layout_type === 'split-80-20-weather') {
+                %> Split c/ Clima <% } else { %> Tela Cheia <% } %>
+              </td>
+              <td class="media-count-cell col-media-count">
+                <%= campaign.uploads_count %>
+              </td>
               <td class="period-cell col-period">
                 <%= campaign.periodo_formatado %>
               </td>
@@ -505,21 +518,21 @@
 
     <div id="confirmationModal" class="confirmation-modal-overlay">
       <div class="confirmation-modal">
+        <div class="confirmation-modal-icon">
+          <i class="bi"></i>
+        </div>
         <div class="confirmation-modal-header">
-          <h3>Confirmar Exclusão</h3>
+          <h3></h3>
         </div>
         <div class="confirmation-modal-body">
-          <p>
-            Deseja realmente excluir esta campanha? Esta ação não pode ser
-            desfeita.
-          </p>
+          <p></p>
         </div>
         <div class="confirmation-modal-actions">
           <button id="cancelConfirmation" class="confirmation-modal-cancel">
             Cancelar
           </button>
           <button id="confirmDeletion" class="confirmation-modal-confirm">
-            Excluir
+            Confirmar
           </button>
         </div>
       </div>

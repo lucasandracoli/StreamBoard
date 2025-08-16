@@ -14,6 +14,13 @@ const createCampaignRow = (campaign) => {
         : visibleNames;
   }
 
+  let layoutName = "Tela Cheia";
+  if (campaign.layout_type === "split-80-20") {
+    layoutName = "Split 80/20";
+  } else if (campaign.layout_type === "split-80-20-weather") {
+    layoutName = "Split c/ Clima";
+  }
+
   row.innerHTML = `
     <td class="break-word col-name">${campaign.name}</td>
     <td data-status-cell class="col-status">
@@ -23,7 +30,8 @@ const createCampaignRow = (campaign) => {
       </span>
     </td>
     <td class="break-word col-company">${campaign.company_name}</td>
-    <td class="break-word col-type">${campaign.campaign_type}</td>
+    <td class="layout-cell col-layout">${layoutName}</td>
+    <td class="media-count-cell col-media-count">${campaign.uploads_count}</td>
     <td class="period-cell col-period">${campaign.periodo_formatado}</td>
     <td class="device-badges-cell col-devices">${targetNamesHtml}</td>
     <td class="actions-cell col-actions">
@@ -57,7 +65,8 @@ export const addCampaignRow = (campaign) => {
               <th class="col-name">Nome</th>
               <th class="col-status">Status</th>
               <th class="col-company">Empresa</th>
-              <th class="col-type">Tipo</th>
+              <th class="col-layout">Layout</th>
+              <th class="col-media-count">Mídias</th>
               <th class="col-period">Período</th>
               <th class="col-devices">Alvos</th>
               <th class="col-actions">Ações</th>

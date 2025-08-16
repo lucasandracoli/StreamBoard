@@ -124,6 +124,7 @@ const createCampaign = async (req, res) => {
     company_id,
     media_metadata,
     layout_type,
+    force,
   } = req.body;
   if (!name || !start_date || !end_date || !company_id) {
     return res
@@ -144,6 +145,36 @@ const createCampaign = async (req, res) => {
     return res.status(400).json({
       message: "A data de término não pode ser anterior à data de início.",
     });
+  }
+
+  const newDeviceIds = device_ids
+    ? Array.isArray(device_ids)
+      ? device_ids
+      : [device_ids]
+    : [];
+  const newSectorIds = sector_ids
+    ? Array.isArray(sector_ids)
+      ? sector_ids
+      : [sector_ids]
+    : [];
+
+  if (force !== "true") {
+    const overlapping = await campaignService.findOverlappingCampaigns(
+      parsedStartDate,
+      parsedEndDate,
+      company_id,
+      newDeviceIds,
+      newSectorIds
+    );
+    if (overlapping.length > 0) {
+      return res.status(409).json({
+        conflict: true,
+        message: `Esta campanha irá sobrepor a(s) seguinte(s) campanha(s) para os mesmos alvos: ${overlapping.join(
+          ", "
+        )}. Deseja continuar?`,
+        overlapping_campaigns: overlapping,
+      });
+    }
   }
 
   const mediaMetadata = media_metadata ? JSON.parse(media_metadata) : [];
@@ -173,16 +204,6 @@ const createCampaign = async (req, res) => {
     parsedEndDate,
     media_metadata: mediaMetadata,
   };
-  const newDeviceIds = device_ids
-    ? Array.isArray(device_ids)
-      ? device_ids
-      : [device_ids]
-    : [];
-  const newSectorIds = sector_ids
-    ? Array.isArray(sector_ids)
-      ? sector_ids
-      : [sector_ids]
-    : [];
 
   try {
     const newCampaign = await campaignService.createCampaign(
@@ -287,6 +308,7 @@ const editCampaign = async (req, res) => {
     company_id,
     media_touched,
     layout_type,
+    force,
   } = req.body;
 
   if (!name || !start_date || !end_date || !company_id) {
@@ -308,6 +330,37 @@ const editCampaign = async (req, res) => {
     return res.status(400).json({
       message: "A data de término não pode ser anterior à data de início.",
     });
+  }
+
+  const newDeviceIds = device_ids
+    ? Array.isArray(device_ids)
+      ? device_ids
+      : [device_ids]
+    : [];
+  const newSectorIds = sector_ids
+    ? Array.isArray(sector_ids)
+      ? sector_ids
+      : [sector_ids]
+    : [];
+
+  if (force !== "true") {
+    const overlapping = await campaignService.findOverlappingCampaigns(
+      parsedStartDate,
+      parsedEndDate,
+      company_id,
+      newDeviceIds,
+      newSectorIds,
+      id
+    );
+    if (overlapping.length > 0) {
+      return res.status(409).json({
+        conflict: true,
+        message: `Esta campanha irá sobrepor a(s) seguinte(s) campanha(s) para os mesmos alvos: ${overlapping.join(
+          ", "
+        )}. Deseja continuar?`,
+        overlapping_campaigns: overlapping,
+      });
+    }
   }
 
   if (media_touched === "true") {
@@ -332,17 +385,6 @@ const editCampaign = async (req, res) => {
       });
     }
   }
-
-  const newDeviceIds = device_ids
-    ? Array.isArray(device_ids)
-      ? device_ids
-      : [device_ids]
-    : [];
-  const newSectorIds = sector_ids
-    ? Array.isArray(sector_ids)
-      ? sector_ids
-      : [sector_ids]
-    : [];
 
   const client = await db.connect();
   try {
@@ -466,7 +508,10 @@ const editCampaign = async (req, res) => {
     if (fullCampaignDetails) {
       broadcastToAdmins({
         type: "CAMPAIGN_UPDATED",
-        payload: { ...fullCampaignDetails, affectedDeviceIds: allAffectedDeviceIds },
+        payload: {
+          ...fullCampaignDetails,
+          affectedDeviceIds: allAffectedDeviceIds,
+        },
       });
     }
 
