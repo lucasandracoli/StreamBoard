@@ -105,8 +105,8 @@ const upsertProductsFromSheet = async (products, companyId) => {
       const query = `
                 INSERT INTO butcher_products (company_id, product_name, sysmo_product_code, price, section_id, section_name, last_updated)
                 VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ON CONFLICT (company_id, product_name) 
-                DO UPDATE SET sysmo_product_code = EXCLUDED.sysmo_product_code, price = EXCLUDED.price, section_id = EXCLUDED.section_id, section_name = EXCLUDED.section_name, last_updated = NOW();
+                ON CONFLICT (company_id, sysmo_product_code) 
+                DO UPDATE SET product_name = EXCLUDED.product_name, price = EXCLUDED.price, section_id = EXCLUDED.section_id, section_name = EXCLUDED.section_name, last_updated = NOW();
             `;
       await client.query(query, [
         companyId,

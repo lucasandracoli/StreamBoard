@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <title><%= deviceName %> • Menu Digital</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700&family=Lato:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/css/styles.css?v=<%= appVersion %>" />
     <link rel="stylesheet" href="/css/menu.css?v=<%= appVersion %>" />
     <link
@@ -16,11 +22,9 @@
       <header id="menu-header" class="menu-header-layout" style="display: none">
         <h1 id="category-title" class="category-title"></h1>
       </header>
-
       <div id="zone-main" class="player-zone"></div>
       <div id="zone-secondary" class="player-zone"></div>
     </div>
-
     <script type="module" src="/js/player/menu.js?v=<%= appVersion %>"></script>
   </body>
 </html>

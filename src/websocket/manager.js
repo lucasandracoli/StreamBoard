@@ -34,8 +34,32 @@ const sendUpdateToDevice = (deviceId, data) => {
   }
 };
 
-const initializeWebSocket = (server) => {
-  wss = new WebSocket.Server({ server });
+const initializeWebSocket = (server, sessionParser) => {
+  wss = new WebSocket.Server({ noServer: true });
+
+  server.on("upgrade", (request, socket, head) => {
+    const { pathname } = url.parse(request.url, true);
+
+    if (pathname === "/admin-ws") {
+      sessionParser(request, {}, () => {
+        if (!request.session || !request.session.userId) {
+          logger.warn(
+            "Tentativa de conexão WebSocket de administrador não autenticada. Conexão recusada."
+          );
+          socket.destroy();
+          return;
+        }
+
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit("connection", ws, request);
+        });
+      });
+    } else {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit("connection", ws, request);
+      });
+    }
+  });
 
   const populateInitialCache = async () => {
     try {

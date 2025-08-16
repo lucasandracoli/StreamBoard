@@ -21,7 +21,26 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
-webSocketManager.initializeWebSocket(server);
+const sessionStore = new pgSession({
+  pool: dbPool,
+  tableName: "user_sessions",
+  createTableIfMissing: true,
+});
+
+const sessionMiddleware = session({
+  store: sessionStore,
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "strict",
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  },
+});
+
+webSocketManager.initializeWebSocket(server, sessionMiddleware);
 
 app.locals.wss = webSocketManager.getWss();
 app.locals.clients = webSocketManager.getClients();
@@ -29,27 +48,7 @@ app.locals.sendUpdateToDevice = webSocketManager.sendUpdateToDevice;
 app.locals.broadcastToAdmins = webSocketManager.broadcastToAdmins;
 
 app.use(cookieParser());
-
-const sessionStore = new pgSession({
-  pool: dbPool,
-  tableName: "user_sessions",
-  createTableIfMissing: true,
-});
-
-app.use(
-  session({
-    store: sessionStore,
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === "production",
-      httpOnly: true,
-      sameSite: "strict",
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    },
-  })
-);
+app.use(sessionMiddleware);
 
 const packageJson = require("./package.json");
 app.use((req, res, next) => {

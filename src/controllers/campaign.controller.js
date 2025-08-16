@@ -209,7 +209,7 @@ const createCampaign = async (req, res) => {
     if (fullCampaignDetails) {
       broadcastToAdmins({
         type: "CAMPAIGN_CREATED",
-        payload: fullCampaignDetails,
+        payload: { ...fullCampaignDetails, affectedDeviceIds },
       });
     }
 
@@ -250,7 +250,7 @@ const deleteCampaign = async (req, res) => {
     });
     broadcastToAdmins({
       type: "CAMPAIGN_DELETED",
-      payload: { campaignId: Number(id) },
+      payload: { campaignId: Number(id), affectedDeviceIds },
     });
 
     res.status(200).json({
@@ -466,7 +466,7 @@ const editCampaign = async (req, res) => {
     if (fullCampaignDetails) {
       broadcastToAdmins({
         type: "CAMPAIGN_UPDATED",
-        payload: fullCampaignDetails,
+        payload: { ...fullCampaignDetails, affectedDeviceIds: allAffectedDeviceIds },
       });
     }
 

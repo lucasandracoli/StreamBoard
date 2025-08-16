@@ -30,8 +30,9 @@ export function setupProductModal() {
   const resetSingleProductForm = () => {
     singleProductForm.reset();
     previewContainer.innerHTML = "";
-    addSingleProductBtn.textContent = "Buscar Produto";
+    addSingleProductBtn.textContent = "Buscar Item";
     addSingleProductBtn.dataset.action = "preview";
+    productCodeInput.focus();
   };
 
   const resetUploadForm = () => {
@@ -44,6 +45,7 @@ export function setupProductModal() {
     resetSingleProductForm();
     resetUploadForm();
     modal.style.display = "flex";
+    setTimeout(() => productCodeInput.focus(), 100);
   });
 
   cancelBtns.forEach((btn) => {
@@ -67,7 +69,9 @@ export function setupProductModal() {
 
   productCodeInput?.addEventListener("input", () => {
     if (addSingleProductBtn.dataset.action === "confirm") {
-      resetSingleProductForm();
+      previewContainer.innerHTML = "";
+      addSingleProductBtn.textContent = "Buscar Item";
+      addSingleProductBtn.dataset.action = "preview";
     }
   });
 
@@ -101,7 +105,7 @@ export function setupProductModal() {
         addSingleProductBtn.textContent = "Confirmar e Adicionar";
         addSingleProductBtn.dataset.action = "confirm";
       } catch (err) {
-        notyf.error(err.message || "Falha ao buscar produto.");
+        notyf.error(err.message || "Falha ao buscar item.");
         resetSingleProductForm();
       } finally {
         addSingleProductBtn.disabled = false;
@@ -116,7 +120,6 @@ export function setupProductModal() {
         const json = await res.json();
         if (!res.ok) throw new Error(json.message);
         resetSingleProductForm();
-        modal.style.display = "none";
       } catch (err) {
         notyf.error(err.message || "Falha na comunicação.");
         addSingleProductBtn.textContent = "Confirmar e Adicionar";

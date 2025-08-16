@@ -1,21 +1,25 @@
-@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@700&family=Roboto+Condensed:wght@700&display=swap");
-
 :root {
-  --menu-red: #d90429;
-  --menu-bg: #f0f0f0;
-  --menu-card-bg: #ffffff;
-  --menu-text-dark: #333;
-  --header-height: 12vh;
-  --font-display: "Oswald", sans-serif;
-  --font-text: "Roboto Condensed", sans-serif;
+  --header-bg: #1a1a1a;
+  --main-bg: #f4f5f7;
+  --card-bg: #ffffff;
+  --text-dark: #2c2c2c;
+  --text-light: #fdfdfd;
+  --price-color: #d32f2f;
+  --divider-color: #e0e0e0;
+  --header-height: 14vh;
+  --font-display: "Poppins", sans-serif;
+  --font-text: "Lato", sans-serif;
 }
 
 body.body-menu-player {
   margin: 0;
   padding: 0;
-  background-color: var(--menu-bg);
+  background-color: var(--main-bg);
   font-family: var(--font-text);
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
 }
 
 body.body-menu-player::before {
@@ -40,7 +44,7 @@ body.body-menu-player #player-wrapper {
 
 .menu-header-layout {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   padding: 0 4vw;
   height: var(--header-height);
@@ -48,9 +52,9 @@ body.body-menu-player #player-wrapper {
   top: 0;
   left: 0;
   width: 100%;
-  background: var(--menu-red);
+  background: #d92929;
   z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   transition: width 0.3s ease-in-out;
 }
 
@@ -61,16 +65,11 @@ body.body-menu-player #player-wrapper {
 .category-title {
   font-family: var(--font-display);
   font-weight: 700;
-  color: white;
-  font-size: 7vh;
+  color: var(--text-light);
+  font-size: clamp(2.2rem, 6vh, 4rem);
   text-transform: uppercase;
-  letter-spacing: 2px;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-#header-logo {
-  max-height: 45%;
-  width: auto;
+  letter-spacing: 3px;
+  text-align: center;
 }
 
 #zone-main,
@@ -81,7 +80,7 @@ body.body-menu-player #player-wrapper {
 .menu-table {
   width: 100%;
   height: 100%;
-  padding: 2vh 4vw;
+  padding: 2vh 3vw;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -97,40 +96,51 @@ body.body-menu-player #player-wrapper {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
+  gap: 1.8vh;
 }
 
 #product-list li {
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-column-gap: 2vw;
   align-items: center;
-  min-height: 9.5vh;
-  padding: 0 2.5vw;
-  font-size: 5.8vh;
-  background-color: var(--menu-card-bg);
-  color: var(--menu-text-dark);
-  border-radius: 15px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-  font-family: var(--font-display);
-  font-weight: 700;
+  gap: 2vw;
+  min-height: 9vh;
+  padding: 1vh 2.5vw;
+  background-color: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.07);
   box-sizing: border-box;
-  margin-bottom: 1.5vh;
 }
 
 #product-list .product-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.5rem, 4.5vh, 2.5rem);
+  color: var(--text-dark);
   text-transform: uppercase;
-  letter-spacing: 1px;
-  text-align: left;
-  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: left;
 }
 
 #product-list .product-price {
-  color: var(--menu-red);
+  font-family: var(--font-display);
   font-weight: 700;
-  text-align: right;
-  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.1);
+  font-size: clamp(1.8rem, 5.5vh, 2.8rem);
+  color: var(--price-color);
   white-space: nowrap;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.3em;
+}
+
+#product-list .product-price .value {
+  font-variant-numeric: tabular-nums;
+}
+
+#product-list .product-price .currency {
+  font-size: 0.6em;
+  font-weight: 600;
 }

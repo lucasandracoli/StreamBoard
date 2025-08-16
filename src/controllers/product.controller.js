@@ -100,9 +100,9 @@ const triggerSyncForCompany = async (req, res) => {
 
 const downloadTemplate = (req, res) => {
   const data = [
-    ["product_name", "price", "section_id"],
-    ["CARNE BOVINA ALCATRA", 44.9, 1],
-    ["CARNE SUINA COSTELINHA", 23.9, 2],
+    ["sysmo_product_code", "product_name", "price", "section_id"],
+    ["12345", "CARNE BOVINA ALCATRA", 44.9, 1],
+    ["67890", "CARNE SUINA COSTELINHA", 23.9, 2],
   ];
   const worksheet = xlsx.utils.aoa_to_sheet(data);
   const workbook = xlsx.utils.book_new();
@@ -131,12 +131,16 @@ const uploadProducts = async (req, res) => {
 
     if (
       !products.every(
-        (p) => "product_name" in p && "price" in p && "section_id" in p
+        (p) =>
+          "sysmo_product_code" in p &&
+          "product_name" in p &&
+          "price" in p &&
+          "section_id" in p
       )
     ) {
       return res.status(400).json({
         message:
-          "A planilha está fora do padrão. Verifique as colunas: product_name, price, section_id.",
+          "A planilha está fora do padrão. Verifique as colunas: sysmo_product_code, product_name, price, section_id.",
       });
     }
 

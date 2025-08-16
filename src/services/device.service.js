@@ -156,18 +156,22 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId, deviceType) => {
       FROM campaigns c
       JOIN companies comp ON c.company_id = comp.id
       WHERE
-          c.company_id = $2 AND
-          c.start_date <= NOW() AND
-          c.end_date >= NOW() AND
-          (
+          c.company_id = $2
+          AND c.start_date <= NOW()
+          AND c.end_date >= NOW()
+          AND (
+              EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id AND cd.device_id = $1) OR
+              EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id AND cs.sector_id = $3) OR
               (NOT EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id) AND
                NOT EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id))
-              OR
-              EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id AND cd.device_id = $1)
-              OR
-              EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id AND cs.sector_id = $3)
           )
-      ORDER BY c.created_at DESC
+      ORDER BY
+          CASE
+              WHEN EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id AND cd.device_id = $1) THEN 1
+              WHEN EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id AND cs.sector_id = $3) THEN 2
+              ELSE 3
+          END,
+          c.created_at DESC
       LIMIT 1`;
 
   const campaignResult = await db.query(campaignQuery, [

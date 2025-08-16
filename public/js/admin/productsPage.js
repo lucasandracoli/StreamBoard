@@ -1,4 +1,4 @@
-import { notyf, handleFetchError } from "./utils.js";
+import { notyf } from "./utils.js";
 
 const createProductRow = (product) => {
   const row = document.createElement("tr");
@@ -14,12 +14,12 @@ const createProductRow = (product) => {
   });
 
   row.innerHTML = `
-        <td data-label="Produto">${product.product_name}</td>
+        <td data-label="Item">${product.product_name}</td>
         <td data-label="Preço" class="price-cell">${price}</td>
         <td data-label="Categoria">${product.section_name}</td>
         <td data-label="Atualização">${lastUpdated}</td>
         <td class="actions-cell">
-            <button class="action-icon-excluir" data-id="${product.id}" title="Excluir Produto">
+            <button class="action-icon-excluir" data-id="${product.id}" title="Excluir Item">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M6 6L18 18M6 18L18 6" stroke-linecap="round" stroke-linejoin="round"></path>
                 </svg>
@@ -63,31 +63,11 @@ export const removeProductRow = (productId) => {
   if (tableBody && tableBody.rows.length === 0) {
     tableBody.innerHTML = `
             <tr id="no-products-row">
-                <td colspan="5" style="text-align: center">Nenhum produto encontrado.</td>
+                <td colspan="5" style="text-align: center">Nenhum item encontrado.</td>
             </tr>
         `;
   }
 };
-
-export async function refreshProductTable() {
-  const companyId = window.location.pathname.split("/").pop();
-  try {
-    const res = await fetch(`/products/${companyId}`);
-    if (!res.ok) throw new Error("Falha ao buscar a tabela atualizada.");
-    const html = await res.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-    const newTableBody = doc.getElementById("products-table-body");
-    const oldTableBody = document.getElementById("products-table-body");
-    if (newTableBody && oldTableBody) {
-      oldTableBody.innerHTML = newTableBody.innerHTML;
-    }
-  } catch (err) {
-    notyf.error(err.message);
-  } finally {
-    resetSyncButton();
-  }
-}
 
 export function resetSyncButton() {
   const syncCompanyBtn = document.getElementById("syncCompanyProductsBtn");
@@ -95,6 +75,39 @@ export function resetSyncButton() {
     syncCompanyBtn.disabled = false;
     syncCompanyBtn.querySelector("span").textContent = "Sincronizar Preços";
     syncCompanyBtn.querySelector("i").classList.remove("spinning");
+  }
+}
+
+export async function refreshProductTable() {
+  const companyId = window.location.pathname.split("/").pop();
+  try {
+    const response = await fetch(window.location.href);
+    if (!response.ok) throw new Error("Falha ao buscar dados atualizados.");
+
+    const html = await response.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+
+    const newTableBody = doc.querySelector(".products-table tbody");
+    const oldTableBody = document.querySelector(".products-table tbody");
+    const newPagination = doc.querySelector(".pagination-container");
+    const oldPagination = document.querySelector(".pagination-container");
+    const mainContainer = document.querySelector("main.container");
+
+    if (newTableBody && oldTableBody) {
+      oldTableBody.innerHTML = newTableBody.innerHTML;
+    }
+
+    if (oldPagination) {
+      oldPagination.remove();
+    }
+    if (newPagination && mainContainer) {
+      mainContainer.appendChild(newPagination);
+    }
+  } catch (err) {
+    notyf.error(err.message);
+  } finally {
+    resetSyncButton();
   }
 }
 

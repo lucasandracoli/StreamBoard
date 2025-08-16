@@ -58,16 +58,24 @@ export function connectAdminWs(detailsModalHandler) {
 
       switch (data.type) {
         case "DEVICE_STATUS_UPDATE":
-        case "DEVICE_NEWLY_ACTIVE":
           if (isDevicesPage) updateDeviceStatusOnPage(data.payload);
           break;
         case "DEVICE_CREATED":
           if (isDevicesPage) addDeviceRow(data.payload);
-          notyf.success(`Dispositivo "${data.payload.name}" criado.`);
+          if (data.payload.message) notyf.success(data.payload.message);
           break;
         case "DEVICE_UPDATED":
-          if (isDevicesPage) updateDeviceRow(data.payload);
-          notyf.success(`Dispositivo "${data.payload.name}" atualizado.`);
+          if (isDevicesPage) {
+            updateDeviceRow(data.payload);
+            if (
+              detailsModalHandler &&
+              detailsModalHandler.element.dataset.showingDeviceId ===
+                data.payload.id
+            ) {
+              detailsModalHandler.openDetailsModal(data.payload.id);
+            }
+          }
+          if (data.payload.message) notyf.success(data.payload.message);
           break;
         case "DEVICE_DELETED":
           if (isDevicesPage) removeDeviceRow(data.payload.deviceId);

@@ -85,7 +85,10 @@ const createDevice = async (req, res) => {
     if (fullDeviceDetails) {
       broadcastToAdmins({
         type: "DEVICE_CREATED",
-        payload: fullDeviceDetails,
+        payload: {
+          ...fullDeviceDetails,
+          message: `Dispositivo "${fullDeviceDetails.name}" criado.`,
+        },
       });
     }
 
@@ -122,7 +125,10 @@ const editDevice = async (req, res) => {
     if (fullDeviceDetails) {
       broadcastToAdmins({
         type: "DEVICE_UPDATED",
-        payload: fullDeviceDetails,
+        payload: {
+          ...fullDeviceDetails,
+          message: `Dispositivo "${fullDeviceDetails.name}" atualizado.`,
+        },
       });
     }
 
@@ -194,8 +200,23 @@ const revokeDevice = async (req, res) => {
   const { id } = req.params;
   try {
     await deviceService.revokeDeviceAccess(id);
-    const { sendUpdateToDevice } = req.app.locals;
+    const { sendUpdateToDevice, broadcastToAdmins, clients } = req.app.locals;
     sendUpdateToDevice(id, { type: "DEVICE_REVOKED" });
+
+    const fullDeviceDetails = await getFullDeviceDetailsForBroadcast(
+      id,
+      clients
+    );
+    if (fullDeviceDetails) {
+      broadcastToAdmins({
+        type: "DEVICE_UPDATED",
+        payload: {
+          ...fullDeviceDetails,
+          message: `Dispositivo "${fullDeviceDetails.name}" revogado.`,
+        },
+      });
+    }
+
     res.status(200).json({
       message:
         "Acesso do dispositivo revogado e status atualizado com sucesso.",
@@ -214,14 +235,17 @@ const reactivateDevice = async (req, res) => {
       return res.status(404).json({ message: "Dispositivo não encontrado." });
     }
 
-    const device = await deviceService.getDeviceById(id);
-    if (device) {
-      const { broadcastToAdmins } = req.app.locals;
+    const { broadcastToAdmins, clients } = req.app.locals;
+    const fullDeviceDetails = await getFullDeviceDetailsForBroadcast(
+      id,
+      clients
+    );
+    if (fullDeviceDetails) {
       broadcastToAdmins({
-        type: "DEVICE_NEWLY_ACTIVE",
+        type: "DEVICE_UPDATED",
         payload: {
-          deviceId: device.id,
-          deviceName: device.name,
+          ...fullDeviceDetails,
+          message: `Dispositivo "${fullDeviceDetails.name}" reativado.`,
         },
       });
     }

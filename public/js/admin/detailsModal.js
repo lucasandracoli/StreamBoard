@@ -143,13 +143,13 @@ export function setupDetailsModal() {
     ?.addEventListener("click", () => {
       hideOtpView();
       detailsModal.style.display = "none";
+      detailsModal.dataset.showingDeviceId = "";
     });
 
-  const handleDeviceAction = async (url, successMessage) => {
+  const handleDeviceAction = async (url) => {
     try {
       const res = await fetch(url, { method: "POST" });
       if (!res.ok) throw new Error(await handleFetchError(res));
-      notyf.success(successMessage);
     } catch (err) {
       notyf.error(err.message || "Falha na comunicação.");
     }
@@ -186,19 +186,13 @@ export function setupDetailsModal() {
   document
     .getElementById("modalRevokeButton")
     ?.addEventListener("click", function () {
-      handleDeviceAction(
-        `/devices/${this.dataset.id}/revoke`,
-        "Dispositivo revogado."
-      );
+      handleDeviceAction(`/devices/${this.dataset.id}/revoke`);
     });
 
   document
     .getElementById("modalReactivateButton")
     ?.addEventListener("click", function () {
-      handleDeviceAction(
-        `/devices/${this.dataset.id}/reactivate`,
-        "Dispositivo reativado."
-      );
+      handleDeviceAction(`/devices/${this.dataset.id}/reactivate`);
     });
 
   document
