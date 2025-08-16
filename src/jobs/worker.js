@@ -15,6 +15,8 @@ const worker = new Worker(
         return await productSyncService.syncProductsForCompany(
           job.data.companyId
         );
+      } else if (job.name === "import-products-from-sheet") {
+        return await productSyncService.importProductsFromSheet(job.data);
       }
     } catch (error) {
       logger.error(

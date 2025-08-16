@@ -27,8 +27,8 @@ const getFullCampaignDetailsForBroadcast = async (campaignId) => {
     status = { text: "Ativa", class: "online" };
   }
 
-  let campaign_type = "Sem Mídia";
   const uploadsCount = campaign.uploads ? campaign.uploads.length : 0;
+  let campaign_type = "Sem Mídia";
   if (uploadsCount > 1) {
     campaign_type = "Playlist";
   } else if (uploadsCount === 1) {
@@ -46,6 +46,7 @@ const getFullCampaignDetailsForBroadcast = async (campaignId) => {
   return {
     ...campaign,
     status,
+    uploads_count: uploadsCount,
     target_names: allTargetNames,
     periodo_formatado: formatUtils.formatarPeriodo(
       campaign.start_date,

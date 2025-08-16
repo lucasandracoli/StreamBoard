@@ -1,4 +1,5 @@
 import { notyf, handleFetchError } from "./utils.js";
+import { showConfirmationModal } from "./confirmationModal.js";
 
 export function setupCampaignModal() {
   const campaignModal = document.getElementById("campaignModal");
@@ -655,9 +656,16 @@ export function setupCampaignModal() {
       const json = await res.json();
 
       if (res.status === 409 && json.conflict) {
-        window.showConfirmationModal({
+        const messageHtml =
+          "Esta campanha irá sobrepor a(s) seguinte(s) campanha(s):<br><br>" +
+          json.overlapping_campaigns
+            .map((name) => `<span class="highlight-campaign">${name}</span>`)
+            .join(" ") +
+          "<br><br>Deseja continuar?";
+
+        showConfirmationModal({
           title: "Aviso de Sobreposição",
-          message: json.message,
+          message: messageHtml,
           confirmText: "Salvar Mesmo Assim",
           type: "warning",
           onConfirm: () => {

@@ -16,7 +16,7 @@ export const showConfirmationModal = ({
   }
 
   config.title.textContent = title;
-  config.body.textContent = message;
+  config.body.innerHTML = message;
   config.confirmBtn.textContent = confirmText;
 
   const iconContainer = config.icon.parentElement;

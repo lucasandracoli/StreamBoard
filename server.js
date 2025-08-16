@@ -69,7 +69,9 @@ const queueEvents = new QueueEvents("Product Sync", { connection });
 
 queueEvents.on("completed", ({ jobId, returnvalue }) => {
   productSyncQueue.getJob(jobId).then((job) => {
-    if (job && job.name === "sync-single-company") {
+    if (!job) return;
+
+    if (job.name === "sync-single-company") {
       const { companyId } = job.data;
       const { updatedCount } = returnvalue;
       logger.info(
@@ -83,6 +85,20 @@ queueEvents.on("completed", ({ jobId, returnvalue }) => {
           message: `Sincronização concluída! ${updatedCount} produtos foram atualizados.`,
         },
       });
+    } else if (job.name === "import-products-from-sheet") {
+      const { companyId } = job.data;
+      const { importedCount } = returnvalue;
+      logger.info(
+        `Job de importação para empresa ${companyId} concluído. ${importedCount} produtos importados.`
+      );
+
+      webSocketManager.broadcastToAdmins({
+        type: "PRODUCT_SYNC_COMPLETED",
+        payload: {
+          companyId: companyId,
+          message: `Importação concluída! ${importedCount} produtos foram importados/atualizados.`,
+        },
+      });
     }
   });
 });
@@ -90,13 +106,18 @@ queueEvents.on("completed", ({ jobId, returnvalue }) => {
 queueEvents.on("failed", ({ jobId, failedReason }) => {
   logger.error(`Job ${jobId} falhou: ${failedReason}`);
   productSyncQueue.getJob(jobId).then((job) => {
-    if (job && job.name === "sync-single-company") {
-      const { companyId } = job.data;
+    if (!job) return;
+    const { companyId } = job.data;
+
+    if (
+      job.name === "sync-single-company" ||
+      job.name === "import-products-from-sheet"
+    ) {
       webSocketManager.broadcastToAdmins({
         type: "PRODUCT_SYNC_FAILED",
         payload: {
           companyId: companyId,
-          message: `A sincronização de preços falhou. Tente novamente.`,
+          message: `A operação em segundo plano falhou. Tente novamente.`,
         },
       });
     }

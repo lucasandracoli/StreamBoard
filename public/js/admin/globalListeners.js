@@ -11,6 +11,22 @@ export function setupGlobalListeners(modalHandlers) {
     }
   });
 
+  const logoutLink = document.getElementById("logoutLink");
+  if (logoutLink) {
+    logoutLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      showConfirmationModal({
+        title: "Confirmar Saída",
+        message: "Deseja realmente sair do sistema?",
+        confirmText: "Sair",
+        type: "warning",
+        onConfirm: () => {
+          window.location.href = logoutLink.href;
+        },
+      });
+    });
+  }
+
   document.body.addEventListener("click", (e) => {
     const row = e.target.closest("tr[data-device-id]");
     if (row && !e.target.closest(".actions-cell")) {
@@ -73,7 +89,6 @@ export function setupGlobalListeners(modalHandlers) {
           title: "Confirmar Exclusão",
           msg: "Deseja realmente excluir este produto da lista local?",
           confirmText: "Excluir",
-          reload: true,
           type: "danger",
         };
       } else return;
@@ -84,9 +99,6 @@ export function setupGlobalListeners(modalHandlers) {
           const json = await res.json();
           if (!res.ok) {
             throw new Error(json.message || `Erro ${res.status}`);
-          }
-          if (apiConfig.reload) {
-            setTimeout(() => window.location.reload(), 1200);
           }
         } catch (err) {
           notyf.error(err.message || "Falha na comunicação.");

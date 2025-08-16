@@ -17,8 +17,6 @@
     <%- include("partials/navbar") %>
 
     <main class="container">
-      <div class="device-header"></div>
-
       <% if (companies.length === 0) { %>
       <div class="empty-state-container">
         <div class="empty-state-icon">
@@ -40,6 +38,7 @@
         </a>
       </div>
       <% } else { %>
+
       <div class="company-grid">
         <% companies.forEach(company => { %>
         <a href="/products/<%= company.id %>" class="company-card">
@@ -61,6 +60,7 @@
 
     <%- include("partials/footer") %>
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
+
     <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>
   </body>
 </html>

@@ -2747,13 +2747,3 @@ body.player-body {
   font-weight: 600;
   color: var(--color-primary);
 }
-
-.layout-cell {
-  color: var(--color-primary);
-  font-weight: 600;
-}
-.media-count-cell {
-  text-align: center;
-  font-weight: 600;
-  color: var(--color-primary);
-}
