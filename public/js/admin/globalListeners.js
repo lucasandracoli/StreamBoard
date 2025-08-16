@@ -49,6 +49,7 @@ export function setupGlobalListeners(modalHandlers) {
           title: "Confirmar Exclusão",
           msg: "Deseja realmente excluir esta campanha? Esta ação não pode ser desfeita.",
           confirmText: "Excluir",
+          type: "danger",
         };
       } else if (pageId === "devices-page") {
         apiConfig = {
@@ -56,6 +57,7 @@ export function setupGlobalListeners(modalHandlers) {
           title: "Confirmar Exclusão",
           msg: "Deseja realmente excluir este dispositivo?",
           confirmText: "Excluir",
+          type: "danger",
         };
       } else if (pageId === "companies-page") {
         apiConfig = {
@@ -63,6 +65,7 @@ export function setupGlobalListeners(modalHandlers) {
           title: "Atenção!",
           msg: "Excluir esta empresa removerá todos os dispositivos e campanhas associados. Confirma?",
           confirmText: "Excluir Tudo",
+          type: "warning",
         };
       } else if (pageId === "products-page") {
         apiConfig = {
@@ -71,6 +74,7 @@ export function setupGlobalListeners(modalHandlers) {
           msg: "Deseja realmente excluir este produto da lista local?",
           confirmText: "Excluir",
           reload: true,
+          type: "danger",
         };
       } else return;
 
@@ -95,7 +99,7 @@ export function setupGlobalListeners(modalHandlers) {
         title: apiConfig.title,
         message: apiConfig.msg,
         confirmText: apiConfig.confirmText,
-        type: "danger",
+        type: apiConfig.type,
         onConfirm: onConfirm,
       });
     }
