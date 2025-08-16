@@ -115,6 +115,19 @@ const listCampaignsPage = async (req, res) => {
   }
 };
 
+const renderCampaignPipelinePage = async (req, res) => {
+  try {
+    const pipelineData = await campaignService.getCampaignPipeline();
+    res.render("campaigns_pipeline", {
+      pipeline: pipelineData,
+      formatUtils,
+    });
+  } catch (err) {
+    logger.error({ err }, "Erro ao carregar o pipeline de campanhas.");
+    res.status(500).send("Erro ao carregar a página.");
+  }
+};
+
 const createCampaign = async (req, res) => {
   let {
     name,
@@ -531,6 +544,7 @@ const editCampaign = async (req, res) => {
 
 module.exports = {
   listCampaignsPage,
+  renderCampaignPipelinePage,
   createCampaign,
   deleteCampaign,
   getCampaignDetails,

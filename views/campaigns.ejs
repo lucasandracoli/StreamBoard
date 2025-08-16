@@ -36,29 +36,40 @@
             placeholder="Buscar campanha..."
           />
         </div>
-        <button class="device-button" id="openCampaignModal">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+        <div class="page-actions-group">
+          <button class="device-button" id="openCampaignModal">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Nova Campanha</span>
+          </button>
+          <a
+            href="/campaigns/pipeline"
+            class="device-button device-button-outline"
           >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          <span>Nova Campanha</span>
-        </button>
+            <i class="bi bi-bar-chart-steps"></i>
+            <span>Pipeline</span>
+          </a>
+        </div>
       </div>
       <% } %> <% if (companies.length === 0) { %>
       <div class="empty-state-container">
         <div class="empty-state-icon">
           <i class="bi bi-building-slash"></i>
         </div>
+
         <h3 class="empty-state-title">Primeiro, Cadastre uma Empresa</h3>
         <p class="empty-state-subtitle">
           Para criar uma campanha, você precisa ter pelo menos uma empresa
@@ -93,6 +104,7 @@
               <th class="col-name">Nome</th>
               <th class="col-status">Status</th>
               <th class="col-company">Empresa</th>
+
               <th class="col-layout">Layout</th>
               <th class="col-media-count">Mídias</th>
               <th class="col-period">Período</th>
@@ -100,6 +112,7 @@
               <th class="col-actions">Ações</th>
             </tr>
           </thead>
+
           <tbody id="campaigns-table-body">
             <% campaigns.forEach(campaign => { %>
             <tr data-campaign-id="<%= campaign.id %>">
@@ -113,13 +126,18 @@
               <td class="break-word col-company">
                 <%= campaign.company_name %>
               </td>
-              <td class="layout-cell col-layout">
-                <% if (campaign.layout_type === 'split-80-20') { %> Split 80/20
-                <% } else if (campaign.layout_type === 'split-80-20-weather') {
-                %> Split c/ Clima <% } else { %> Tela Cheia <% } %>
+              <td class="col-layout">
+                <span class="cell-tag tag-layout">
+                  <% if (campaign.layout_type === 'split-80-20') { %> Split
+                  80/20 <% } else if (campaign.layout_type ===
+                  'split-80-20-weather') { %> Split c/ Clima <% } else { %> Tela
+                  Cheia <% } %>
+                </span>
               </td>
-              <td class="media-count-cell col-media-count">
-                <%= campaign.uploads_count %>
+              <td class="col-media-count">
+                <span class="cell-tag tag-media">
+                  <%= campaign.uploads_count %>
+                </span>
               </td>
               <td class="period-cell col-period">
                 <%= campaign.periodo_formatado %>
@@ -133,6 +151,7 @@
                 <span class="device-badge-extra">
                   +<%= campaign.target_names.length - 2 %>
                 </span>
+
                 <% } %> <% } else { %> Todos <% } %>
               </td>
               <td class="actions-cell col-actions">
@@ -183,6 +202,7 @@
                 </button>
               </td>
             </tr>
+
             <% }) %>
           </tbody>
         </table>
@@ -238,6 +258,7 @@
             <div class="date-group">
               <div class="form-group">
                 <label for="start_date" class="form-label">Início</label>
+
                 <input
                   id="start_date"
                   type="text"
@@ -310,7 +331,8 @@
                   stroke-linejoin="round"
                 >
                   <path
-                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                    d="M22 19a2 2 0 0 1-2 2H4a2 
+                     2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
                   ></path>
                 </svg>
                 <span>Por Setores</span>
@@ -406,12 +428,14 @@
                 name="layout_type"
                 value="split-80-20"
               />
+
               <label for="layout-80-20">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   width="32"
                   height="32"
-                  viewBox="0 0 24 24"
+                  viewBox="0 0 
+                   24 24"
                   fill="none"
                   stroke="currentColor"
                   stroke-width="2"
@@ -430,6 +454,7 @@
                 name="layout_type"
                 value="split-80-20-weather"
               />
+
               <label for="layout-80-20-weather">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -445,6 +470,7 @@
                       stroke-linejoin="round"
                       stroke-width="3"
                     />
+
                     <path
                       d="M29.5,16.12A12.5,12.5,0,0,0,7.33,21.5a12.45,12.45,0,0,0,.17,2c-6.63.83-11.5,5-11.5,10.25a10.4,10.4,0,0,0,10.5,9.63H29.5a10.5,10.5,0,0,0,0-21Z"
                       fill="#a6adc8"
@@ -481,6 +507,7 @@
               <div id="layout-zones-wrapper">
                 <div class="media-drop-zone-container" id="zone-main-container">
                   <span class="zone-title">Principal</span>
+
                   <div
                     class="file-preview-wrapper"
                     id="file-preview-wrapper-main"
@@ -492,6 +519,7 @@
                   id="zone-secondary-container"
                 >
                   <span class="zone-title">Secundária</span>
+
                   <div
                     class="file-preview-wrapper"
                     id="file-preview-wrapper-secondary"
@@ -542,6 +570,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/pt.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>

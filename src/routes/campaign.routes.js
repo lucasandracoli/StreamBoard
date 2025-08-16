@@ -24,14 +24,48 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-router.get("/campaigns", isAuthenticated, isAdmin, campaignController.listCampaignsPage);
+router.get(
+  "/campaigns",
+  isAuthenticated,
+  isAdmin,
+  campaignController.listCampaignsPage
+);
 
-router.post("/campaigns", isAuthenticated, isAdmin, upload.array("media", 5), campaignController.createCampaign);
+router.get(
+  "/campaigns/pipeline",
+  isAuthenticated,
+  isAdmin,
+  campaignController.renderCampaignPipelinePage
+);
 
-router.post("/campaigns/:id/delete", isAuthenticated, isAdmin, campaignController.deleteCampaign);
+router.post(
+  "/campaigns",
+  isAuthenticated,
+  isAdmin,
+  upload.array("media", 5),
+  campaignController.createCampaign
+);
 
-router.post("/campaigns/:id/edit", isAuthenticated, isAdmin, upload.array("media", 5), campaignController.editCampaign);
+router.post(
+  "/campaigns/:id/delete",
+  isAuthenticated,
+  isAdmin,
+  campaignController.deleteCampaign
+);
 
-router.get("/api/campaigns/:id", isAuthenticated, isAdmin, campaignController.getCampaignDetails);
+router.post(
+  "/campaigns/:id/edit",
+  isAuthenticated,
+  isAdmin,
+  upload.array("media", 5),
+  campaignController.editCampaign
+);
+
+router.get(
+  "/api/campaigns/:id",
+  isAuthenticated,
+  isAdmin,
+  campaignController.getCampaignDetails
+);
 
 module.exports = router;
