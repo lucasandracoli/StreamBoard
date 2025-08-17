@@ -2854,13 +2854,40 @@ body.player-body {
 .pipeline-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 1rem;
   margin-bottom: 0.75rem;
+}
+.pipeline-header-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+.priority-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 .pipeline-name {
   font-weight: 600;
   font-size: 1rem;
   color: var(--color-text);
+}
+.priority-badge.priority-normal {
+  background-color: var(--color-gray-extra-light);
+  color: var(--color-gray-medium);
+}
+.priority-badge.priority-high {
+  background-color: #fffbeb;
+  color: #b45309;
+}
+.priority-badge.priority-urgent {
+  background-color: #fee2e2;
+  color: #b91c1c;
 }
 .pipeline-details {
   display: flex;
@@ -2878,14 +2905,14 @@ body.player-body {
 .pipeline-paused-by {
   margin-top: 1rem;
   padding: 0.75rem 1rem;
-  background-color: var(--color-warning-light);
+  background-color: #fffbeb;
   border-radius: var(--radius-sm);
   font-size: var(--text-sm);
-  color: var(--color-warning-dark);
+  color: #b45309;
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  border-left: 4px solid var(--color-warning-dark);
+  border-left: 4px solid #f59e0b;
 }
 .online-status.paused {
   color: var(--color-warning-dark);
@@ -2959,18 +2986,36 @@ body.player-body {
   gap: 0.75rem;
   border-left: 4px solid var(--color-warning-dark);
 }
-
 .pipeline-paused-by i {
   margin-top: 2px;
+  font-size: 1.1rem;
 }
-
 .pipeline-paused-by-reason {
   font-size: var(--text-sm);
   color: #78350f;
   font-weight: 500;
   line-height: 1.5;
 }
-
+.paused-by-details {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 4px;
+  line-height: 1.5;
+}
+.paused-by-label {
+  font-weight: 500;
+  color: #78350f;
+}
+.paused-by-label strong {
+  font-weight: 700;
+  color: #92400e;
+}
+.paused-by-reason {
+  font-weight: 500;
+  color: #78350f;
+}
 .pipeline-paused-by-reason strong {
   font-weight: 700;
 }

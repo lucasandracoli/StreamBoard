@@ -79,7 +79,6 @@ export function resetSyncButton() {
 }
 
 export async function refreshProductTable() {
-  const companyId = window.location.pathname.split("/").pop();
   try {
     const response = await fetch(window.location.href);
     if (!response.ok) throw new Error("Falha ao buscar dados atualizados.");
@@ -88,27 +87,16 @@ export async function refreshProductTable() {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
-    const newTableBody = doc.querySelector(".products-table tbody");
-    const oldTableBody = document.querySelector(".products-table tbody");
-    const newPagination = doc.querySelector(".pagination-container");
-    const oldPagination = document.querySelector(".pagination-container");
-    const mainContainer = document.querySelector("main.container");
+    const newContent = doc.querySelector("main.container");
+    const oldContent = document.querySelector("main.container");
 
-    if (newTableBody && oldTableBody) {
-      oldTableBody.innerHTML = newTableBody.innerHTML;
-    }
-
-    if (oldPagination) {
-      oldPagination.remove();
-    }
-    if (newPagination && mainContainer) {
-      mainContainer.appendChild(newPagination);
+    if (newContent && oldContent) {
+      oldContent.innerHTML = newContent.innerHTML;
     }
   } catch (err) {
-    notyf.error(err.message);
-  } finally {
-    resetSyncButton();
+    notyf.error(err.message || "Não foi possível atualizar a lista de produtos.");
   }
 }
+
 
 export function setupProductsPage() {}

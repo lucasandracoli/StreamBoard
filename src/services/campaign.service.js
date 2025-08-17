@@ -172,33 +172,47 @@ const getAffectedDevicesForCampaign = async (campaignId) => {
 };
 
 const getOverwriteReason = (winner, loser) => {
+  const priorityMap = {
+    1: "Urgente",
+    25: "Alta",
+    50: "Normal",
+  };
+  const getPriorityName = (priority) =>
+    priorityMap[priority] || `Nível ${priority}`;
+
   const getSpec = (campaign) =>
     campaign.device_ids?.length > 0
       ? 3
       : campaign.sector_ids?.length > 0
       ? 2
       : 1;
-  const specMap = { 3: "Dispositivo", 2: "Setor", 1: "Geral" };
+  const specMap = { 3: "Dispositivo", 2: "Setor", 1: "Geral (Toda a Loja)" };
 
   const winnerSpec = getSpec(winner);
   const loserSpec = getSpec(loser);
 
+  let reason = "";
+
   if (winnerSpec > loserSpec) {
-    return `Campanha <strong>${winner.name}</strong> venceu por ter segmentação mais específica (<strong>${specMap[winnerSpec]}</strong> contra <strong>${specMap[loserSpec]}</strong>).`;
-  }
-  if (winner.priority < loser.priority) {
-    return `Campanha <strong>${winner.name}</strong> venceu por ter prioridade manual mais alta (<strong>${winner.priority}</strong> contra <strong>${loser.priority}</strong>).`;
+    reason = `Segmentação mais específica (${specMap[winnerSpec]} vs. ${specMap[loserSpec]})`;
+  } else if (winner.priority < loser.priority) {
+    reason = `Prioridade manual superior (${getPriorityName(
+      winner.priority
+    )} vs. ${getPriorityName(loser.priority)})`;
+  } else {
+    const winnerPlays = parseInt(winner.plays_last_24h, 10);
+    const loserPlays = parseInt(loser.plays_last_24h, 10);
+    if (winnerPlays !== loserPlays) {
+      reason = `Maior número de exibições recentes (${winnerPlays} vs. ${loserPlays} nas últimas 24h)`;
+    } else {
+      reason = "Critério de desempate (criada mais recentemente)";
+    }
   }
 
-  const winnerPlays = parseInt(winner.plays_last_24h, 10);
-  const loserPlays = parseInt(loser.plays_last_24h, 10);
-  if (winnerPlays > loserPlays) {
-    return `Campanha <strong>${winner.name}</strong> venceu por ter mais exibições recentes (<strong>${winnerPlays}</strong> contra <strong>${loserPlays}</strong>).`;
-  }
-  if (new Date(winner.created_at) > new Date(loser.created_at)) {
-    return `Campanha <strong>${winner.name}</strong> venceu por ser a criada mais recentemente.`;
-  }
-  return `Campanha <strong>${winner.name}</strong> possui critérios de sobreposição mais fortes.`;
+  return {
+    winnerName: winner.name,
+    reason,
+  };
 };
 
 const getCampaignPipeline = async () => {
@@ -223,6 +237,11 @@ const getCampaignPipeline = async () => {
   );
   const deviceTargetsCache = new Map();
   const winnerCampaigns = new Map();
+  const priorityMap = {
+    1: { name: "Urgente", class: "priority-urgent" },
+    25: { name: "Alta", class: "priority-high" },
+    50: { name: "Normal", class: "priority-normal" },
+  };
 
   for (const campaign of activeTimeCampaigns) {
     let targetDevices = deviceTargetsCache.get(campaign.id);
@@ -283,18 +302,19 @@ const getCampaignPipeline = async () => {
     winnerCampaigns.set(campaign.id, campaign);
   });
 
-  const effectiveCampaignIds = new Set(deviceEffectiveCampaign.values());
+  const effectiveCampaignIds = new Set();
+  deviceEffectiveCampaign.forEach((campaign) => {
+    effectiveCampaignIds.add(campaign.id);
+  });
+  
   const pausedCampaigns = new Map();
   for (const campaign of activeTimeCampaigns) {
-    if (!effectiveCampaignIds.has(campaign)) {
+    if (!effectiveCampaignIds.has(campaign.id)) {
       const targetDevices = await getAffectedDevicesForCampaign(campaign.id);
       for (const deviceId of targetDevices) {
         const winningCampaign = deviceEffectiveCampaign.get(deviceId);
         if (winningCampaign && winningCampaign.id !== campaign.id) {
-          pausedCampaigns.set(campaign.id, {
-            name: winningCampaign.name,
-            reason: getOverwriteReason(winningCampaign, campaign),
-          });
+          pausedCampaigns.set(campaign.id, getOverwriteReason(winningCampaign, campaign));
           break;
         }
       }
@@ -309,6 +329,8 @@ const getCampaignPipeline = async () => {
       status_icon: "bi-check-circle-fill",
       targeting_info: "Todos",
       pausedBy: null,
+      priority_details:
+        priorityMap[campaign.priority] || "Nível " + campaign.priority,
     };
 
     if (campaign.device_ids?.length > 0) {
@@ -336,7 +358,7 @@ const getCampaignPipeline = async () => {
         const pausedInfo = pausedCampaigns.get(campaign.id);
         campaignStatus.pausedBy = pausedInfo
           ? pausedInfo
-          : { name: "outra campanha", reason: "Motivo desconhecido." };
+          : { winnerName: "outra campanha", reason: "Critério de sobreposição mais forte." };
       }
     }
 

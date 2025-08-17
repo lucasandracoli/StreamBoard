@@ -4,7 +4,6 @@ import { refreshDevicesTable, updateDeviceRow } from "./devicesPage.js";
 import { refreshCampaignsTable } from "./campaignsPage.js";
 import {
   addProductRow,
-  removeProductRow,
   refreshProductTable,
   resetSyncButton,
 } from "./productsPage.js";

@@ -20,7 +20,7 @@
       <div class="device-header">
         <a href="/campaigns" class="back-button">
           <i class="bi bi-arrow-left"></i>
-          <span>Voltar para Campanhas</span>
+          <span>Voltar</span>
         </a>
       </div>
 
@@ -48,10 +48,16 @@
             <div class="pipeline-content">
               <div class="pipeline-header">
                 <span class="pipeline-name"><%= campaign.name %></span>
-                <span class="online-status <%= campaign.status_class %>">
-                  <span class="online-dot"></span>
-                  <span><%= campaign.status %></span>
-                </span>
+                <div class="pipeline-header-tags">
+                  <span
+                    class="priority-badge <%= campaign.priority_details.class %>"
+                    ><%= campaign.priority_details.name %></span
+                  >
+                  <span class="online-status <%= campaign.status_class %>">
+                    <span class="online-dot"></span>
+                    <span><%= campaign.status %></span>
+                  </span>
+                </div>
               </div>
               <div class="pipeline-details">
                 <span
@@ -75,9 +81,16 @@
               <% if (campaign.pausedBy) { %>
               <div class="pipeline-paused-by">
                 <i class="bi bi-exclamation-diamond-fill"></i>
-                <span class="pipeline-paused-by-reason"
-                  ><%- campaign.pausedBy.reason %></span
-                >
+                <div class="paused-by-details">
+                  <span class="paused-by-label"
+                    >Pausada por:
+                    <strong><%- campaign.pausedBy.winnerName %></strong></span
+                  >
+                  <span class="paused-by-reason"
+                    ><strong>Motivo:</strong> <%- campaign.pausedBy.reason
+                    %></span
+                  >
+                </div>
               </div>
               <% } %>
             </div>
@@ -88,9 +101,8 @@
       <% } %>
     </main>
 
-    <%- include("partials/confirmationModal") %>
-
-    <%- include("partials/footer") %>
+    <%- include("partials/confirmationModal") %> <%- include("partials/footer")
+    %>
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
     <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>
   </body>
