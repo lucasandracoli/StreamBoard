@@ -89,6 +89,7 @@ export function setupGlobalListeners(modalHandlers) {
             const res = await fetch(apiConfig.url, { method: "POST" });
             const json = await res.json();
             if (!res.ok) throw new Error(json.message);
+            notyf.success(json.message);
           } catch (err) {
             notyf.error(err.message || "Falha na comunicação.");
           }

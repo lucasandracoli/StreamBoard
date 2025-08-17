@@ -21,7 +21,6 @@ function initializePage() {
 
   setupConfirmationModal();
   setupGlobalListeners(modalHandlers);
-  connectAdminWs(modalHandlers);
   setupProductModal();
 
   setupTableSearch("companies-search-input", "companies-table-body");
@@ -29,5 +28,9 @@ function initializePage() {
   setupTableSearch("campaigns-search-input", "campaigns-table-body");
 }
 
-document.addEventListener("DOMContentLoaded", initializePage);
+document.addEventListener("DOMContentLoaded", () => {
+  initializePage();
+  connectAdminWs();
+});
+
 document.addEventListener("page-content-refreshed", initializePage);

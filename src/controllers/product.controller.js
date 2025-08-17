@@ -71,11 +71,7 @@ const deleteProduct = async (req, res) => {
 
     await localProductService.deleteProduct(id);
 
-    const { broadcastToAdmins, sendUpdateToDevice } = req.app.locals;
-    broadcastToAdmins({
-      type: "PRODUCT_OPERATION_SUCCESS",
-      payload: { message: "Produto excluído com sucesso." },
-    });
+    const { sendUpdateToDevice } = req.app.locals;
     notifyPlayers(product.company_id, { sendUpdateToDevice });
 
     res.status(200).json({ message: "Produto excluído com sucesso." });
@@ -206,17 +202,9 @@ const addSingleProduct = async (req, res) => {
       section_name: sectionMap[productData.sec] || `SEÇÃO ${productData.sec}`,
     });
 
-    const { broadcastToAdmins, sendUpdateToDevice } = req.app.locals;
-    broadcastToAdmins({
-      type: "PRODUCT_OPERATION_SUCCESS",
-      payload: {
-        message: `Produto "${newProduct.product_name}" foi adicionado.`,
-      },
-    });
-    notifyPlayers(companyId, { sendUpdateToDevice });
-
     res.status(201).json({
-      message: "Produto adicionado com sucesso.",
+      message: `Produto "${newProduct.product_name}" foi adicionado.`,
+      product: newProduct,
     });
   } catch (error) {
     if (error.code === "23505") {

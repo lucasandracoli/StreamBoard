@@ -121,12 +121,12 @@ const initializeWebSocket = (server, sessionParser) => {
       const device = deviceResult.rows[0];
       ws.deviceDetails = device;
       const updatedStatus = updateAndCacheDeviceStatus(deviceId, device);
+      const fullDeviceDetails = await deviceService.getDeviceDetails(deviceId);
       broadcastToAdmins({
-        type: "DEVICE_STATUS_UPDATE",
+        type: "DEVICE_UPDATED",
         payload: {
-          deviceId,
+          ...fullDeviceDetails,
           status: updatedStatus.status,
-          deviceName: updatedStatus.deviceName,
         },
       });
     }
@@ -174,12 +174,14 @@ const initializeWebSocket = (server, sessionParser) => {
       if (closedDeviceResult.rows.length > 0) {
         const device = closedDeviceResult.rows[0];
         const updatedStatus = updateAndCacheDeviceStatus(deviceId, device);
+        const fullDeviceDetails = await deviceService.getDeviceDetails(
+          deviceId
+        );
         broadcastToAdmins({
-          type: "DEVICE_STATUS_UPDATE",
+          type: "DEVICE_UPDATED",
           payload: {
-            deviceId,
+            ...fullDeviceDetails,
             status: updatedStatus.status,
-            deviceName: updatedStatus.deviceName,
           },
         });
       }

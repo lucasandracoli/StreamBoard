@@ -27,6 +27,8 @@ export function setupProductModal() {
     syncCompanyBtn?.dataset.companyId ||
     window.location.pathname.split("/").pop();
 
+  let isSubmitting = false;
+
   const resetSingleProductForm = () => {
     singleProductForm.reset();
     previewContainer.innerHTML = "";
@@ -77,8 +79,11 @@ export function setupProductModal() {
 
   singleProductForm?.addEventListener("submit", async function (e) {
     e.preventDefault();
+    if (isSubmitting) return;
+
     const action = addSingleProductBtn.dataset.action || "preview";
 
+    isSubmitting = true;
     addSingleProductBtn.disabled = true;
     addSingleProductBtn.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
 
@@ -109,6 +114,7 @@ export function setupProductModal() {
         resetSingleProductForm();
       } finally {
         addSingleProductBtn.disabled = false;
+        isSubmitting = false;
       }
     } else if (action === "confirm") {
       try {
@@ -119,12 +125,14 @@ export function setupProductModal() {
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.message);
+        notyf.success(json.message);
         resetSingleProductForm();
       } catch (err) {
         notyf.error(err.message || "Falha na comunicação.");
         addSingleProductBtn.textContent = "Confirmar e Adicionar";
       } finally {
         addSingleProductBtn.disabled = false;
+        isSubmitting = false;
       }
     }
   });
@@ -179,7 +187,6 @@ export function setupProductModal() {
       if (!res.ok) throw new Error(json.message);
       modal.style.display = "none";
     } catch (err) {
-      notyf.error(err.message || "Falha na comunicação.");
       uploadSubmitBtn.disabled = false;
       uploadSubmitBtn.innerHTML = "Enviar Planilha";
     }
@@ -201,7 +208,6 @@ export function setupProductModal() {
         const json = await res.json();
         if (!res.ok) throw new Error(json.message);
       } catch (error) {
-        notyf.error(error.message || "Erro de comunicação.");
         syncCompanyBtn.disabled = false;
         syncCompanyBtn.querySelector("span").textContent = originalText;
         icon.classList.remove("spinning");
