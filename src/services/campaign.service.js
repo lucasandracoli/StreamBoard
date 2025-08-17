@@ -1,6 +1,59 @@
 const db = require("../../config/streamboard");
 const logger = require("../utils/logger");
 
+const findOverlappingCampaigns = async (
+  startDate,
+  endDate,
+  companyId,
+  deviceIds,
+  sectorIds,
+  campaignIdToIgnore = null
+) => {
+  const hasDeviceTargets = deviceIds && deviceIds.length > 0;
+  const hasSectorTargets = sectorIds && sectorIds.length > 0;
+  const isTargetingAll = !hasDeviceTargets && !hasSectorTargets;
+
+  let params = [startDate, endDate, companyId, campaignIdToIgnore || 0];
+  let paramIndex = 5;
+  let conflictConditions = [];
+
+  conflictConditions.push(`(
+    NOT EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id) AND
+    NOT EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id)
+  )`);
+
+  if (hasDeviceTargets) {
+    conflictConditions.push(
+      `c.id IN (SELECT campaign_id FROM campaign_device WHERE device_id = ANY($${paramIndex}::uuid[]))`
+    );
+    params.push(deviceIds);
+    paramIndex++;
+  }
+
+  if (hasSectorTargets) {
+    conflictConditions.push(
+      `c.id IN (SELECT campaign_id FROM campaign_sector WHERE sector_id = ANY($${paramIndex}::int[]))`
+    );
+    params.push(sectorIds);
+    paramIndex++;
+  }
+
+  const conflictQueryPart = isTargetingAll
+    ? "true"
+    : `(${conflictConditions.join(" OR ")})`;
+
+  const query = `
+    SELECT c.id, c.name, c.priority FROM campaigns c
+    WHERE c.company_id = $3
+      AND c.id != $4
+      AND (c.start_date, c.end_date) OVERLAPS ($1::timestamptz, $2::timestamptz)
+      AND ${conflictQueryPart}
+  `;
+
+  const result = await db.query(query, params);
+  return result.rows;
+};
+
 const getAllCampaigns = async () => {
   const query = `
     SELECT
@@ -19,6 +72,7 @@ const getAllCampaigns = async () => {
         WHERE cd.campaign_id = c.id
       ) as device_names,
       (SELECT COUNT(*) FROM campaign_uploads cu WHERE cu.campaign_id = c.id) as uploads_count,
+      (SELECT COUNT(*) FROM play_logs pl WHERE pl.campaign_id = c.id AND pl.played_at >= NOW() - INTERVAL '24 hours') as plays_last_24h,
       (SELECT cu.file_type FROM campaign_uploads cu WHERE cu.campaign_id = c.id ORDER BY cu.execution_order ASC LIMIT 1) as first_upload_type
     FROM campaigns c
     JOIN companies co ON c.company_id = co.id
@@ -52,15 +106,15 @@ const getCampaignWithDetails = async (id) => {
 };
 
 const getTargetNamesForCampaign = async (campaignId) => {
-    const query = `
+  const query = `
         SELECT
             (SELECT json_agg(s.name) FROM sectors s JOIN campaign_sector cs ON s.id = cs.sector_id WHERE cs.campaign_id = $1) as sector_names,
             (SELECT json_agg(d.name) FROM devices d JOIN campaign_device cd ON d.id = cd.device_id WHERE cd.campaign_id = $1) as device_names
     `;
-    const result = await db.query(query, [campaignId]);
-    const { sector_names, device_names } = result.rows[0];
-    return [...(sector_names || []), ...(device_names || [])];
-}
+  const result = await db.query(query, [campaignId]);
+  const { sector_names, device_names } = result.rows[0];
+  return [...(sector_names || []), ...(device_names || [])];
+};
 
 const getAffectedDevicesForCampaign = async (campaignId) => {
   const client = await db.connect();
@@ -103,6 +157,181 @@ const getAffectedDevicesForCampaign = async (campaignId) => {
   }
 };
 
+const getOverwriteReason = (winner, loser) => {
+  const getSpec = (campaign) =>
+    campaign.device_ids?.length > 0
+      ? 3
+      : campaign.sector_ids?.length > 0
+      ? 2
+      : 1;
+  const specMap = { 3: "Dispositivo", 2: "Setor", 1: "Geral" };
+
+  const winnerSpec = getSpec(winner);
+  const loserSpec = getSpec(loser);
+
+  if (winnerSpec > loserSpec) {
+    return `Campanha <strong>${winner.name}</strong> venceu por ter segmentação mais específica (<strong>${specMap[winnerSpec]}</strong> contra <strong>${specMap[loserSpec]}</strong>).`;
+  }
+  if (winner.priority < loser.priority) {
+    return `Campanha <strong>${winner.name}</strong> venceu por ter prioridade manual mais alta (<strong>${winner.priority}</strong> contra <strong>${loser.priority}</strong>).`;
+  }
+
+  const winnerPlays = parseInt(winner.plays_last_24h, 10);
+  const loserPlays = parseInt(loser.plays_last_24h, 10);
+  if (winnerPlays > loserPlays) {
+    return `Campanha <strong>${winner.name}</strong> venceu por ter mais exibições recentes (<strong>${winnerPlays}</strong> contra <strong>${loserPlays}</strong>).`;
+  }
+  if (new Date(winner.created_at) > new Date(loser.created_at)) {
+    return `Campanha <strong>${winner.name}</strong> venceu por ser a criada mais recentemente.`;
+  }
+  return `Campanha <strong>${winner.name}</strong> possui critérios de sobreposição mais fortes.`;
+};
+
+const getCampaignPipeline = async () => {
+  const query = `
+    SELECT
+      c.id, c.name, c.start_date, c.end_date, c.created_at, c.company_id, c.priority,
+      co.name as company_name,
+      u.display_name as author_name,
+      (SELECT json_agg(cd.device_id) FROM campaign_device cd WHERE cd.campaign_id = c.id) as device_ids,
+      (SELECT json_agg(cs.sector_id) FROM campaign_sector cs WHERE cs.campaign_id = c.id) as sector_ids,
+      (SELECT COUNT(*) FROM play_logs pl WHERE pl.campaign_id = c.id AND pl.played_at >= NOW() - INTERVAL '24 hours') as plays_last_24h
+    FROM campaigns c
+    JOIN companies co ON c.company_id = co.id
+    LEFT JOIN users u ON c.created_by_user_id = u.id
+    ORDER BY c.start_date ASC
+  `;
+  const allCampaigns = (await db.query(query)).rows;
+  const now = new Date();
+  const deviceEffectiveCampaign = new Map();
+  const activeTimeCampaigns = allCampaigns.filter(
+    (c) => now >= new Date(c.start_date) && now <= new Date(c.end_date)
+  );
+  const deviceTargetsCache = new Map();
+  const winnerCampaigns = new Map();
+
+  for (const campaign of activeTimeCampaigns) {
+    let targetDevices = deviceTargetsCache.get(campaign.id);
+    if (!targetDevices) {
+      targetDevices = await getAffectedDevicesForCampaign(campaign.id);
+      deviceTargetsCache.set(campaign.id, targetDevices);
+    }
+
+    for (const deviceId of targetDevices) {
+      const currentWinner = deviceEffectiveCampaign.get(deviceId);
+      if (!currentWinner) {
+        deviceEffectiveCampaign.set(deviceId, campaign);
+        continue;
+      }
+
+      const campaignSpec =
+        campaign.device_ids?.length > 0
+          ? 3
+          : campaign.sector_ids?.length > 0
+          ? 2
+          : 1;
+      const winnerSpec =
+        currentWinner.device_ids?.length > 0
+          ? 3
+          : currentWinner.sector_ids?.length > 0
+          ? 2
+          : 1;
+
+      let newWinner = currentWinner;
+      if (campaignSpec > winnerSpec) {
+        newWinner = campaign;
+      } else if (campaignSpec === winnerSpec) {
+        if (campaign.priority < currentWinner.priority) {
+          newWinner = campaign;
+        } else if (campaign.priority === currentWinner.priority) {
+          if (
+            parseInt(campaign.plays_last_24h, 10) >
+            parseInt(currentWinner.plays_last_24h, 10)
+          ) {
+            newWinner = campaign;
+          } else if (
+            parseInt(campaign.plays_last_24h, 10) ===
+            parseInt(currentWinner.plays_last_24h, 10)
+          ) {
+            if (
+              new Date(campaign.created_at) > new Date(currentWinner.created_at)
+            ) {
+              newWinner = campaign;
+            }
+          }
+        }
+      }
+      deviceEffectiveCampaign.set(deviceId, newWinner);
+    }
+  }
+
+  deviceEffectiveCampaign.forEach((campaign, deviceId) => {
+    winnerCampaigns.set(campaign.id, campaign);
+  });
+
+  const effectiveCampaignIds = new Set(deviceEffectiveCampaign.values());
+  const pausedCampaigns = new Map();
+  for (const campaign of activeTimeCampaigns) {
+    if (!effectiveCampaignIds.has(campaign)) {
+      const targetDevices = await getAffectedDevicesForCampaign(campaign.id);
+      for (const deviceId of targetDevices) {
+        const winningCampaign = deviceEffectiveCampaign.get(deviceId);
+        if (winningCampaign && winningCampaign.id !== campaign.id) {
+          pausedCampaigns.set(campaign.id, {
+            name: winningCampaign.name,
+            reason: getOverwriteReason(winningCampaign, campaign),
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  const pipeline = allCampaigns.map((campaign) => {
+    const campaignStatus = {
+      ...campaign,
+      status: "Finalizada",
+      status_class: "offline",
+      status_icon: "bi-check-circle-fill",
+      targeting_info: "Todos",
+      pausedBy: null,
+    };
+
+    if (campaign.device_ids?.length > 0) {
+      campaignStatus.targeting_info = "Por Dispositivos";
+    } else if (campaign.sector_ids?.length > 0) {
+      campaignStatus.targeting_info = "Por Setores";
+    }
+
+    if (now < new Date(campaign.start_date)) {
+      campaignStatus.status = "Agendada";
+      campaignStatus.status_class = "scheduled";
+      campaignStatus.status_icon = "bi-clock-history";
+    } else if (
+      now >= new Date(campaign.start_date) &&
+      now <= new Date(campaign.end_date)
+    ) {
+      if (winnerCampaigns.has(campaign.id)) {
+        campaignStatus.status = "Ativa";
+        campaignStatus.status_class = "online";
+        campaignStatus.status_icon = "bi-play-circle-fill";
+      } else {
+        campaignStatus.status = "Pausada";
+        campaignStatus.status_class = "paused";
+        campaignStatus.status_icon = "bi-pause-circle-fill";
+        const pausedInfo = pausedCampaigns.get(campaign.id);
+        campaignStatus.pausedBy = pausedInfo
+          ? pausedInfo
+          : { name: "outra campanha", reason: "Motivo desconhecido." };
+      }
+    }
+
+    return campaignStatus;
+  });
+
+  return pipeline;
+};
+
 const createCampaign = async (data, files, deviceIds, sectorIds) => {
   const {
     name,
@@ -111,13 +340,23 @@ const createCampaign = async (data, files, deviceIds, sectorIds) => {
     company_id,
     media_metadata,
     layout_type,
+    priority,
+    created_by_user_id,
   } = data;
   const client = await db.connect();
   try {
     await client.query("BEGIN");
     const campaignResult = await client.query(
-      `INSERT INTO campaigns (name, start_date, end_date, company_id, layout_type) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, parsedStartDate, parsedEndDate, company_id, layout_type]
+      `INSERT INTO campaigns (name, start_date, end_date, company_id, layout_type, priority, created_by_user_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [
+        name,
+        parsedStartDate,
+        parsedEndDate,
+        company_id,
+        layout_type,
+        priority || 99,
+        created_by_user_id,
+      ]
     );
     const newCampaign = campaignResult.rows[0];
 
@@ -203,6 +442,14 @@ const deleteCampaign = async (id) => {
   }
 };
 
+const deprioritizeCampaign = async (id) => {
+  const result = await db.query(
+    "UPDATE campaigns SET priority = priority + 1 WHERE id = $1 RETURNING priority",
+    [id]
+  );
+  return result.rows[0];
+};
+
 module.exports = {
   getAllCampaigns,
   getCampaignWithDetails,
@@ -210,4 +457,7 @@ module.exports = {
   getAffectedDevicesForCampaign,
   createCampaign,
   deleteCampaign,
+  findOverlappingCampaigns,
+  getCampaignPipeline,
+  deprioritizeCampaign,
 };

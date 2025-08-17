@@ -158,9 +158,22 @@ export function setupCompanyModal() {
 
   const openEditModal = async (companyId) => {
     try {
-      const response = await fetch(`/api/companies/${companyId}`);
-      if (!response.ok) throw new Error(await handleFetchError(response));
-      const company = await response.json();
+      let company;
+      const cachedCompanyData = sessionStorage.getItem(
+        `company_cache_${companyId}`
+      );
+
+      if (cachedCompanyData) {
+        company = JSON.parse(cachedCompanyData);
+        sessionStorage.removeItem(`company_cache_${companyId}`);
+      } else {
+        const response = await fetch(`/api/companies/${companyId}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error(await handleFetchError(response));
+        company = await response.json();
+      }
+
       form.reset();
       currentCompanyId = company.id;
       stagedSectors = [];
@@ -172,12 +185,14 @@ export function setupCompanyModal() {
 
       if (cnpjMask) {
         cnpjMask.unmaskedValue = company.cnpj || "";
+        cnpjMask.updateValue();
       } else {
         form.cnpj.value = company.cnpj;
       }
 
       if (cepMask) {
         cepMask.unmaskedValue = company.cep || "";
+        cepMask.updateValue();
       } else {
         form.cep.value = company.cep;
       }
@@ -207,6 +222,14 @@ export function setupCompanyModal() {
     submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
 
     const body = Object.fromEntries(new FormData(this));
+
+    if (cnpjMask) {
+      body.cnpj = cnpjMask.unmaskedValue;
+    }
+    if (cepMask) {
+      body.cep = cepMask.unmaskedValue;
+    }
+
     if (!currentCompanyId) {
       body.sectors = stagedSectors;
     }

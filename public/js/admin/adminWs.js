@@ -83,11 +83,23 @@ export function connectAdminWs(detailsModalHandler) {
           break;
 
         case "COMPANY_CREATED":
-          if (isCompaniesPage) addCompanyRow(data.payload);
+          if (isCompaniesPage) {
+            sessionStorage.setItem(
+              `company_cache_${data.payload.id}`,
+              JSON.stringify(data.payload)
+            );
+            addCompanyRow(data.payload);
+          }
           notyf.success(`Empresa "${data.payload.name}" criada.`);
           break;
         case "COMPANY_UPDATED":
-          if (isCompaniesPage) updateCompanyRow(data.payload);
+          if (isCompaniesPage) {
+            sessionStorage.setItem(
+              `company_cache_${data.payload.id}`,
+              JSON.stringify(data.payload)
+            );
+            updateCompanyRow(data.payload);
+          }
           notyf.success(`Empresa "${data.payload.name}" atualizada.`);
           break;
         case "COMPANY_DELETED":

@@ -1,4 +1,5 @@
 import { notyf, handleFetchError } from "./utils.js";
+import { showConfirmationModal } from "./confirmationModal.js";
 
 export function setupCampaignModal() {
   const campaignModal = document.getElementById("campaignModal");
@@ -469,6 +470,15 @@ export function setupCampaignModal() {
       elements.nameInput.value = campaign.name;
       elements.companySelect.value = campaign.company_id;
 
+      const priorityValue = campaign.priority || 50;
+      let priorityRadio = elements.form.querySelector(
+        `input[name="priority"][value="${priorityValue}"]`
+      );
+      if (!priorityRadio) {
+        priorityRadio = document.getElementById("priority-normal");
+      }
+      priorityRadio.checked = true;
+
       const layoutRadio = document.querySelector(
         `input[name="layout_type"][value="${
           campaign.layout_type || "fullscreen"
@@ -579,57 +589,31 @@ export function setupCampaignModal() {
     handleInputOrClick
   );
 
-  document.body.addEventListener("click", (e) => {
-    const editButton = e.target.closest(".action-icon-editar");
-    if (document.body.id === "campaigns-page" && editButton) {
-      e.stopPropagation();
-      openEditCampaignModal(editButton.dataset.id);
-    }
-  });
-
   elements.openBtn?.addEventListener("click", openCreateCampaignModal);
   elements.cancelBtn?.addEventListener(
     "click",
     () => (campaignModal.style.display = "none")
   );
 
-  elements.form.addEventListener("submit", async function (e) {
-    e.preventDefault();
-
-    const selectedLayout = document.querySelector(
-      'input[name="layout_type"]:checked'
-    ).value;
-
-    if (stagedFiles.main.length === 0) {
-      notyf.error("A zona Principal deve conter pelo menos uma mídia.");
-      return;
-    }
-
-    if (
-      selectedLayout === "split-80-20" &&
-      stagedFiles.secondary.length === 0
-    ) {
-      notyf.error(
-        "Para o layout 80/20, a zona Secundária também deve conter ao menos uma mídia."
-      );
-      return;
-    }
-
-    if (
-      fpStart.selectedDates[0] &&
-      fpEnd.selectedDates[0] &&
-      fpEnd.selectedDates[0] < fpStart.selectedDates[0]
-    ) {
-      notyf.error("A data de término não pode ser anterior à data de início.");
-      return;
-    }
-
+  const submitForm = async (force = false) => {
     elements.submitButton.disabled = true;
     elements.submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
 
     const formData = new FormData();
+    const selectedPriorityRadio = elements.form.querySelector(
+      'input[name="priority"]:checked'
+    );
+
+    if (!selectedPriorityRadio) {
+      notyf.error("Selecione um nível de prioridade.");
+      elements.submitButton.disabled = false;
+      elements.submitButton.innerHTML = "Salvar";
+      return;
+    }
+    const selectedPriority = selectedPriorityRadio.value;
 
     formData.append("name", elements.nameInput.value);
+    formData.append("priority", selectedPriority);
     formData.append("company_id", elements.companySelect.value);
     formData.append("start_date", elements.startDateInput.value);
     formData.append("end_date", elements.endDateInput.value);
@@ -637,6 +621,10 @@ export function setupCampaignModal() {
       "layout_type",
       document.querySelector('input[name="layout_type"]:checked').value
     );
+
+    if (force) {
+      formData.append("force", "true");
+    }
 
     const segmentationType = document.querySelector(
       'input[name="segmentation_type"]:checked'
@@ -681,15 +669,75 @@ export function setupCampaignModal() {
     }
 
     try {
-      const res = await fetch(this.action, {
+      const res = await fetch(elements.form.action, {
         method: "POST",
         body: formData,
       });
+
       const json = await res.json();
+
+      if (res.status === 409 && json.conflict) {
+        const conflictingCampaigns = json.overlapping_campaigns;
+        const currentPriority = parseInt(selectedPriority, 10);
+        const conflictingCampaign = conflictingCampaigns[0];
+
+        let messageHtml = "";
+        let actions = [];
+
+        if (currentPriority < conflictingCampaign.priority) {
+          messageHtml = `A prioridade da sua campanha já é mais alta que a da concorrente:<br><br>
+                       <span class="highlight-campaign">${conflictingCampaign.name} (Prioridade ${conflictingCampaign.priority})</span><br><br>
+                       Sua campanha será exibida. Deseja salvar mesmo assim?`;
+          actions.push({
+            text: "Salvar Campanha",
+            class: "confirmation-modal-confirm",
+            onClick: () => submitForm(true),
+          });
+        } else {
+          messageHtml = `A prioridade desta campanha <strong>não é suficiente</strong> para sobrepor a campanha concorrente:<br><br>
+                       <span class="highlight-campaign">${conflictingCampaign.name} (Prioridade ${conflictingCampaign.priority})</span><br><br>
+                       Como deseja prosseguir?`;
+
+          actions.push({
+            text: "Tornar Prioritária",
+            class: "confirmation-modal-confirm",
+            onClick: async () => {
+              try {
+                const deprioritizeRes = await fetch(
+                  `/api/campaigns/${conflictingCampaign.id}/deprioritize`,
+                  { method: "POST" }
+                );
+                if (!deprioritizeRes.ok)
+                  throw new Error("Falha ao rebaixar prioridade.");
+                await submitForm(true);
+              } catch (err) {
+                notyf.error(err.message);
+              }
+            },
+          });
+
+          actions.push({
+            text: "Manter Prioridade",
+            class: "confirmation-modal-confirm warning",
+            onClick: () => submitForm(true),
+          });
+        }
+
+        showConfirmationModal({
+          title: "Aviso de Sobreposição",
+          message: messageHtml,
+          actions: actions,
+          type: "warning",
+        });
+
+        return;
+      }
+
       if (!res.ok) {
         notyf.error(json.message || `Erro ${res.status}`);
         return;
       }
+
       campaignModal.style.display = "none";
     } catch (err) {
       notyf.error("Falha na comunicação com o servidor.");
@@ -697,5 +745,41 @@ export function setupCampaignModal() {
       elements.submitButton.disabled = false;
       elements.submitButton.innerHTML = "Salvar";
     }
+  };
+
+  elements.form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const selectedLayout = document.querySelector(
+      'input[name="layout_type"]:checked'
+    ).value;
+
+    if (stagedFiles.main.length === 0) {
+      notyf.error("A zona Principal deve conter pelo menos uma mídia.");
+      return;
+    }
+
+    if (
+      selectedLayout === "split-80-20" &&
+      stagedFiles.secondary.length === 0
+    ) {
+      notyf.error(
+        "Para o layout 80/20, a zona Secundária também deve conter ao menos uma mídia."
+      );
+      return;
+    }
+
+    if (
+      fpStart.selectedDates[0] &&
+      fpEnd.selectedDates[0] &&
+      fpEnd.selectedDates[0] < fpStart.selectedDates[0]
+    ) {
+      notyf.error("A data de término não pode ser anterior à data de início.");
+      return;
+    }
+
+    submitForm(false);
   });
+
+  return { openEditCampaignModal };
 }

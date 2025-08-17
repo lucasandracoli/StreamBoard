@@ -28,26 +28,40 @@
       <% if (companies.length > 0) { %>
       <div class="device-header">
         <div class="search-wrapper">
-           <i class="bi bi-search"></i>
-           <input type="text" id="campaigns-search-input" class="search-input" placeholder="Buscar campanha...">
+          <i class="bi bi-search"></i>
+          <input
+            type="text"
+            id="campaigns-search-input"
+            class="search-input"
+            placeholder="Buscar campanha..."
+          />
         </div>
-        <button class="device-button" id="openCampaignModal">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+        <div class="page-actions-group">
+          <button class="device-button" id="openCampaignModal">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            <span>Nova Campanha</span>
+          </button>
+          <a
+            href="/campaigns/pipeline"
+            class="device-button device-button-outline"
           >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          <span>Nova Campanha</span>
-        </button>
+            <i class="bi bi-bar-chart-steps"></i>
+            <span>Pipeline</span>
+          </a>
+        </div>
       </div>
       <% } %> <% if (companies.length === 0) { %>
       <div class="empty-state-container">
@@ -88,7 +102,8 @@
               <th class="col-name">Nome</th>
               <th class="col-status">Status</th>
               <th class="col-company">Empresa</th>
-              <th class="col-type">Tipo</th>
+              <th class="col-layout">Layout</th>
+              <th class="col-media-count">Mídias</th>
               <th class="col-period">Período</th>
               <th class="col-devices">Alvos</th>
               <th class="col-actions">Ações</th>
@@ -107,7 +122,19 @@
               <td class="break-word col-company">
                 <%= campaign.company_name %>
               </td>
-              <td class="break-word col-type"><%= campaign.campaign_type %></td>
+              <td class="col-layout">
+                <span class="cell-tag tag-layout">
+                  <% if (campaign.layout_type === 'split-80-20') { %> Split
+                  80/20 <% } else if (campaign.layout_type ===
+                  'split-80-20-weather') { %> Split c/ Clima <% } else { %> Tela
+                  Cheia <% } %>
+                </span>
+              </td>
+              <td class="col-media-count">
+                <span class="cell-tag tag-media">
+                  <%= campaign.uploads_count %>
+                </span>
+              </td>
               <td class="period-cell col-period">
                 <%= campaign.periodo_formatado %>
               </td>
@@ -244,6 +271,41 @@
                   class="modal-input"
                   placeholder="Data de término"
                 />
+              </div>
+            </div>
+            <div class="priority-choice-group">
+              <label class="form-label">Prioridade da Campanha</label>
+              <div class="priority-choice">
+                <input
+                  type="radio"
+                  id="priority-normal"
+                  name="priority"
+                  value="50"
+                  checked
+                />
+                <label for="priority-normal"
+                  ><i class="bi bi-bar-chart-line-fill"></i> Normal</label
+                >
+
+                <input
+                  type="radio"
+                  id="priority-alta"
+                  name="priority"
+                  value="25"
+                />
+                <label for="priority-alta"
+                  ><i class="bi bi-graph-up-arrow"></i> Alta</label
+                >
+
+                <input
+                  type="radio"
+                  id="priority-urgente"
+                  name="priority"
+                  value="1"
+                />
+                <label for="priority-urgente"
+                  ><i class="bi bi-exclamation-diamond-fill"></i> Urgente</label
+                >
               </div>
             </div>
           </fieldset>
@@ -505,27 +567,20 @@
 
     <div id="confirmationModal" class="confirmation-modal-overlay">
       <div class="confirmation-modal">
+        <div class="confirmation-modal-icon">
+          <i class="bi"></i>
+        </div>
         <div class="confirmation-modal-header">
-          <h3>Confirmar Exclusão</h3>
+          <h3></h3>
         </div>
         <div class="confirmation-modal-body">
-          <p>
-            Deseja realmente excluir esta campanha? Esta ação não pode ser
-            desfeita.
-          </p>
+          <p></p>
         </div>
-        <div class="confirmation-modal-actions">
-          <button id="cancelConfirmation" class="confirmation-modal-cancel">
-            Cancelar
-          </button>
-          <button id="confirmDeletion" class="confirmation-modal-confirm">
-            Excluir
-          </button>
-        </div>
+        <div class="confirmation-modal-actions"></div>
       </div>
     </div>
 
-    <%- include('partials/footer') %>
+    <%- include("partials/footer") %>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>

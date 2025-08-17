@@ -14,6 +14,13 @@ const createCampaignRow = (campaign) => {
         : visibleNames;
   }
 
+  let layoutName = "Tela Cheia";
+  if (campaign.layout_type === "split-80-20") {
+    layoutName = "Split 80/20";
+  } else if (campaign.layout_type === "split-80-20-weather") {
+    layoutName = "Split c/ Clima";
+  }
+
   row.innerHTML = `
     <td class="break-word col-name">${campaign.name}</td>
     <td data-status-cell class="col-status">
@@ -23,7 +30,12 @@ const createCampaignRow = (campaign) => {
       </span>
     </td>
     <td class="break-word col-company">${campaign.company_name}</td>
-    <td class="break-word col-type">${campaign.campaign_type}</td>
+    <td class="col-layout">
+      <span class="cell-tag tag-layout">${layoutName}</span>
+    </td>
+    <td class="col-media-count">
+      <span class="cell-tag tag-media">${campaign.uploads_count}</span>
+    </td>
     <td class="period-cell col-period">${campaign.periodo_formatado}</td>
     <td class="device-badges-cell col-devices">${targetNamesHtml}</td>
     <td class="actions-cell col-actions">
@@ -57,7 +69,8 @@ export const addCampaignRow = (campaign) => {
               <th class="col-name">Nome</th>
               <th class="col-status">Status</th>
               <th class="col-company">Empresa</th>
-              <th class="col-type">Tipo</th>
+              <th class="col-layout">Layout</th>
+              <th class="col-media-count">Mídias</th>
               <th class="col-period">Período</th>
               <th class="col-devices">Alvos</th>
               <th class="col-actions">Ações</th>
@@ -80,8 +93,34 @@ export const updateCampaignRow = (campaign) => {
   const row = document.querySelector(`tr[data-campaign-id="${campaign.id}"]`);
   if (!row) return;
 
-  const newRow = createCampaignRow(campaign);
-  row.innerHTML = newRow.innerHTML;
+  let targetNamesHtml = "Todos";
+  if (campaign.target_names && campaign.target_names.length > 0) {
+    const visibleNames = campaign.target_names.slice(0, 2).join(", ");
+    const extraCount = campaign.target_names.length - 2;
+    targetNamesHtml =
+      extraCount > 0
+        ? `${visibleNames} <span class="device-badge-extra">+${extraCount}</span>`
+        : visibleNames;
+  }
+
+  let layoutName = "Tela Cheia";
+  if (campaign.layout_type === "split-80-20") {
+    layoutName = "Split 80/20";
+  } else if (campaign.layout_type === "split-80-20-weather") {
+    layoutName = "Split c/ Clima";
+  }
+
+  row.querySelector(".col-name").textContent = campaign.name;
+  row.querySelector(
+    ".online-status"
+  ).className = `online-status ${campaign.status.class}`;
+  row.querySelector("[data-status-text]").textContent = campaign.status.text;
+  row.querySelector(".col-company").textContent = campaign.company_name;
+  row.querySelector(".col-layout .cell-tag").textContent = layoutName;
+  row.querySelector(".col-media-count .cell-tag").textContent =
+    campaign.uploads_count;
+  row.querySelector(".col-period").textContent = campaign.periodo_formatado;
+  row.querySelector(".col-devices").innerHTML = targetNamesHtml;
 };
 
 export const removeCampaignRow = (campaignId) => {

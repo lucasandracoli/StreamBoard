@@ -99,11 +99,7 @@ const triggerSyncForCompany = async (req, res) => {
 };
 
 const downloadTemplate = (req, res) => {
-  const data = [
-    ["sysmo_product_code", "product_name", "price", "section_id"],
-    ["12345", "CARNE BOVINA ALCATRA", 44.9, 1],
-    ["67890", "CARNE SUINA COSTELINHA", 23.9, 2],
-  ];
+  const data = [["sysmo_product_code"], ["12345"], ["67890"]];
   const worksheet = xlsx.utils.aoa_to_sheet(data);
   const workbook = xlsx.utils.book_new();
   xlsx.utils.book_append_sheet(workbook, worksheet, "Produtos");
@@ -111,7 +107,7 @@ const downloadTemplate = (req, res) => {
 
   res.setHeader(
     "Content-Disposition",
-    "attachment; filename=template_produtos.xlsx"
+    "attachment; filename=template_importacao_produtos.xlsx"
   );
   res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.send(buffer);
@@ -130,33 +126,25 @@ const uploadProducts = async (req, res) => {
     const products = xlsx.utils.sheet_to_json(worksheet);
 
     if (
-      !products.every(
-        (p) =>
-          "sysmo_product_code" in p &&
-          "product_name" in p &&
-          "price" in p &&
-          "section_id" in p
-      )
+      !products.every((p) => "sysmo_product_code" in p && p.sysmo_product_code)
     ) {
       return res.status(400).json({
         message:
-          "A planilha está fora do padrão. Verifique as colunas: sysmo_product_code, product_name, price, section_id.",
+          "A planilha está fora do padrão. Verifique se a coluna 'sysmo_product_code' existe e está preenchida.",
       });
     }
 
-    await localProductService.upsertProductsFromSheet(products, companyId);
+    const productCodes = products.map((p) => p.sysmo_product_code);
 
-    const { broadcastToAdmins, sendUpdateToDevice } = req.app.locals;
-    broadcastToAdmins({
-      type: "PRODUCT_SYNC_COMPLETED",
-      payload: {
-        companyId: companyId,
-        message: `${products.length} produtos foram importados/atualizados! A página será atualizada.`,
-      },
+    await productSyncQueue.add("import-products-from-sheet", {
+      companyId: parseInt(companyId, 10),
+      productCodes,
     });
-    notifyPlayers(companyId, { sendUpdateToDevice });
 
-    res.status(200).json({ message: "Comando de upload processado." });
+    res.status(202).json({
+      message:
+        "Importação iniciada em segundo plano. Você será notificado quando terminar.",
+    });
   } catch (error) {
     logger.error("Erro ao processar a planilha de produtos.", error);
     res.status(500).json({ message: "Erro interno ao processar o arquivo." });

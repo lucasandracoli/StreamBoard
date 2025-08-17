@@ -27,8 +27,8 @@ const getFullCampaignDetailsForBroadcast = async (campaignId) => {
     status = { text: "Ativa", class: "online" };
   }
 
-  let campaign_type = "Sem Mídia";
   const uploadsCount = campaign.uploads ? campaign.uploads.length : 0;
+  let campaign_type = "Sem Mídia";
   if (uploadsCount > 1) {
     campaign_type = "Playlist";
   } else if (uploadsCount === 1) {
@@ -46,6 +46,7 @@ const getFullCampaignDetailsForBroadcast = async (campaignId) => {
   return {
     ...campaign,
     status,
+    uploads_count: uploadsCount,
     target_names: allTargetNames,
     periodo_formatado: formatUtils.formatarPeriodo(
       campaign.start_date,
@@ -114,6 +115,19 @@ const listCampaignsPage = async (req, res) => {
   }
 };
 
+const renderCampaignPipelinePage = async (req, res) => {
+  try {
+    const pipelineData = await campaignService.getCampaignPipeline();
+    res.render("campaigns_pipeline", {
+      pipeline: pipelineData,
+      formatUtils,
+    });
+  } catch (err) {
+    logger.error({ err }, "Erro ao carregar o pipeline de campanhas.");
+    res.status(500).send("Erro ao carregar a página.");
+  }
+};
+
 const createCampaign = async (req, res) => {
   let {
     name,
@@ -124,6 +138,8 @@ const createCampaign = async (req, res) => {
     company_id,
     media_metadata,
     layout_type,
+    priority,
+    force,
   } = req.body;
   if (!name || !start_date || !end_date || !company_id) {
     return res
@@ -144,6 +160,34 @@ const createCampaign = async (req, res) => {
     return res.status(400).json({
       message: "A data de término não pode ser anterior à data de início.",
     });
+  }
+
+  const newDeviceIds = device_ids
+    ? Array.isArray(device_ids)
+      ? device_ids
+      : [device_ids]
+    : [];
+  const newSectorIds = sector_ids
+    ? Array.isArray(sector_ids)
+      ? sector_ids
+      : [sector_ids]
+    : [];
+
+  if (force !== "true") {
+    const overlapping = await campaignService.findOverlappingCampaigns(
+      parsedStartDate,
+      parsedEndDate,
+      company_id,
+      newDeviceIds,
+      newSectorIds
+    );
+    if (overlapping.length > 0) {
+      return res.status(409).json({
+        conflict: true,
+        message: `Esta campanha irá sobrepor a(s) seguinte(s) campanha(s) para os mesmos alvos.`,
+        overlapping_campaigns: overlapping,
+      });
+    }
   }
 
   const mediaMetadata = media_metadata ? JSON.parse(media_metadata) : [];
@@ -169,20 +213,12 @@ const createCampaign = async (req, res) => {
     name,
     company_id,
     layout_type: layout_type || "fullscreen",
+    priority: parseInt(priority, 10),
     parsedStartDate,
     parsedEndDate,
     media_metadata: mediaMetadata,
+    created_by_user_id: req.user.id,
   };
-  const newDeviceIds = device_ids
-    ? Array.isArray(device_ids)
-      ? device_ids
-      : [device_ids]
-    : [];
-  const newSectorIds = sector_ids
-    ? Array.isArray(sector_ids)
-      ? sector_ids
-      : [sector_ids]
-    : [];
 
   try {
     const newCampaign = await campaignService.createCampaign(
@@ -287,6 +323,8 @@ const editCampaign = async (req, res) => {
     company_id,
     media_touched,
     layout_type,
+    priority,
+    force,
   } = req.body;
 
   if (!name || !start_date || !end_date || !company_id) {
@@ -308,6 +346,35 @@ const editCampaign = async (req, res) => {
     return res.status(400).json({
       message: "A data de término não pode ser anterior à data de início.",
     });
+  }
+
+  const newDeviceIds = device_ids
+    ? Array.isArray(device_ids)
+      ? device_ids
+      : [device_ids]
+    : [];
+  const newSectorIds = sector_ids
+    ? Array.isArray(sector_ids)
+      ? sector_ids
+      : [sector_ids]
+    : [];
+
+  if (force !== "true") {
+    const overlapping = await campaignService.findOverlappingCampaigns(
+      parsedStartDate,
+      parsedEndDate,
+      company_id,
+      newDeviceIds,
+      newSectorIds,
+      id
+    );
+    if (overlapping.length > 0) {
+      return res.status(409).json({
+        conflict: true,
+        message: `Esta campanha irá sobrepor a(s) seguinte(s) campanha(s) para os mesmos alvos.`,
+        overlapping_campaigns: overlapping,
+      });
+    }
   }
 
   if (media_touched === "true") {
@@ -333,17 +400,6 @@ const editCampaign = async (req, res) => {
     }
   }
 
-  const newDeviceIds = device_ids
-    ? Array.isArray(device_ids)
-      ? device_ids
-      : [device_ids]
-    : [];
-  const newSectorIds = sector_ids
-    ? Array.isArray(sector_ids)
-      ? sector_ids
-      : [sector_ids]
-    : [];
-
   const client = await db.connect();
   try {
     const oldAffectedDeviceIds =
@@ -351,13 +407,14 @@ const editCampaign = async (req, res) => {
     await client.query("BEGIN");
 
     await client.query(
-      "UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, company_id = $4, layout_type = $5 WHERE id = $6",
+      "UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, company_id = $4, layout_type = $5, priority = $6 WHERE id = $7",
       [
         name,
         parsedStartDate,
         parsedEndDate,
         company_id,
         layout_type || "fullscreen",
+        priority || 99,
         id,
       ]
     );
@@ -466,7 +523,10 @@ const editCampaign = async (req, res) => {
     if (fullCampaignDetails) {
       broadcastToAdmins({
         type: "CAMPAIGN_UPDATED",
-        payload: { ...fullCampaignDetails, affectedDeviceIds: allAffectedDeviceIds },
+        payload: {
+          ...fullCampaignDetails,
+          affectedDeviceIds: allAffectedDeviceIds,
+        },
       });
     }
 
@@ -483,10 +543,28 @@ const editCampaign = async (req, res) => {
   }
 };
 
+const deprioritizeCampaign = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await campaignService.deprioritizeCampaign(id);
+    if (!result) {
+      return res.status(404).json({ message: "Campanha não encontrada." });
+    }
+    res
+      .status(200)
+      .json({ message: "Prioridade da campanha concorrente foi rebaixada." });
+  } catch (err) {
+    logger.error({ err }, `Erro ao rebaixar prioridade da campanha ${id}.`);
+    res.status(500).json({ message: "Erro ao rebaixar prioridade." });
+  }
+};
+
 module.exports = {
   listCampaignsPage,
+  renderCampaignPipelinePage,
   createCampaign,
   deleteCampaign,
   getCampaignDetails,
   editCampaign,
+  deprioritizeCampaign,
 };

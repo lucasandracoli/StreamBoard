@@ -1,6 +1,7 @@
 const streamboardDb = require("../../config/streamboard");
 const sysmoService = require("../services/sysmo.service");
 const companyService = require("./company.service");
+const localProductService = require("./localProduct.service");
 const logger = require("../utils/logger");
 
 const syncProductsForCompany = async (companyId) => {
@@ -36,10 +37,6 @@ const syncProductsForCompany = async (companyId) => {
         );
         continue;
       }
-
-      console.log(
-        `[DEBUG] SYNC: Buscando produto do Sysmo com código: ${productCode}`
-      );
 
       const sysmoData = await sysmoService.fetchProductFromSysmoByCode(
         productCode,
@@ -102,4 +99,55 @@ const syncAllProducts = async () => {
   }
 };
 
-module.exports = { syncAllProducts, syncProductsForCompany };
+const importProductsFromSheet = async ({ companyId, productCodes }) => {
+  logger.info(
+    `Iniciando importação de ${productCodes.length} produtos da planilha para a empresa ${companyId}...`
+  );
+  const productsToUpsert = [];
+  let foundCount = 0;
+
+  for (const code of productCodes) {
+    const productCode = String(code).trim();
+    if (!productCode) continue;
+
+    try {
+      const sysmoData = await sysmoService.fetchProductFromSysmoByCode(
+        productCode,
+        companyId
+      );
+      if (sysmoData) {
+        productsToUpsert.push({
+          product_name: sysmoData.dsc,
+          sysmo_product_code: productCode,
+          price: sysmoData.pv2,
+          section_id: sysmoData.sec,
+        });
+        foundCount++;
+      } else {
+        logger.warn(
+          `Produto com código ${productCode} não encontrado no Sysmo para a empresa ${companyId}.`
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `Erro ao buscar o produto ${productCode} do Sysmo durante a importação.`,
+        error
+      );
+    }
+  }
+
+  if (productsToUpsert.length > 0) {
+    await localProductService.upsertProducts(productsToUpsert, companyId);
+  }
+
+  logger.info(
+    `Importação da planilha para a empresa ${companyId} concluída. ${foundCount} produtos encontrados e ${productsToUpsert.length} processados.`
+  );
+  return { importedCount: productsToUpsert.length, totalFound: foundCount };
+};
+
+module.exports = {
+  syncAllProducts,
+  syncProductsForCompany,
+  importProductsFromSheet,
+};

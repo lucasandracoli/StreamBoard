@@ -3,7 +3,6 @@
 %> <% const deviceTypeMap = { 'midia_indoor': 'Mídia Indoor',
 'terminal_consulta': 'Terminal de Consulta', 'digital_menu': 'Menu Digital',
 'default': 'Tipo Desconhecido' }; %>
-
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
@@ -316,20 +315,21 @@
 
     <div id="confirmationModal" class="confirmation-modal-overlay">
       <div class="confirmation-modal">
+        <div class="confirmation-modal-icon">
+          <i class="bi"></i>
+        </div>
         <div class="confirmation-modal-header">
-          <h3>Confirmar Exclusão</h3>
+          <h3></h3>
         </div>
         <div class="confirmation-modal-body">
-          <p>
-            Deseja realmente excluir este item? Esta ação não pode ser desfeita.
-          </p>
+          <p></p>
         </div>
         <div class="confirmation-modal-actions">
           <button id="cancelConfirmation" class="confirmation-modal-cancel">
             Cancelar
           </button>
           <button id="confirmDeletion" class="confirmation-modal-confirm">
-            Excluir
+            Confirmar
           </button>
         </div>
       </div>

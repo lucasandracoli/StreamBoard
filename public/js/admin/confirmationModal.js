@@ -1,81 +1,95 @@
 import { notyf, handleFetchError } from "./utils.js";
 
-export function setupConfirmationModal() {
-  const confirmationModal = document.getElementById("confirmationModal");
-  if (!confirmationModal) return;
+let confirmationModal = null;
+let config = {};
 
-  document.body.addEventListener("click", (e) => {
-    const deleteButton = e.target.closest(".action-icon-excluir");
-    if (!deleteButton) return;
+export const showConfirmationModal = ({
+  title,
+  message,
+  type,
+  actions,
+  confirmText,
+  onConfirm,
+}) => {
+  if (!confirmationModal || !config.icon) {
+    console.error("O Modal de Confirmação não foi inicializado corretamente.");
+    return;
+  }
 
-    e.stopPropagation();
-    const { id } = deleteButton.dataset;
-    const pageId = document.body.id;
-    let config = {};
+  config.title.textContent = title;
+  config.body.innerHTML = message;
+  const iconContainer = config.icon.parentElement;
+  iconContainer.className = "confirmation-modal-icon";
 
-    if (pageId === "campaigns-page") {
-      config = {
-        url: `/campaigns/${id}/delete`,
-        msg: "Deseja realmente excluir esta campanha?",
-      };
-    } else if (pageId === "devices-page") {
-      config = {
-        url: `/devices/${id}/delete`,
-        msg: "Deseja realmente excluir este dispositivo?",
-      };
-    } else if (pageId === "companies-page") {
-      config = {
-        url: `/companies/${id}/delete`,
-        msg: "Excluir esta empresa removerá todos os dados associados. Confirma?",
-      };
-    } else if (pageId === "products-page") {
-      config = {
-        url: `/products/${id}/delete`,
-        msg: "Deseja realmente excluir este produto da lista local?",
-        reload: true,
-      };
-    } else return;
+  if (type === "warning") {
+    iconContainer.classList.add("warning");
+    config.icon.className = "bi bi-exclamation-triangle-fill";
+  } else {
+    iconContainer.classList.add("danger");
+    config.icon.className = "bi bi-trash3-fill";
+  }
 
-    confirmationModal.querySelector(".confirmation-modal-body p").textContent =
-      config.msg;
-    confirmationModal.style.display = "flex";
+  config.actionsContainer.innerHTML = "";
 
-    const confirmBtn = document.getElementById("confirmDeletion");
-    const newConfirmBtn = confirmBtn.cloneNode(true);
-    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+  const hideModal = () => (confirmationModal.style.display = "none");
 
-    newConfirmBtn.addEventListener(
+  const cancelBtn = document.createElement("button");
+  cancelBtn.id = "cancelConfirmation";
+  cancelBtn.className = "confirmation-modal-cancel";
+  cancelBtn.textContent = "Cancelar";
+  cancelBtn.addEventListener("click", hideModal);
+
+  if (actions && actions.length > 0) {
+    actions.forEach((action) => {
+      const btn = document.createElement("button");
+      btn.innerHTML = action.text;
+      btn.className = action.class;
+      btn.addEventListener(
+        "click",
+        () => {
+          hideModal();
+          action.onClick();
+        },
+        { once: true }
+      );
+      config.actionsContainer.appendChild(btn);
+    });
+    config.actionsContainer.appendChild(cancelBtn);
+  } else {
+    const confirmBtn = document.createElement("button");
+    confirmBtn.id = "confirmDeletion";
+    confirmBtn.className = "confirmation-modal-confirm";
+    if (type === "warning") {
+      confirmBtn.classList.add("warning");
+    } else {
+      confirmBtn.classList.add("danger");
+    }
+    confirmBtn.textContent = confirmText;
+    confirmBtn.addEventListener(
       "click",
-      async () => {
-        try {
-          const res = await fetch(config.url, { method: "POST" });
-          const json = await res.json();
-          if (!res.ok) {
-            throw new Error(json.message || `Erro ${res.status}`);
-          }
-          if (config.reload) {
-            setTimeout(() => window.location.reload(), 1200);
-          }
-        } catch (err) {
-          notyf.error(err.message || "Falha na comunicação.");
-        } finally {
-          confirmationModal.style.display = "none";
-        }
+      () => {
+        hideModal();
+        onConfirm();
       },
       { once: true }
     );
-  });
+    config.actionsContainer.appendChild(cancelBtn);
+    config.actionsContainer.appendChild(confirmBtn);
+  }
 
-  document
-    .getElementById("cancelConfirmation")
-    ?.addEventListener(
-      "click",
-      () => (confirmationModal.style.display = "none")
-    );
+  confirmationModal.style.display = "flex";
+};
 
-  window.addEventListener("click", (e) => {
-    if (e.target === confirmationModal) {
-      confirmationModal.style.display = "none";
-    }
-  });
+export function setupConfirmationModal() {
+  confirmationModal = document.getElementById("confirmationModal");
+  if (!confirmationModal) return;
+
+  config = {
+    icon: confirmationModal.querySelector(".confirmation-modal-icon i"),
+    title: confirmationModal.querySelector(".confirmation-modal-header h3"),
+    body: confirmationModal.querySelector(".confirmation-modal-body p"),
+    actionsContainer: confirmationModal.querySelector(
+      ".confirmation-modal-actions"
+    ),
+  };
 }

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Pipeline de Campanhas</title>
+    <link rel="stylesheet" href="/css/styles.css?v=<%= appVersion %>" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body id="campaigns-pipeline-page" class="dashboard">
+    <%- include("partials/navbar") %>
+
+    <main class="container">
+      <div class="device-header">
+        <a href="/campaigns" class="back-button">
+          <i class="bi bi-arrow-left"></i>
+          <span>Voltar para Campanhas</span>
+        </a>
+      </div>
+
+      <% if (pipeline.length === 0) { %>
+      <div class="empty-state-container">
+        <div class="empty-state-icon">
+          <i class="bi bi-megaphone"></i>
+        </div>
+        <h3 class="empty-state-title">Nenhuma Campanha Criada</h3>
+        <p class="empty-state-subtitle">
+          Ainda não há campanhas para exibir no pipeline.
+        </p>
+      </div>
+      <% } else { %>
+      <div class="pipeline-container">
+        <div class="pipeline-timeline">
+          <% pipeline.forEach((campaign, index) => { %>
+          <div
+            class="pipeline-item"
+            style="animation-delay: <%= index * 100 %>ms"
+          >
+            <div class="pipeline-icon <%= campaign.status_class %>">
+              <i class="bi <%= campaign.status_icon %>"></i>
+            </div>
+            <div class="pipeline-content">
+              <div class="pipeline-header">
+                <span class="pipeline-name"><%= campaign.name %></span>
+                <span class="online-status <%= campaign.status_class %>">
+                  <span class="online-dot"></span>
+                  <span><%= campaign.status %></span>
+                </span>
+              </div>
+              <div class="pipeline-details">
+                <span
+                  ><i class="bi bi-building"></i> <%= campaign.company_name
+                  %></span
+                >
+                <span
+                  ><i class="bi bi-calendar-event"></i> <%=
+                  formatUtils.formatarPeriodo(campaign.start_date,
+                  campaign.end_date) %></span
+                >
+                <span
+                  ><i class="bi bi-person-circle"></i> <%= campaign.author_name
+                  || 'N/A' %></span
+                >
+                <span
+                  ><i class="bi bi-bullseye"></i> <%= campaign.targeting_info
+                  %></span
+                >
+              </div>
+              <% if (campaign.pausedBy) { %>
+              <div class="pipeline-paused-by">
+                <i class="bi bi-exclamation-diamond-fill"></i>
+                <span class="pipeline-paused-by-reason"
+                  ><%- campaign.pausedBy.reason %></span
+                >
+              </div>
+              <% } %>
+            </div>
+          </div>
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+    </main>
+
+    <%- include("partials/footer") %>
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
+    <script type="module" src="/js/main.js?v=<%= appVersion %>"></script>
+  </body>
+</html>
