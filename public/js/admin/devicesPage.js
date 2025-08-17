@@ -1,4 +1,5 @@
-import { notyf, deviceTypeNames } from "./utils.js";
+import { deviceTypeNames } from "./utils.js";
+import { showError } from "./notification.js";
 import { setupTableSearch } from "./tableSearch.js";
 
 function createDeviceRow(device) {
@@ -65,7 +66,7 @@ export async function refreshDevicesTable() {
       document.dispatchEvent(new CustomEvent("page-content-refreshed"));
     }
   } catch (err) {
-    notyf.error(
+    showError(
       err.message || "Não foi possível atualizar a lista de dispositivos."
     );
   }

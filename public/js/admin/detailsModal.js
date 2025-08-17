@@ -1,4 +1,5 @@
-import { deviceTypeNames, handleFetchError, notyf } from "./utils.js";
+import { deviceTypeNames, handleFetchError } from "./utils.js";
+import { showSuccess, showError } from "./notification.js";
 
 export function setupDetailsModal() {
   const detailsModal = document.getElementById("deviceDetailsModal");
@@ -21,7 +22,7 @@ export function setupDetailsModal() {
 
   const displayOtp = (otp, expiresAt) => {
     if (!otpView || !otpCodeEl || !otpExpiryEl) {
-      notyf.error("Elementos da OTP não encontrados no HTML.");
+      showError("Elementos da OTP não encontrados no HTML.");
       return;
     }
 
@@ -112,7 +113,7 @@ export function setupDetailsModal() {
       if (!res.ok) throw new Error("Falha ao carregar dados do dispositivo.");
       populateDetailsModal(await res.json());
     } catch (err) {
-      notyf.error(err.message);
+      showError(err.message);
       detailsModal.style.display = "none";
     } finally {
       detailsModal.querySelector(".details-modal-loader").style.display =
@@ -151,7 +152,7 @@ export function setupDetailsModal() {
       const res = await fetch(url, { method: "POST" });
       if (!res.ok) throw new Error(await handleFetchError(res));
     } catch (err) {
-      notyf.error(err.message || "Falha na comunicação.");
+      showError(err.message || "Falha na comunicação.");
     }
   };
 
@@ -171,9 +172,9 @@ export function setupDetailsModal() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message);
-      notyf.success(json.message);
+      showSuccess(json.message);
     } catch (err) {
-      notyf.error(err.message || "Falha ao enviar comando.");
+      showError(err.message || "Falha ao enviar comando.");
     } finally {
       button.disabled = false;
     }
@@ -209,7 +210,7 @@ export function setupDetailsModal() {
         const { otp, expiresAt } = await res.json();
         displayOtp(otp, expiresAt);
       } catch (err) {
-        notyf.error(err.message || "Não foi possível gerar o OTP.");
+        showError(err.message || "Não foi possível gerar o OTP.");
       } finally {
         this.disabled = false;
       }
@@ -228,9 +229,9 @@ export function setupDetailsModal() {
           throw new Error((await res.json()).message || "Falha ao gerar link.");
         const { magicLink } = await res.json();
         await copyTextToClipboard(magicLink);
-        notyf.success("Link mágico copiado!");
+        showSuccess("Link mágico copiado!");
       } catch (err) {
-        notyf.error(err.message || "Não foi possível copiar o link.");
+        showError(err.message || "Não foi possível copiar o link.");
       } finally {
         this.disabled = false;
       }

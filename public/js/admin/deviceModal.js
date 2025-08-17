@@ -1,4 +1,5 @@
-import { notyf, handleFetchError } from "./utils.js";
+import { handleFetchError } from "./utils.js";
+import { showSuccess, showError } from "./notification.js";
 
 export function setupDeviceModal() {
   const deviceModal = document.getElementById("deviceModal");
@@ -32,7 +33,7 @@ export function setupDeviceModal() {
       if (selectedSectorId) sectorSelect.value = selectedSectorId;
       sectorSelect.disabled = false;
     } catch (error) {
-      notyf.error("Não foi possível carregar setores.");
+      showError("Não foi possível carregar setores.");
       sectorSelect.innerHTML =
         '<option value="" disabled selected>Erro ao carregar</option>';
     }
@@ -68,7 +69,7 @@ export function setupDeviceModal() {
       await populateSectors(device.company_id, device.sector_id);
       deviceModal.style.display = "flex";
     } catch (error) {
-      notyf.error(error.message || "Erro ao carregar dispositivo.");
+      showError(error.message || "Erro ao carregar dispositivo.");
     }
   };
 
@@ -92,12 +93,12 @@ export function setupDeviceModal() {
       });
       const json = await res.json();
       if (!res.ok) {
-        notyf.error(json.message || `Erro ${res.status}`);
+        showError(json.message || `Erro ${res.status}`);
         return;
       }
       deviceModal.style.display = "none";
     } catch (err) {
-      notyf.error("Falha na comunicação com o servidor.");
+      showError("Falha na comunicação com o servidor.");
     } finally {
       submitButton.disabled = false;
       submitButton.innerHTML = originalButtonText;

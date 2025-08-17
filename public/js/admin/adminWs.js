@@ -1,8 +1,13 @@
-import { notyf } from "./utils.js";
+import { showSuccess, showError } from "./notification.js";
 import { refreshCompaniesTable } from "./companiesPage.js";
 import { updateDeviceRow, refreshDevicesTable } from "./devicesPage.js";
 import { updateCampaignRow, refreshCampaignsTable } from "./campaignsPage.js";
-import { refreshProductTable, resetSyncButton } from "./productsPage.js";
+import {
+  addProductRow,
+  refreshProductTable,
+  resetSyncButton,
+  removeProductRow,
+} from "./productsPage.js";
 
 export function connectAdminWs(detailsModalHandler) {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -21,7 +26,7 @@ export function connectAdminWs(detailsModalHandler) {
         case "DEVICE_CREATED":
         case "DEVICE_DELETED":
           if (pageId === "devices-page") refreshDevicesTable();
-          notyf.success(data.payload.message);
+          if (data.payload.message) showSuccess(data.payload.message);
           break;
         case "DEVICE_UPDATED":
           if (pageId === "devices-page") {
@@ -33,27 +38,35 @@ export function connectAdminWs(detailsModalHandler) {
               detailsModalHandler.openDetailsModal(data.payload.id);
             }
           }
-          if (data.payload.message) notyf.success(data.payload.message);
+          if (data.payload.message) showSuccess(data.payload.message);
           break;
         case "COMPANY_CREATED":
         case "COMPANY_DELETED":
         case "COMPANY_UPDATED":
           if (pageId === "companies-page") refreshCompaniesTable();
-          notyf.success(data.payload.message);
+          if (data.payload.message) showSuccess(data.payload.message);
           break;
         case "CAMPAIGN_CREATED":
         case "CAMPAIGN_DELETED":
           if (pageId === "campaigns-page") refreshCampaignsTable();
-          notyf.success(data.payload.message);
+          if (data.payload.message) showSuccess(data.payload.message);
           break;
         case "CAMPAIGN_UPDATED":
           if (pageId === "campaigns-page") updateCampaignRow(data.payload);
-          notyf.success(data.payload.message);
+          if (data.payload.message) showSuccess(data.payload.message);
           break;
-
+        case "PRODUCT_CREATED":
+          if (data.payload.message) showSuccess(data.payload.message);
+          if (document.body.id === "products-page") {
+            const currentCompanyId = window.location.pathname.split("/").pop();
+            if (String(data.payload.company_id) === currentCompanyId) {
+              addProductRow(data.payload);
+            }
+          }
+          break;
         case "PRODUCT_OPERATION_SUCCESS": {
-          notyf.success(data.payload.message);
-          if (pageId === "products-page") {
+          if (data.payload.message) showSuccess(data.payload.message);
+          if (document.body.id === "products-page") {
             const currentCompanyId = window.location.pathname.split("/").pop();
             if (
               !data.payload.companyId ||
@@ -65,8 +78,8 @@ export function connectAdminWs(detailsModalHandler) {
           break;
         }
         case "PRODUCT_OPERATION_FAILURE": {
-          notyf.error(data.payload.message);
-          if (pageId === "products-page") {
+          if (data.payload.message) showError(data.payload.message);
+          if (document.body.id === "products-page") {
             const currentCompanyId = window.location.pathname.split("/").pop();
             if (
               !data.payload.companyId ||

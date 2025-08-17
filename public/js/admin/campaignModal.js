@@ -1,4 +1,5 @@
-import { notyf, handleFetchError } from "./utils.js";
+import { handleFetchError } from "./utils.js";
+import { showSuccess, showError } from "./notification.js";
 import { showConfirmationModal } from "./confirmationModal.js";
 
 export function setupCampaignModal() {
@@ -180,7 +181,7 @@ export function setupCampaignModal() {
       tomSelectSectors.addOptions(sectors);
       tomSelectSectors.enable();
     } catch (error) {
-      notyf.error("Não foi possível carregar dispositivos e setores.");
+      showError("Não foi possível carregar dispositivos e setores.");
       tomSelectDevices.settings.placeholder = "Erro ao carregar";
       tomSelectSectors.settings.placeholder = "Erro ao carregar";
     } finally {
@@ -378,7 +379,7 @@ export function setupCampaignModal() {
             evt.to.dataset.zone === "secondary" &&
             evt.to.querySelectorAll(".file-preview-item").length > 1
           ) {
-            notyf.error("A zona secundária só pode conter uma mídia.");
+            showError("A zona secundária só pode conter uma mídia.");
             evt.from.appendChild(evt.item);
           }
         },
@@ -392,7 +393,7 @@ export function setupCampaignModal() {
             toZone === "secondary" &&
             stagedFiles.secondary.length >= 1
           ) {
-            notyf.error("A zona secundária só pode conter uma mídia.");
+            showError("A zona secundária só pode conter uma mídia.");
             renderStagedFiles();
             return;
           }
@@ -522,7 +523,7 @@ export function setupCampaignModal() {
 
       campaignModal.style.display = "flex";
     } catch (error) {
-      notyf.error(error.message || "Erro ao carregar campanha.");
+      showError(error.message || "Erro ao carregar campanha.");
     }
   };
 
@@ -547,7 +548,7 @@ export function setupCampaignModal() {
       currentUploadZone === "secondary" &&
       stagedFiles.secondary.length + newFiles.length > 1
     ) {
-      notyf.error("A zona secundária só pode conter uma mídia.");
+      showError("A zona secundária só pode conter uma mídia.");
       elements.fileInput.value = "";
       return;
     }
@@ -605,7 +606,7 @@ export function setupCampaignModal() {
     );
 
     if (!selectedPriorityRadio) {
-      notyf.error("Selecione um nível de prioridade.");
+      showError("Selecione um nível de prioridade.");
       elements.submitButton.disabled = false;
       elements.submitButton.innerHTML = "Salvar";
       return;
@@ -709,7 +710,7 @@ export function setupCampaignModal() {
                   throw new Error("Falha ao rebaixar prioridade.");
                 await submitForm(true);
               } catch (err) {
-                notyf.error(err.message);
+                showError(err.message);
               }
             },
           });
@@ -733,13 +734,13 @@ export function setupCampaignModal() {
       }
 
       if (!res.ok) {
-        notyf.error(json.message || `Erro ${res.status}`);
+        showError(json.message || `Erro ${res.status}`);
         return;
       }
 
       campaignModal.style.display = "none";
     } catch (err) {
-      notyf.error("Falha na comunicação com o servidor.");
+      showError("Falha na comunicação com o servidor.");
     } finally {
       elements.submitButton.disabled = false;
       elements.submitButton.innerHTML = "Salvar";
@@ -754,7 +755,7 @@ export function setupCampaignModal() {
     ).value;
 
     if (stagedFiles.main.length === 0) {
-      notyf.error("A zona Principal deve conter pelo menos uma mídia.");
+      showError("A zona Principal deve conter pelo menos uma mídia.");
       return;
     }
 
@@ -762,7 +763,7 @@ export function setupCampaignModal() {
       selectedLayout === "split-80-20" &&
       stagedFiles.secondary.length === 0
     ) {
-      notyf.error(
+      showError(
         "Para o layout 80/20, a zona Secundária também deve conter ao menos uma mídia."
       );
       return;
@@ -773,7 +774,7 @@ export function setupCampaignModal() {
       fpEnd.selectedDates[0] &&
       fpEnd.selectedDates[0] < fpStart.selectedDates[0]
     ) {
-      notyf.error("A data de término não pode ser anterior à data de início.");
+      showError("A data de término não pode ser anterior à data de início.");
       return;
     }
 

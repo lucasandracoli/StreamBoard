@@ -30,7 +30,9 @@ function initializePage() {
 
 document.addEventListener("DOMContentLoaded", () => {
   initializePage();
-  connectAdminWs();
+  setTimeout(() => {
+    connectAdminWs();
+  }, 1000);
 });
 
 document.addEventListener("page-content-refreshed", initializePage);

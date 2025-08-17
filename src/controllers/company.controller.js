@@ -45,6 +45,7 @@ const createCompany = async (req, res) => {
       payload: {
         ...companyDetails,
         formatted_cnpj: formatUtils.formatarCNPJ(companyDetails.cnpj),
+        message: "Empresa cadastrada com sucesso.",
       },
     });
 
@@ -82,6 +83,7 @@ const editCompany = async (req, res) => {
       payload: {
         ...companyDetails,
         formatted_cnpj: formatUtils.formatarCNPJ(companyDetails.cnpj),
+        message: "Empresa atualizada com sucesso.",
       },
     });
     res
@@ -102,6 +104,7 @@ const deleteCompany = async (req, res) => {
       type: "COMPANY_DELETED",
       payload: {
         companyId: id,
+        message: "Empresa excluída com sucesso.",
       },
     });
     res
@@ -159,7 +162,10 @@ const addSectorToCompany = async (req, res) => {
   try {
     const newSector = await companyService.createSector(company_id, name);
     const { broadcastToAdmins } = req.app.locals;
-    broadcastToAdmins({ type: "REFRESH_PAGE_CONTENT" });
+    broadcastToAdmins({
+      type: "COMPANY_UPDATED",
+      payload: { companyId: company_id, message: "Setor adicionado com sucesso." }
+    });
     res.status(201).json(newSector);
   } catch (err) {
     logger.error("Erro ao adicionar setor.", err);
@@ -177,7 +183,10 @@ const removeSector = async (req, res) => {
   try {
     await companyService.deleteSector(id);
     const { broadcastToAdmins } = req.app.locals;
-    broadcastToAdmins({ type: "REFRESH_PAGE_CONTENT" });
+    broadcastToAdmins({
+      type: "COMPANY_UPDATED",
+      payload: { message: "Setor excluído com sucesso." }
+    });
     res.status(200).json({ message: "Setor excluído com sucesso." });
   } catch (err) {
     logger.error(`Erro ao excluir setor ${id}.`, err);

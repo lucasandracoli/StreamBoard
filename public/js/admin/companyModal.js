@@ -1,4 +1,6 @@
-import { notyf, handleFetchError } from "./utils.js";
+import { handleFetchError } from "./utils.js";
+import { showSuccess, showError } from "./notification.js";
+import { showConfirmationModal } from "./confirmationModal.js";
 
 export function setupCompanyModal() {
   const companyModal = document.getElementById("companyModal");
@@ -69,13 +71,13 @@ export function setupCompanyModal() {
       const sectors = await response.json();
       renderExistingSectors(sectors);
     } catch (error) {
-      notyf.error("Erro ao carregar setores.");
+      showError("Erro ao carregar setores.");
     }
   };
 
   addSectorBtn.addEventListener("click", async () => {
     const name = newSectorNameInput.value.trim();
-    if (!name) return notyf.error("O nome do setor é obrigatório.");
+    if (!name) return showError("O nome do setor é obrigatório.");
 
     if (currentCompanyId) {
       try {
@@ -86,14 +88,12 @@ export function setupCompanyModal() {
         });
         if (!res.ok) throw new Error(await handleFetchError(res));
         newSectorNameInput.value = "";
-        notyf.success("Setor adicionado.");
-        fetchAndRenderSectors(currentCompanyId);
       } catch (error) {
-        notyf.error(error.message || "Falha ao adicionar setor.");
+        showError(error.message || "Falha ao adicionar setor.");
       }
     } else {
       if (stagedSectors.includes(name)) {
-        return notyf.error("Este setor já foi adicionado.");
+        return showError("Este setor já foi adicionado.");
       }
       stagedSectors.push(name);
       newSectorNameInput.value = "";
@@ -109,32 +109,23 @@ export function setupCompanyModal() {
     const stagedIndex = deleteButton.dataset.index;
 
     if (sectorId) {
-      const confirmationModal = document.getElementById("confirmationModal");
-      const confirmButton = document.getElementById("confirmDeletion");
-      const newConfirmButton = confirmButton.cloneNode(true);
-      confirmButton.parentNode.replaceChild(newConfirmButton, confirmButton);
-
-      confirmationModal.querySelector(
-        ".confirmation-modal-body p"
-      ).textContent = "Deseja realmente excluir este setor?";
-      confirmationModal.style.display = "flex";
-
       const handleConfirm = async () => {
         try {
           const res = await fetch(`/api/sectors/${sectorId}/delete`, {
             method: "POST",
           });
           if (!res.ok) throw new Error(await handleFetchError(res));
-          notyf.success("Setor excluído.");
-          fetchAndRenderSectors(currentCompanyId);
         } catch (error) {
-          notyf.error(error.message || "Falha ao excluir setor.");
-        } finally {
-          confirmationModal.style.display = "none";
+          showError(error.message || "Falha ao excluir setor.");
         }
       };
-      newConfirmButton.addEventListener("click", handleConfirm, {
-        once: true,
+
+      showConfirmationModal({
+        title: "Confirmar Exclusão",
+        message: "Deseja realmente excluir este setor?",
+        confirmText: "Excluir",
+        type: "danger",
+        onConfirm: handleConfirm,
       });
     } else if (stagedIndex !== undefined) {
       stagedSectors.splice(parseInt(stagedIndex, 10), 1);
@@ -204,7 +195,7 @@ export function setupCompanyModal() {
       await fetchAndRenderSectors(company.id);
       companyModal.style.display = "flex";
     } catch (error) {
-      notyf.error(error.message || "Erro ao carregar empresa.");
+      showError(error.message || "Erro ao carregar empresa.");
     }
   };
 
@@ -242,12 +233,12 @@ export function setupCompanyModal() {
       });
       const json = await res.json();
       if (!res.ok) {
-        notyf.error(json.message || `Erro ${res.status}`);
+        showError(json.message || `Erro ${res.status}`);
         return;
       }
       companyModal.style.display = "none";
     } catch (err) {
-      notyf.error("Falha na comunicação com o servidor.");
+      showError("Falha na comunicação com o servidor.");
     } finally {
       submitButton.disabled = false;
       submitButton.innerHTML = originalButtonText;

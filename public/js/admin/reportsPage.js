@@ -1,4 +1,4 @@
-import { notyf } from "./utils.js";
+import { showError } from "./notification.js";
 
 const PALETTE = ["#00c86f", "#3b82f6", "#f59e0b", "#8b5cf6", "#ef4444"];
 
@@ -240,7 +240,7 @@ export function setupDashboardCharts() {
       }
     })
     .catch((err) => {
-      notyf.error(err.message);
+      showError(err.message);
       showNoDataMessage("playsOverTimeChart");
       showNoDataMessage("topMediaChart");
       showNoDataMessage("topCampaignsChart");

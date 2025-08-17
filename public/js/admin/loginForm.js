@@ -1,4 +1,4 @@
-import { notyf } from "./utils.js";
+import { showSuccess, showError } from "./notification.js";
 
 export function setupLoginForm() {
   const loginForm = document.getElementById("loginForm");
@@ -22,13 +22,13 @@ export function setupLoginForm() {
       });
       const json = await res.json();
       if (!res.ok) {
-        notyf.error(json.message || `Erro ${res.status}`);
+        showError(json.message || `Erro ${res.status}`);
         return;
       }
-      notyf.success(json.message);
+      showSuccess(json.message);
       setTimeout(() => (location.href = "/dashboard"), 1200);
     } catch (err) {
-      notyf.error("Falha na comunicação com o servidor.");
+      showError("Falha na comunicação com o servidor.");
     } finally {
       submitButton.disabled = false;
       submitButton.innerHTML = originalButtonText;

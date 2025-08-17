@@ -1,4 +1,4 @@
-import { notyf } from "./utils.js";
+import { showSuccess, showError } from "./notification.js";
 
 export function setupProductModal() {
   const pageBody = document.getElementById("products-page");
@@ -110,7 +110,7 @@ export function setupProductModal() {
         addSingleProductBtn.textContent = "Confirmar e Adicionar";
         addSingleProductBtn.dataset.action = "confirm";
       } catch (err) {
-        notyf.error(err.message || "Falha ao buscar item.");
+        showError(err.message || "Falha ao buscar item.");
         resetSingleProductForm();
       } finally {
         addSingleProductBtn.disabled = false;
@@ -125,10 +125,9 @@ export function setupProductModal() {
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.message);
-        notyf.success(json.message);
-        resetSingleProductForm();
+        modal.style.display = "none";
       } catch (err) {
-        notyf.error(err.message || "Falha na comunicação.");
+        showError(err.message || "Falha na comunicação.");
         addSingleProductBtn.textContent = "Confirmar e Adicionar";
       } finally {
         addSingleProductBtn.disabled = false;
@@ -147,7 +146,7 @@ export function setupProductModal() {
       uploadArea.classList.add("has-file");
       uploadSubmitBtn.disabled = false;
     } else {
-      notyf.error("Por favor, selecione um arquivo Excel (.xlsx).");
+      showError("Por favor, selecione um arquivo Excel (.xlsx).");
       resetUploadForm();
     }
   };

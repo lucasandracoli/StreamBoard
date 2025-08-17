@@ -1,4 +1,4 @@
-import { notyf } from "./utils.js";
+import { showError } from "./notification.js";
 import { setupTableSearch } from "./tableSearch.js";
 
 function createCampaignRow(campaign) {
@@ -81,7 +81,7 @@ export async function refreshCampaignsTable() {
       document.dispatchEvent(new CustomEvent("page-content-refreshed"));
     }
   } catch (err) {
-    notyf.error(
+    showError(
       err.message || "Não foi possível atualizar a lista de campanhas."
     );
   }

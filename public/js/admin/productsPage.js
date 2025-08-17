@@ -1,4 +1,4 @@
-import { notyf } from "./utils.js";
+import { showError } from "./notification.js";
 import { setupTableSearch } from "./tableSearch.js";
 
 function createProductRow(product) {
@@ -100,9 +100,7 @@ export async function refreshProductTable() {
     }
     resetSyncButton();
   } catch (err) {
-    notyf.error(
-      err.message || "Não foi possível atualizar a lista de produtos."
-    );
+    showError(err.message || "Não foi possível atualizar a lista de produtos.");
   }
 }
 
