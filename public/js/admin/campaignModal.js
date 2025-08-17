@@ -470,6 +470,15 @@ export function setupCampaignModal() {
       elements.nameInput.value = campaign.name;
       elements.companySelect.value = campaign.company_id;
 
+      const priorityValue = campaign.priority || 50;
+      let priorityRadio = elements.form.querySelector(
+        `input[name="priority"][value="${priorityValue}"]`
+      );
+      if (!priorityRadio) {
+        priorityRadio = document.getElementById("priority-normal");
+      }
+      priorityRadio.checked = true;
+
       const layoutRadio = document.querySelector(
         `input[name="layout_type"][value="${
           campaign.layout_type || "fullscreen"
@@ -591,8 +600,20 @@ export function setupCampaignModal() {
     elements.submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
 
     const formData = new FormData();
+    const selectedPriorityRadio = elements.form.querySelector(
+      'input[name="priority"]:checked'
+    );
+
+    if (!selectedPriorityRadio) {
+      notyf.error("Selecione um nível de prioridade.");
+      elements.submitButton.disabled = false;
+      elements.submitButton.innerHTML = "Salvar";
+      return;
+    }
+    const selectedPriority = selectedPriorityRadio.value;
 
     formData.append("name", elements.nameInput.value);
+    formData.append("priority", selectedPriority);
     formData.append("company_id", elements.companySelect.value);
     formData.append("start_date", elements.startDateInput.value);
     formData.append("end_date", elements.endDateInput.value);
@@ -656,24 +677,59 @@ export function setupCampaignModal() {
       const json = await res.json();
 
       if (res.status === 409 && json.conflict) {
-        const messageHtml =
-          "Esta campanha irá sobrepor a(s) seguinte(s) campanha(s):<br><br>" +
-          json.overlapping_campaigns
-            .map((name) => `<span class="highlight-campaign">${name}</span>`)
-            .join(" ") +
-          "<br><br>Deseja continuar?";
+        const conflictingCampaigns = json.overlapping_campaigns;
+        const currentPriority = parseInt(selectedPriority, 10);
+        const conflictingCampaign = conflictingCampaigns[0];
+
+        let messageHtml = "";
+        let actions = [];
+
+        if (currentPriority < conflictingCampaign.priority) {
+          messageHtml = `A prioridade da sua campanha já é mais alta que a da concorrente:<br><br>
+                       <span class="highlight-campaign">${conflictingCampaign.name} (Prioridade ${conflictingCampaign.priority})</span><br><br>
+                       Sua campanha será exibida. Deseja salvar mesmo assim?`;
+          actions.push({
+            text: "Salvar Campanha",
+            class: "confirmation-modal-confirm",
+            onClick: () => submitForm(true),
+          });
+        } else {
+          messageHtml = `A prioridade desta campanha <strong>não é suficiente</strong> para sobrepor a campanha concorrente:<br><br>
+                       <span class="highlight-campaign">${conflictingCampaign.name} (Prioridade ${conflictingCampaign.priority})</span><br><br>
+                       Como deseja prosseguir?`;
+
+          actions.push({
+            text: "Tornar Prioritária",
+            class: "confirmation-modal-confirm",
+            onClick: async () => {
+              try {
+                const deprioritizeRes = await fetch(
+                  `/api/campaigns/${conflictingCampaign.id}/deprioritize`,
+                  { method: "POST" }
+                );
+                if (!deprioritizeRes.ok)
+                  throw new Error("Falha ao rebaixar prioridade.");
+                await submitForm(true);
+              } catch (err) {
+                notyf.error(err.message);
+              }
+            },
+          });
+
+          actions.push({
+            text: "Manter Prioridade",
+            class: "confirmation-modal-confirm warning",
+            onClick: () => submitForm(true),
+          });
+        }
 
         showConfirmationModal({
           title: "Aviso de Sobreposição",
           message: messageHtml,
-          confirmText: "Salvar Mesmo Assim",
+          actions: actions,
           type: "warning",
-          onConfirm: () => {
-            const modal = document.getElementById("confirmationModal");
-            modal.style.display = "none";
-            submitForm(true);
-          },
         });
+
         return;
       }
 

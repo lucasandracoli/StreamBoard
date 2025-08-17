@@ -75,9 +75,8 @@
               <% if (campaign.pausedBy) { %>
               <div class="pipeline-paused-by">
                 <i class="bi bi-exclamation-diamond-fill"></i>
-                <span
-                  >Sobreposta pela campanha:
-                  <strong><%= campaign.pausedBy %></strong></span
+                <span class="pipeline-paused-by-reason"
+                  ><%- campaign.pausedBy.reason %></span
                 >
               </div>
               <% } %>

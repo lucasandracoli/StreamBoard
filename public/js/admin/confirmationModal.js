@@ -6,8 +6,9 @@ let config = {};
 export const showConfirmationModal = ({
   title,
   message,
-  confirmText,
   type,
+  actions,
+  confirmText,
   onConfirm,
 }) => {
   if (!confirmationModal || !config.icon) {
@@ -17,27 +18,65 @@ export const showConfirmationModal = ({
 
   config.title.textContent = title;
   config.body.innerHTML = message;
-  config.confirmBtn.textContent = confirmText;
-
   const iconContainer = config.icon.parentElement;
   iconContainer.className = "confirmation-modal-icon";
-  config.confirmBtn.className = "confirmation-modal-confirm";
 
   if (type === "warning") {
     iconContainer.classList.add("warning");
     config.icon.className = "bi bi-exclamation-triangle-fill";
-    config.confirmBtn.classList.add("warning");
   } else {
     iconContainer.classList.add("danger");
     config.icon.className = "bi bi-trash3-fill";
-    config.confirmBtn.classList.add("danger");
   }
 
-  const newConfirmBtn = config.confirmBtn.cloneNode(true);
-  config.confirmBtn.parentNode.replaceChild(newConfirmBtn, config.confirmBtn);
-  config.confirmBtn = newConfirmBtn;
+  config.actionsContainer.innerHTML = "";
 
-  newConfirmBtn.addEventListener("click", onConfirm, { once: true });
+  const hideModal = () => (confirmationModal.style.display = "none");
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.id = "cancelConfirmation";
+  cancelBtn.className = "confirmation-modal-cancel";
+  cancelBtn.textContent = "Cancelar";
+  cancelBtn.addEventListener("click", hideModal);
+
+  if (actions && actions.length > 0) {
+    actions.forEach((action) => {
+      const btn = document.createElement("button");
+      btn.innerHTML = action.text;
+      btn.className = action.class;
+      btn.addEventListener(
+        "click",
+        () => {
+          hideModal();
+          action.onClick();
+        },
+        { once: true }
+      );
+      config.actionsContainer.appendChild(btn);
+    });
+    config.actionsContainer.appendChild(cancelBtn);
+  } else {
+    const confirmBtn = document.createElement("button");
+    confirmBtn.id = "confirmDeletion";
+    confirmBtn.className = "confirmation-modal-confirm";
+    if (type === "warning") {
+      confirmBtn.classList.add("warning");
+    } else {
+      confirmBtn.classList.add("danger");
+    }
+    confirmBtn.textContent = confirmText;
+    confirmBtn.addEventListener(
+      "click",
+      () => {
+        hideModal();
+        onConfirm();
+      },
+      { once: true }
+    );
+    config.actionsContainer.appendChild(cancelBtn);
+    config.actionsContainer.appendChild(confirmBtn);
+  }
+
   confirmationModal.style.display = "flex";
 };
 
@@ -49,13 +88,8 @@ export function setupConfirmationModal() {
     icon: confirmationModal.querySelector(".confirmation-modal-icon i"),
     title: confirmationModal.querySelector(".confirmation-modal-header h3"),
     body: confirmationModal.querySelector(".confirmation-modal-body p"),
-    confirmBtn: document.getElementById("confirmDeletion"),
-    cancelBtn: document.getElementById("cancelConfirmation"),
+    actionsContainer: confirmationModal.querySelector(
+      ".confirmation-modal-actions"
+    ),
   };
-
-  const hideModal = () => {
-    confirmationModal.style.display = "none";
-  };
-
-  config.cancelBtn?.addEventListener("click", hideModal);
 }

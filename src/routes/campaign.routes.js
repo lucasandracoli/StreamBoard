@@ -61,6 +61,13 @@ router.post(
   campaignController.editCampaign
 );
 
+router.post(
+  "/api/campaigns/:id/deprioritize",
+  isAuthenticated,
+  isAdmin,
+  campaignController.deprioritizeCampaign
+);
+
 router.get(
   "/api/campaigns/:id",
   isAuthenticated,

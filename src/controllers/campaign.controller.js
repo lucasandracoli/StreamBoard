@@ -138,6 +138,7 @@ const createCampaign = async (req, res) => {
     company_id,
     media_metadata,
     layout_type,
+    priority,
     force,
   } = req.body;
   if (!name || !start_date || !end_date || !company_id) {
@@ -183,9 +184,7 @@ const createCampaign = async (req, res) => {
     if (overlapping.length > 0) {
       return res.status(409).json({
         conflict: true,
-        message: `Esta campanha irá sobrepor a(s) seguinte(s) campanha(s) para os mesmos alvos: ${overlapping.join(
-          ", "
-        )}. Deseja continuar?`,
+        message: `Esta campanha irá sobrepor a(s) seguinte(s) campanha(s) para os mesmos alvos.`,
         overlapping_campaigns: overlapping,
       });
     }
@@ -214,6 +213,7 @@ const createCampaign = async (req, res) => {
     name,
     company_id,
     layout_type: layout_type || "fullscreen",
+    priority: parseInt(priority, 10),
     parsedStartDate,
     parsedEndDate,
     media_metadata: mediaMetadata,
@@ -323,6 +323,7 @@ const editCampaign = async (req, res) => {
     company_id,
     media_touched,
     layout_type,
+    priority,
     force,
   } = req.body;
 
@@ -370,9 +371,7 @@ const editCampaign = async (req, res) => {
     if (overlapping.length > 0) {
       return res.status(409).json({
         conflict: true,
-        message: `Esta campanha irá sobrepor a(s) seguinte(s) campanha(s) para os mesmos alvos: ${overlapping.join(
-          ", "
-        )}. Deseja continuar?`,
+        message: `Esta campanha irá sobrepor a(s) seguinte(s) campanha(s) para os mesmos alvos.`,
         overlapping_campaigns: overlapping,
       });
     }
@@ -408,13 +407,14 @@ const editCampaign = async (req, res) => {
     await client.query("BEGIN");
 
     await client.query(
-      "UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, company_id = $4, layout_type = $5 WHERE id = $6",
+      "UPDATE campaigns SET name = $1, start_date = $2, end_date = $3, company_id = $4, layout_type = $5, priority = $6 WHERE id = $7",
       [
         name,
         parsedStartDate,
         parsedEndDate,
         company_id,
         layout_type || "fullscreen",
+        priority || 99,
         id,
       ]
     );
@@ -543,6 +543,22 @@ const editCampaign = async (req, res) => {
   }
 };
 
+const deprioritizeCampaign = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await campaignService.deprioritizeCampaign(id);
+    if (!result) {
+      return res.status(404).json({ message: "Campanha não encontrada." });
+    }
+    res
+      .status(200)
+      .json({ message: "Prioridade da campanha concorrente foi rebaixada." });
+  } catch (err) {
+    logger.error({ err }, `Erro ao rebaixar prioridade da campanha ${id}.`);
+    res.status(500).json({ message: "Erro ao rebaixar prioridade." });
+  }
+};
+
 module.exports = {
   listCampaignsPage,
   renderCampaignPipelinePage,
@@ -550,4 +566,5 @@ module.exports = {
   deleteCampaign,
   getCampaignDetails,
   editCampaign,
+  deprioritizeCampaign,
 };

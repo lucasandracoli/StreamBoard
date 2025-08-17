@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     start_date TIMESTAMPTZ,
     end_date TIMESTAMPTZ,
     layout_type VARCHAR(50) DEFAULT 'fullscreen',
+    priority INTEGER DEFAULT 99 NOT NULL,
     created_by_user_id INTEGER REFERENCES users(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

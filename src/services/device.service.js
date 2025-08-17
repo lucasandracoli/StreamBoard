@@ -152,7 +152,13 @@ const getDeviceDetails = async (id) => {
 
 const getDevicePlaylist = async (deviceId, companyId, sectorId, deviceType) => {
   const campaignQuery = `
-      SELECT c.id, c.layout_type, comp.city, comp.state, comp.cep
+      SELECT
+          c.id,
+          c.layout_type,
+          comp.city,
+          comp.state,
+          comp.cep,
+          (SELECT COUNT(*) FROM play_logs pl WHERE pl.campaign_id = c.id AND pl.played_at >= NOW() - INTERVAL '24 hours') as plays_last_24h
       FROM campaigns c
       JOIN companies comp ON c.company_id = comp.id
       WHERE
@@ -170,7 +176,9 @@ const getDevicePlaylist = async (deviceId, companyId, sectorId, deviceType) => {
               WHEN EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id AND cd.device_id = $1) THEN 1
               WHEN EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id AND cs.sector_id = $3) THEN 2
               ELSE 3
-          END,
+          END ASC,
+          c.priority ASC,
+          plays_last_24h DESC,
           c.created_at DESC
       LIMIT 1`;
 
