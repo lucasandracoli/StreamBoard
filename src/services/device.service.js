@@ -4,7 +4,8 @@ const butcherService = require("./butcher.service");
 const logger = require("../utils/logger");
 const crypto = require("crypto");
 
-const getFullDeviceList = async () => {
+const getFullDeviceList = async (page = 1, limit = 8) => {
+  const offset = (page - 1) * limit;
   const query = `
     SELECT
       d.id, d.name, d.device_type, d.is_active, d.last_seen,
@@ -14,9 +15,21 @@ const getFullDeviceList = async () => {
     FROM devices d
     LEFT JOIN companies c ON d.company_id = c.id
     LEFT JOIN sectors s ON d.sector_id = s.id
-    ORDER BY d.registered_at DESC`;
-  const result = await db.query(query);
-  return result.rows;
+    ORDER BY d.registered_at DESC
+    LIMIT $1 OFFSET $2`;
+
+  const countQuery = `SELECT COUNT(*) FROM devices;`;
+  const devicesResult = await db.query(query, [limit, offset]);
+  const countResult = await db.query(countQuery);
+
+  const totalDevices = parseInt(countResult.rows[0].count, 10);
+  const totalPages = Math.ceil(totalDevices / limit);
+
+  return {
+    devices: devicesResult.rows,
+    totalPages,
+    currentPage: page,
+  };
 };
 
 const getDeviceById = async (id) => {

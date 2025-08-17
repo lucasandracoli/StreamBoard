@@ -1,19 +1,7 @@
-import { notyf, handleFetchError } from "./utils.js";
-import {
-  addCompanyRow,
-  updateCompanyRow,
-  removeCompanyRow,
-} from "./companiesPage.js";
-import {
-  addDeviceRow,
-  updateDeviceRow,
-  removeDeviceRow,
-} from "./devicesPage.js";
-import {
-  addCampaignRow,
-  updateCampaignRow,
-  removeCampaignRow,
-} from "./campaignsPage.js";
+import { notyf } from "./utils.js";
+import { refreshCompaniesTable } from "./companiesPage.js";
+import { refreshDevicesTable, updateDeviceRow } from "./devicesPage.js";
+import { refreshCampaignsTable } from "./campaignsPage.js";
 import {
   addProductRow,
   removeProductRow,
@@ -61,8 +49,8 @@ export function connectAdminWs(detailsModalHandler) {
           if (isDevicesPage) updateDeviceStatusOnPage(data.payload);
           break;
         case "DEVICE_CREATED":
-          if (isDevicesPage) addDeviceRow(data.payload);
-          if (data.payload.message) notyf.success(data.payload.message);
+          if (isDevicesPage) refreshDevicesTable();
+          notyf.success(data.payload.message || "Dispositivo criado.");
           break;
         case "DEVICE_UPDATED":
           if (isDevicesPage) {
@@ -78,45 +66,33 @@ export function connectAdminWs(detailsModalHandler) {
           if (data.payload.message) notyf.success(data.payload.message);
           break;
         case "DEVICE_DELETED":
-          if (isDevicesPage) removeDeviceRow(data.payload.deviceId);
+          if (isDevicesPage) refreshDevicesTable();
           notyf.success(`Dispositivo removido com sucesso.`);
           break;
 
         case "COMPANY_CREATED":
-          if (isCompaniesPage) {
-            sessionStorage.setItem(
-              `company_cache_${data.payload.id}`,
-              JSON.stringify(data.payload)
-            );
-            addCompanyRow(data.payload);
-          }
+          if (isCompaniesPage) refreshCompaniesTable();
           notyf.success(`Empresa "${data.payload.name}" criada.`);
           break;
         case "COMPANY_UPDATED":
-          if (isCompaniesPage) {
-            sessionStorage.setItem(
-              `company_cache_${data.payload.id}`,
-              JSON.stringify(data.payload)
-            );
-            updateCompanyRow(data.payload);
-          }
+          if (isCompaniesPage) refreshCompaniesTable();
           notyf.success(`Empresa "${data.payload.name}" atualizada.`);
           break;
         case "COMPANY_DELETED":
-          if (isCompaniesPage) removeCompanyRow(data.payload.companyId);
+          if (isCompaniesPage) refreshCompaniesTable();
           notyf.success(`Empresa removida com sucesso.`);
           break;
 
         case "CAMPAIGN_CREATED":
-          if (isCampaignsPage) addCampaignRow(data.payload);
+          if (isCampaignsPage) refreshCampaignsTable();
           notyf.success(`Campanha "${data.payload.name}" criada.`);
           break;
         case "CAMPAIGN_UPDATED":
-          if (isCampaignsPage) updateCampaignRow(data.payload);
+          if (isCampaignsPage) refreshCampaignsTable();
           notyf.success(`Campanha "${data.payload.name}" atualizada.`);
           break;
         case "CAMPAIGN_DELETED":
-          if (isCampaignsPage) removeCampaignRow(data.payload.campaignId);
+          if (isCampaignsPage) refreshCampaignsTable();
           notyf.success(`Campanha removida com sucesso.`);
           break;
 
@@ -125,7 +101,7 @@ export function connectAdminWs(detailsModalHandler) {
           notyf.success(`Produto "${data.payload.product_name}" adicionado.`);
           break;
         case "PRODUCT_DELETED":
-          if (isProductsPage) removeProductRow(data.payload.productId);
+          if (isProductsPage) refreshProductTable();
           notyf.success(`Produto removido com sucesso.`);
           break;
         case "PRODUCT_SYNC_COMPLETED":

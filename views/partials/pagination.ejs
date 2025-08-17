@@ -1,0 +1,61 @@
+<nav class="pagination-container" aria-label="Page navigation">
+  <ul class="pagination">
+    <% if (currentPage > 1) { %>
+      <li class="page-item">
+        <a class="page-link" href="<%= baseUrl %>?page=<%= currentPage - 1 %>" aria-label="Anterior">
+          <span aria-hidden="true">&laquo;</span>
+        </a>
+      </li>
+    <% } else { %>
+      <li class="page-item disabled">
+        <span class="page-link" aria-hidden="true">&laquo;</span>
+      </li>
+    <% } %>
+
+    <% 
+    const maxPagesToShow = 5;
+    const halfPagesToShow = Math.floor(maxPagesToShow / 2);
+    let startPage = Math.max(1, currentPage - halfPagesToShow);
+    let endPage = Math.min(totalPages, currentPage + halfPagesToShow);
+
+    if (currentPage - halfPagesToShow < 1) {
+      endPage = Math.min(totalPages, maxPagesToShow);
+    }
+    if (currentPage + halfPagesToShow > totalPages) {
+      startPage = Math.max(1, totalPages - maxPagesToShow + 1);
+    }
+    %>
+
+    <% if (startPage > 1) { %>
+      <li class="page-item"><a class="page-link" href="<%= baseUrl %>?page=1">1</a></li>
+      <% if (startPage > 2) { %>
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+      <% } %>
+    <% } %>
+
+    <% for(let i = startPage; i <= endPage; i++) { %>
+      <li class="page-item <%= i === currentPage ? 'active' : '' %>">
+        <a class="page-link" href="<%= baseUrl %>?page=<%= i %>"><%= i %></a>
+      </li>
+    <% } %>
+
+    <% if (endPage < totalPages) { %>
+      <% if (endPage < totalPages - 1) { %>
+        <li class="page-item disabled"><span class="page-link">...</span></li>
+      <% } %>
+      <li class="page-item"><a class="page-link" href="<%= baseUrl %>?page=<%= totalPages %>"><%= totalPages %></a></li>
+    <% } %>
+
+    <% if (currentPage < totalPages) { %>
+      <li class="page-item">
+        <a class="page-link" href="<%= baseUrl %>?page=<%= currentPage + 1 %>" aria-label="Próximo">
+          <span aria-hidden="true">&raquo;</span>
+        </a>
+      </li>
+    <% } else { %>
+        <li class="page-item disabled">
+            <span class="page-link" aria-hidden="true">&raquo;</span>
+        </li>
+    <% } %>
+  </ul>
+</nav>

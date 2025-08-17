@@ -1,11 +1,33 @@
 const db = require("../../config/streamboard");
 const logger = require("../utils/logger");
 
-const getAllCompanies = async () => {
-  const result = await db.query(
-    "SELECT id, name, cnpj, address, city, state, cep FROM companies ORDER BY name ASC"
-  );
-  return result.rows;
+const getAllCompanies = async (page, limit) => {
+  if (page && limit) {
+    const offset = (page - 1) * limit;
+    const query = `
+    SELECT id, name, cnpj, address, city, state, cep 
+    FROM companies 
+    ORDER BY name ASC
+    LIMIT $1 OFFSET $2`;
+
+    const countQuery = `SELECT COUNT(*) FROM companies;`;
+
+    const companiesResult = await db.query(query, [limit, offset]);
+    const countResult = await db.query(countQuery);
+    const totalCompanies = parseInt(countResult.rows[0].count, 10);
+    const totalPages = Math.ceil(totalCompanies / limit);
+
+    return {
+      companies: companiesResult.rows,
+      totalPages: totalPages,
+      currentPage: page,
+    };
+  } else {
+    const result = await db.query(
+      "SELECT id, name, cnpj, address, city, state, cep FROM companies ORDER BY name ASC"
+    );
+    return result.rows;
+  }
 };
 
 const getCompanyById = async (id) => {

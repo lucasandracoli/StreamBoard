@@ -1,14 +1,28 @@
 const db = require("../../config/streamboard");
 
-const getCompaniesWithProducts = async () => {
+const getCompaniesWithProducts = async (page = 1, limit = 8) => {
+  const offset = (page - 1) * limit;
   const query = `
         SELECT DISTINCT c.id, c.name, c.cnpj
         FROM companies c
         JOIN butcher_products bp ON c.id = bp.company_id
-        ORDER BY c.name;
+        ORDER BY c.name
+        LIMIT $1 OFFSET $2;
     `;
-  const result = await db.query(query);
-  return result.rows;
+
+  const countQuery = `SELECT COUNT(DISTINCT c.id) FROM companies c JOIN butcher_products bp ON c.id = bp.company_id;`;
+
+  const companiesResult = await db.query(query, [limit, offset]);
+  const countResult = await db.query(countQuery);
+
+  const totalCompanies = parseInt(countResult.rows[0].count, 10);
+  const totalPages = Math.ceil(totalCompanies / limit);
+
+  return {
+    companies: companiesResult.rows,
+    totalPages,
+    currentPage: page,
+  };
 };
 
 const getProductById = async (id) => {
@@ -19,7 +33,7 @@ const getProductById = async (id) => {
   return result.rows[0];
 };
 
-const getProductsByCompany = async (companyId, page = 1, limit = 5) => {
+const getProductsByCompany = async (companyId, page = 1, limit = 8) => {
   const offset = (page - 1) * limit;
 
   const productsQuery = `

@@ -1,5 +1,3 @@
-import { notyf, handleFetchError } from "./utils.js";
-
 let confirmationModal = null;
 let config = {};
 
@@ -10,11 +8,14 @@ export const showConfirmationModal = ({
   actions,
   confirmText,
   onConfirm,
+  isExpanded = false,
 }) => {
   if (!confirmationModal || !config.icon) {
     console.error("O Modal de Confirmação não foi inicializado corretamente.");
     return;
   }
+
+  confirmationModal.classList.toggle("modal-expandido", isExpanded);
 
   config.title.textContent = title;
   config.body.innerHTML = message;
@@ -31,7 +32,10 @@ export const showConfirmationModal = ({
 
   config.actionsContainer.innerHTML = "";
 
-  const hideModal = () => (confirmationModal.style.display = "none");
+  const hideModal = () => {
+    confirmationModal.style.display = "none";
+    confirmationModal.classList.remove("modal-expandido");
+  };
 
   const cancelBtn = document.createElement("button");
   cancelBtn.id = "cancelConfirmation";

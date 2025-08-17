@@ -63,7 +63,7 @@ export function setupGlobalListeners(modalHandlers) {
         apiConfig = {
           url: `/campaigns/${id}/delete`,
           title: "Confirmar Exclusão",
-          msg: "Deseja realmente excluir esta campanha? Esta ação não pode ser desfeita.",
+          msg: "Deseja realmente excluir esta campanha?",
           confirmText: "Excluir",
           type: "danger",
         };
@@ -79,7 +79,7 @@ export function setupGlobalListeners(modalHandlers) {
         apiConfig = {
           url: `/companies/${id}/delete`,
           title: "Atenção!",
-          msg: "Excluir esta empresa removerá todos os dispositivos e campanhas associados. Confirma?",
+          msg: "Excluir esta empresa removerá todos os dispositivos e campanhas associados.",
           confirmText: "Excluir Tudo",
           type: "warning",
         };

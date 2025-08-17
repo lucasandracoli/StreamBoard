@@ -58,11 +58,13 @@ const getFullCampaignDetailsForBroadcast = async (campaignId) => {
 
 const listCampaignsPage = async (req, res) => {
   try {
-    const campaignList = await campaignService.getAllCampaigns();
-    const companies = await companyService.getAllCompanies();
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 8;
+    const campaignData = await campaignService.getAllCampaigns(page, limit);
+    const allCompanies = await companyService.getAllCompanies();
     const now = DateTime.now().setZone("America/Sao_Paulo");
 
-    const campaigns = campaignList.map((campaign) => {
+    const campaigns = campaignData.campaigns.map((campaign) => {
       const startDate = DateTime.fromJSDate(campaign.start_date, {
         zone: "America/Sao_Paulo",
       });
@@ -108,7 +110,13 @@ const listCampaignsPage = async (req, res) => {
       };
     });
 
-    res.render("campaigns", { campaigns, companies, sectors: [] });
+    res.render("campaigns", {
+      campaigns,
+      companies: allCompanies,
+      sectors: [],
+      currentPage: campaignData.currentPage,
+      totalPages: campaignData.totalPages,
+    });
   } catch (err) {
     logger.error({ err }, "Erro ao carregar campanhas.");
     res.status(500).send("Erro ao carregar campanhas.");

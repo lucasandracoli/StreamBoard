@@ -38,11 +38,13 @@ const sendDeviceCommand = (req, res) => {
 
 const listDevicesPage = async (req, res) => {
   try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 8;
     const { clients } = req.app.locals;
-    const deviceList = await deviceService.getFullDeviceList();
+    const deviceData = await deviceService.getFullDeviceList(page, limit);
     const companies = await companyService.getAllCompanies();
 
-    const devices = deviceList.map((device) => {
+    const devices = deviceData.devices.map((device) => {
       const lastSeenFormatted = device.last_seen
         ? DateTime.fromJSDate(device.last_seen)
             .setZone("America/Sao_Paulo")
@@ -56,7 +58,12 @@ const listDevicesPage = async (req, res) => {
       };
     });
 
-    res.render("devices", { devices, companies });
+    res.render("devices", {
+      devices,
+      companies,
+      currentPage: deviceData.currentPage,
+      totalPages: deviceData.totalPages,
+    });
   } catch (err) {
     logger.error("Erro ao carregar dispositivos.", err);
     res.status(500).send("Erro ao carregar dispositivos.");

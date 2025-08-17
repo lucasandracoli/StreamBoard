@@ -695,8 +695,7 @@ export function setupCampaignModal() {
           });
         } else {
           messageHtml = `A prioridade desta campanha <strong>não é suficiente</strong> para sobrepor a campanha concorrente:<br><br>
-                       <span class="highlight-campaign">${conflictingCampaign.name} (Prioridade ${conflictingCampaign.priority})</span><br><br>
-                       Como deseja prosseguir?`;
+                       <span class="highlight-campaign">${conflictingCampaign.name} (Prioridade ${conflictingCampaign.priority})</span>`;
 
           actions.push({
             text: "Tornar Prioritária",
@@ -728,6 +727,7 @@ export function setupCampaignModal() {
           message: messageHtml,
           actions: actions,
           type: "warning",
+          isExpanded: true,
         });
 
         return;

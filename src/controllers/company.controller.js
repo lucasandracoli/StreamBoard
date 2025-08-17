@@ -5,8 +5,16 @@ const formatUtils = require("../utils/format.utils");
 
 const listCompaniesPage = async (req, res) => {
   try {
-    const companies = await companyService.getAllCompanies();
-    res.render("companies", { companies, formatUtils });
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 8;
+    const companyData = await companyService.getAllCompanies(page, limit);
+
+    res.render("companies", {
+      companies: companyData.companies,
+      formatUtils,
+      currentPage: companyData.currentPage,
+      totalPages: companyData.totalPages,
+    });
   } catch (err) {
     logger.error("Erro ao carregar empresas.", err);
     res.status(500).send("Erro ao carregar a página de empresas.");

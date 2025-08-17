@@ -140,6 +140,9 @@
           </tbody>
         </table>
       </div>
+      <% if (totalPages > 1) { %>
+      <%- include('partials/pagination', { currentPage, totalPages, baseUrl: '/devices' }) %>
+      <% } %>
       <% } %>
     </main>
 
@@ -313,27 +316,7 @@
       </div>
     </div>
 
-    <div id="confirmationModal" class="confirmation-modal-overlay">
-      <div class="confirmation-modal">
-        <div class="confirmation-modal-icon">
-          <i class="bi"></i>
-        </div>
-        <div class="confirmation-modal-header">
-          <h3></h3>
-        </div>
-        <div class="confirmation-modal-body">
-          <p></p>
-        </div>
-        <div class="confirmation-modal-actions">
-          <button id="cancelConfirmation" class="confirmation-modal-cancel">
-            Cancelar
-          </button>
-          <button id="confirmDeletion" class="confirmation-modal-confirm">
-            Confirmar
-          </button>
-        </div>
-      </div>
-    </div>
+    <%- include("partials/confirmationModal") %>
 
     <%- include("partials/footer") %>
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>

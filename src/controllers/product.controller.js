@@ -18,8 +18,15 @@ const notifyPlayers = async (companyId, { sendUpdateToDevice }) => {
 
 const listCompaniesPage = async (req, res) => {
   try {
-    const companies = await companyService.getAllCompanies();
-    res.render("products_companies", { companies, formatUtils });
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = 8;
+    const companyData = await companyService.getAllCompanies(page, limit);
+    res.render("products_companies", {
+      companies: companyData.companies,
+      formatUtils,
+      currentPage: companyData.currentPage,
+      totalPages: companyData.totalPages,
+    });
   } catch (err) {
     logger.error("Erro ao carregar a página de empresas com produtos.", err);
     res.status(500).send("Erro ao carregar a página.");
@@ -30,10 +37,11 @@ const listProductsByCompanyPage = async (req, res) => {
   try {
     const companyId = parseInt(req.params.companyId, 10);
     const page = parseInt(req.query.page, 10) || 1;
+    const limit = 8;
     const productData = await localProductService.getProductsByCompany(
       companyId,
       page,
-      100
+      limit
     );
 
     res.render("products", {

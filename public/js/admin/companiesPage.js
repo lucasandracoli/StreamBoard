@@ -60,3 +60,32 @@ export const removeCompanyRow = (companyId) => {
     `;
   }
 };
+
+export async function refreshCompaniesTable() {
+  try {
+    const response = await fetch(window.location.href);
+    if (!response.ok) throw new Error("Falha ao buscar dados atualizados.");
+
+    const html = await response.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+
+    const newTable = doc.querySelector(".device-table-wrapper");
+    const oldTable = document.querySelector(".device-table-wrapper");
+    const newPagination = doc.querySelector(".pagination-container");
+    const oldPagination = document.querySelector(".pagination-container");
+
+    if (newTable && oldTable) {
+      oldTable.innerHTML = newTable.innerHTML;
+    }
+
+    if (oldPagination) {
+      oldPagination.remove();
+    }
+    if (newPagination && oldTable) {
+      oldTable.insertAdjacentElement("afterend", newPagination);
+    }
+  } catch (err) {
+    notyf.error(err.message || "Não foi possível atualizar a lista de empresas.");
+  }
+}

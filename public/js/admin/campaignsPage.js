@@ -55,89 +55,24 @@ const createCampaignRow = (campaign) => {
   return row;
 };
 
-export const addCampaignRow = (campaign) => {
-  const container = document.querySelector(".container");
-  if (!container) return;
+export async function refreshCampaignsTable() {
+  try {
+    const response = await fetch(window.location.href);
+    if (!response.ok) throw new Error("Falha ao buscar dados atualizados.");
 
-  const emptyState = container.querySelector(".empty-state-container");
-  if (emptyState) {
-    emptyState.outerHTML = `
-      <div class="device-table-wrapper">
-        <table class="device-table">
-          <thead>
-            <tr>
-              <th class="col-name">Nome</th>
-              <th class="col-status">Status</th>
-              <th class="col-company">Empresa</th>
-              <th class="col-layout">Layout</th>
-              <th class="col-media-count">Mídias</th>
-              <th class="col-period">Período</th>
-              <th class="col-devices">Alvos</th>
-              <th class="col-actions">Ações</th>
-            </tr>
-          </thead>
-          <tbody id="campaigns-table-body"></tbody>
-        </table>
-      </div>
-    `;
-  }
+    const html = await response.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
 
-  const tableBody = document.getElementById("campaigns-table-body");
-  if (tableBody) {
-    const newRow = createCampaignRow(campaign);
-    tableBody.prepend(newRow);
-  }
-};
+    const newContent = doc.querySelector("main.container");
+    const oldContent = document.querySelector("main.container");
 
-export const updateCampaignRow = (campaign) => {
-  const row = document.querySelector(`tr[data-campaign-id="${campaign.id}"]`);
-  if (!row) return;
-
-  let targetNamesHtml = "Todos";
-  if (campaign.target_names && campaign.target_names.length > 0) {
-    const visibleNames = campaign.target_names.slice(0, 2).join(", ");
-    const extraCount = campaign.target_names.length - 2;
-    targetNamesHtml =
-      extraCount > 0
-        ? `${visibleNames} <span class="device-badge-extra">+${extraCount}</span>`
-        : visibleNames;
-  }
-
-  let layoutName = "Tela Cheia";
-  if (campaign.layout_type === "split-80-20") {
-    layoutName = "Split 80/20";
-  } else if (campaign.layout_type === "split-80-20-weather") {
-    layoutName = "Split c/ Clima";
-  }
-
-  row.querySelector(".col-name").textContent = campaign.name;
-  row.querySelector(
-    ".online-status"
-  ).className = `online-status ${campaign.status.class}`;
-  row.querySelector("[data-status-text]").textContent = campaign.status.text;
-  row.querySelector(".col-company").textContent = campaign.company_name;
-  row.querySelector(".col-layout .cell-tag").textContent = layoutName;
-  row.querySelector(".col-media-count .cell-tag").textContent =
-    campaign.uploads_count;
-  row.querySelector(".col-period").textContent = campaign.periodo_formatado;
-  row.querySelector(".col-devices").innerHTML = targetNamesHtml;
-};
-
-export const removeCampaignRow = (campaignId) => {
-  const row = document.querySelector(`tr[data-campaign-id="${campaignId}"]`);
-  if (row) {
-    row.remove();
-  }
-  const tableBody = document.getElementById("campaigns-table-body");
-  if (tableBody && tableBody.rows.length === 0) {
-    const tableWrapper = document.querySelector(".device-table-wrapper");
-    if (tableWrapper) {
-      tableWrapper.outerHTML = `
-      <div class="empty-state-container">
-        <div class="empty-state-icon"><i class="bi bi-megaphone"></i></div>
-        <h3 class="empty-state-title">Nenhuma Campanha Criada</h3>
-        <p class="empty-state-subtitle">Ainda não há campanhas para exibir...</p>
-      </div>`;
+    if (newContent && oldContent) {
+      oldContent.innerHTML = newContent.innerHTML;
     }
+  } catch (err) {
+    notyf.error(
+      err.message || "Não foi possível atualizar a lista de campanhas."
+    );
   }
-};
+}

@@ -54,7 +54,8 @@ const findOverlappingCampaigns = async (
   return result.rows;
 };
 
-const getAllCampaigns = async () => {
+const getAllCampaigns = async (page = 1, limit = 8) => {
+  const offset = (page - 1) * limit;
   const query = `
     SELECT
       c.*,
@@ -76,9 +77,22 @@ const getAllCampaigns = async () => {
       (SELECT cu.file_type FROM campaign_uploads cu WHERE cu.campaign_id = c.id ORDER BY cu.execution_order ASC LIMIT 1) as first_upload_type
     FROM campaigns c
     JOIN companies co ON c.company_id = co.id
-    ORDER BY c.created_at DESC`;
-  const result = await db.query(query);
-  return result.rows;
+    ORDER BY c.created_at DESC
+    LIMIT $1 OFFSET $2`;
+
+  const countQuery = `SELECT COUNT(*) FROM campaigns;`;
+
+  const campaignsResult = await db.query(query, [limit, offset]);
+  const countResult = await db.query(countQuery);
+
+  const totalCampaigns = parseInt(countResult.rows[0].count, 10);
+  const totalPages = Math.ceil(totalCampaigns / limit);
+
+  return {
+    campaigns: campaignsResult.rows,
+    totalPages: totalPages,
+    currentPage: page,
+  };
 };
 
 const getCampaignWithDetails = async (id) => {
