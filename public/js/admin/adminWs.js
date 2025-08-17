@@ -1,25 +1,8 @@
 import { notyf } from "./utils.js";
-import {
-  addCompanyRow,
-  updateCompanyRow,
-  removeCompanyRow,
-} from "./companiesPage.js";
-import {
-  addDeviceRow,
-  updateDeviceRow,
-  removeDeviceRow,
-} from "./devicesPage.js";
-import {
-  addCampaignRow,
-  updateCampaignRow,
-  removeCampaignRow,
-} from "./campaignsPage.js";
-import {
-  addProductRow,
-  refreshProductTable,
-  removeProductRow,
-  resetSyncButton,
-} from "./productsPage.js";
+import { refreshCompaniesTable } from "./companiesPage.js";
+import { updateDeviceRow, refreshDevicesTable } from "./devicesPage.js";
+import { updateCampaignRow, refreshCampaignsTable } from "./campaignsPage.js";
+import { refreshProductTable, resetSyncButton } from "./productsPage.js";
 
 export function connectAdminWs(detailsModalHandler) {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -29,105 +12,71 @@ export function connectAdminWs(detailsModalHandler) {
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      const isDevicesPage = document.getElementById("devices-page");
-      const isCompaniesPage = document.getElementById("companies-page");
-      const isCampaignsPage = document.getElementById("campaigns-page");
-      const isProductsPage = document.getElementById("products-page");
+      const pageId = document.body.id;
 
       switch (data.type) {
         case "DEVICE_STATUS_UPDATE":
-          if (isDevicesPage) {
-            const row = document.querySelector(
-              `tr[data-device-id="${data.payload.deviceId}"]`
-            );
-            if (row) {
-              const statusCell = row.querySelector("[data-status-cell]");
-              if (statusCell) {
-                const statusSpan = statusCell.querySelector(".online-status");
-                const statusText =
-                  statusCell.querySelector("[data-status-text]");
-                if (statusSpan && statusText) {
-                  statusSpan.className = `online-status ${data.payload.status.class}`;
-                  statusText.textContent = data.payload.status.text;
-                }
-              }
-            }
-          }
+          if (pageId === "devices-page") updateDeviceRow(data.payload);
           break;
         case "DEVICE_CREATED":
-          if (isDevicesPage) addDeviceRow(data.payload);
-          notyf.success(data.payload.message || "Dispositivo criado.");
+        case "DEVICE_DELETED":
+          if (pageId === "devices-page") refreshDevicesTable();
+          notyf.success(data.payload.message);
           break;
         case "DEVICE_UPDATED":
-          if (isDevicesPage) {
+          if (pageId === "devices-page") {
             updateDeviceRow(data.payload);
             if (
-              detailsModalHandler &&
-              detailsModalHandler.element.dataset.showingDeviceId ===
-                data.payload.id
+              detailsModalHandler?.element.dataset.showingDeviceId ===
+              String(data.payload.id)
             ) {
               detailsModalHandler.openDetailsModal(data.payload.id);
             }
           }
           if (data.payload.message) notyf.success(data.payload.message);
           break;
-        case "DEVICE_DELETED":
-          if (isDevicesPage) removeDeviceRow(data.payload.deviceId);
-          notyf.success(`Dispositivo removido com sucesso.`);
-          break;
-
         case "COMPANY_CREATED":
-          if (isCompaniesPage) addCompanyRow(data.payload);
-          notyf.success(`Empresa "${data.payload.name}" criada.`);
-          break;
-        case "COMPANY_UPDATED":
-          if (isCompaniesPage) updateCompanyRow(data.payload);
-          notyf.success(`Empresa "${data.payload.name}" atualizada.`);
-          break;
         case "COMPANY_DELETED":
-          if (isCompaniesPage) removeCompanyRow(data.payload.companyId);
-          notyf.success(`Empresa removida com sucesso.`);
+        case "COMPANY_UPDATED":
+          if (pageId === "companies-page") refreshCompaniesTable();
+          notyf.success(data.payload.message);
           break;
-
         case "CAMPAIGN_CREATED":
-          if (isCampaignsPage) addCampaignRow(data.payload);
-          notyf.success(`Campanha "${data.payload.name}" criada.`);
+        case "CAMPAIGN_DELETED":
+          if (pageId === "campaigns-page") refreshCampaignsTable();
+          notyf.success(data.payload.message);
           break;
         case "CAMPAIGN_UPDATED":
-          if (isCampaignsPage) updateCampaignRow(data.payload);
-          notyf.success(`Campanha "${data.payload.name}" atualizada.`);
-          break;
-        case "CAMPAIGN_DELETED":
-          if (isCampaignsPage) removeCampaignRow(data.payload.campaignId);
-          notyf.success(`Campanha removida com sucesso.`);
+          if (pageId === "campaigns-page") updateCampaignRow(data.payload);
+          notyf.success(data.payload.message);
           break;
 
-        case "PRODUCT_CREATED":
-          if (isProductsPage) addProductRow(data.payload);
-          notyf.success(`Produto "${data.payload.product_name}" adicionado.`);
-          break;
-        case "PRODUCT_DELETED":
-          if (isProductsPage) removeProductRow(data.payload.productId);
-          notyf.success(`Produto removido com sucesso.`);
-          break;
-        case "PRODUCT_SYNC_COMPLETED":
-          if (isProductsPage) {
+        case "PRODUCT_OPERATION_SUCCESS": {
+          notyf.success(data.payload.message);
+          if (pageId === "products-page") {
             const currentCompanyId = window.location.pathname.split("/").pop();
-            if (data.payload.companyId == currentCompanyId) {
-              notyf.success(data.payload.message);
+            if (
+              !data.payload.companyId ||
+              String(data.payload.companyId) === currentCompanyId
+            ) {
               refreshProductTable();
             }
           }
           break;
-        case "PRODUCT_SYNC_FAILED":
-          if (isProductsPage) {
+        }
+        case "PRODUCT_OPERATION_FAILURE": {
+          notyf.error(data.payload.message);
+          if (pageId === "products-page") {
             const currentCompanyId = window.location.pathname.split("/").pop();
-            if (data.payload.companyId == currentCompanyId) {
-              notyf.error(data.payload.message);
+            if (
+              !data.payload.companyId ||
+              String(data.payload.companyId) === currentCompanyId
+            ) {
               resetSyncButton();
             }
           }
           break;
+        }
       }
     } catch (e) {
       console.error("Erro ao processar mensagem WebSocket:", e);

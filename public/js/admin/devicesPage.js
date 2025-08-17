@@ -1,7 +1,7 @@
 import { notyf, deviceTypeNames } from "./utils.js";
 import { setupTableSearch } from "./tableSearch.js";
 
-const createDeviceRow = (device) => {
+function createDeviceRow(device) {
   const row = document.createElement("tr");
   row.dataset.deviceId = device.id;
   row.title = "Clique para ver detalhes";
@@ -38,68 +38,15 @@ const createDeviceRow = (device) => {
     </td>
   `;
   return row;
-};
+}
 
-export const addDeviceRow = (device) => {
-  const container = document.querySelector(".container");
-  if (!container) return;
-
-  const emptyState = container.querySelector(".empty-state-container");
-  if (emptyState) {
-    emptyState.outerHTML = `
-      <div class="device-table-wrapper">
-        <table class="device-table">
-          <thead>
-            <tr>
-              <th>Nome</th>
-              <th>Status</th>
-              <th>Empresa</th>
-              <th>Setor</th>
-              <th>Tipo</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="devices-table-body"></tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  const tableBody = document.getElementById("devices-table-body");
-  if (tableBody) {
-    const newRow = createDeviceRow(device);
-    tableBody.prepend(newRow);
-  }
-};
-
-export const updateDeviceRow = (device) => {
+export function updateDeviceRow(device) {
   const row = document.querySelector(`tr[data-device-id="${device.id}"]`);
-  if (!row) {
-    addDeviceRow(device);
-    return;
-  }
-  const newRow = createDeviceRow(device);
-  row.innerHTML = newRow.innerHTML;
-};
-
-export const removeDeviceRow = (deviceId) => {
-  const row = document.querySelector(`tr[data-device-id="${deviceId}"]`);
   if (row) {
-    row.remove();
+    const newRow = createDeviceRow(device);
+    row.innerHTML = newRow.innerHTML;
   }
-  const tableBody = document.getElementById("devices-table-body");
-  if (tableBody && tableBody.rows.length === 0) {
-    const tableWrapper = document.querySelector(".device-table-wrapper");
-    if (tableWrapper) {
-      tableWrapper.outerHTML = `
-        <div class="empty-state-container">
-          <div class="empty-state-icon"><i class="bi bi-hdd-stack"></i></div>
-          <h3 class="empty-state-title">Nenhum Dispositivo Encontrado</h3>
-          <p class="empty-state-subtitle">Você ainda não adicionou nenhum dispositivo...</p>
-        </div>`;
-    }
-  }
-};
+}
 
 export async function refreshDevicesTable() {
   try {
@@ -115,7 +62,7 @@ export async function refreshDevicesTable() {
 
     if (newContent && oldContent) {
       oldContent.innerHTML = newContent.innerHTML;
-      setupTableSearch("devices-search-input", "devices-table-body");
+      document.dispatchEvent(new CustomEvent("page-content-refreshed"));
     }
   } catch (err) {
     notyf.error(

@@ -1,7 +1,7 @@
 import { notyf } from "./utils.js";
 import { setupTableSearch } from "./tableSearch.js";
 
-const createCompanyRow = (company) => {
+function createCompanyRow(company) {
   const row = document.createElement("tr");
   row.dataset.companyId = company.id;
   row.innerHTML = `
@@ -26,11 +26,18 @@ const createCompanyRow = (company) => {
     </td>
   `;
   return row;
-};
+}
 
-export const addCompanyRow = (company) => {
+export function addCompanyRow(company) {
+  const container = document.querySelector(".container");
   const tableBody = document.getElementById("companies-table-body");
-  if (!tableBody) return;
+  if (!tableBody || !container) return;
+
+  const emptyState = container.querySelector(".empty-state-container");
+  if (emptyState) {
+    refreshCompaniesTable();
+    return;
+  }
 
   const noCompaniesRow = document.getElementById("no-companies-row");
   if (noCompaniesRow) {
@@ -39,30 +46,29 @@ export const addCompanyRow = (company) => {
 
   const newRow = createCompanyRow(company);
   tableBody.prepend(newRow);
-};
+}
 
-export const updateCompanyRow = (company) => {
+export function updateCompanyRow(company) {
   const row = document.querySelector(`tr[data-company-id="${company.id}"]`);
-  if (!row) return;
+  if (row) {
+    const newRow = createCompanyRow(company);
+    row.innerHTML = newRow.innerHTML;
+  } else {
+    addCompanyRow(company);
+  }
+}
 
-  const newRow = createCompanyRow(company);
-  row.innerHTML = newRow.innerHTML;
-};
-
-export const removeCompanyRow = (companyId) => {
+export function removeCompanyRow(companyId) {
   const row = document.querySelector(`tr[data-company-id="${companyId}"]`);
   if (row) {
     row.remove();
   }
+
   const tableBody = document.getElementById("companies-table-body");
   if (tableBody && tableBody.rows.length === 0) {
-    tableBody.innerHTML = `
-      <tr id="no-companies-row">
-        <td colspan="6" style="text-align: center">Nenhuma empresa cadastrada.</td>
-      </tr>
-    `;
+    refreshCompaniesTable();
   }
-};
+}
 
 export async function refreshCompaniesTable() {
   try {
@@ -73,23 +79,14 @@ export async function refreshCompaniesTable() {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
-    const newTableWrapper = doc.querySelector(".device-table-wrapper");
-    const oldTableWrapper = document.querySelector(".device-table-wrapper");
-    const newPagination = doc.querySelector(".pagination-container");
-    const oldPagination = document.querySelector(".pagination-container");
+    const newContent = doc.querySelector("main.container");
+    const oldContent = document.querySelector("main.container");
 
-    if (newTableWrapper && oldTableWrapper) {
-      oldTableWrapper.innerHTML = newTableWrapper.innerHTML;
+    if (newContent && oldContent) {
+      oldContent.innerHTML = newContent.innerHTML;
+      setupTableSearch("companies-search-input", "companies-table-body");
+      document.dispatchEvent(new CustomEvent("page-content-refreshed"));
     }
-
-    if (oldPagination) {
-      oldPagination.remove();
-    }
-    if (newPagination && oldTableWrapper) {
-      oldTableWrapper.insertAdjacentElement("afterend", newPagination);
-    }
-
-    setupTableSearch("companies-search-input", "companies-table-body");
   } catch (err) {
     notyf.error(
       err.message || "Não foi possível atualizar a lista de empresas."

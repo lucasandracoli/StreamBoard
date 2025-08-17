@@ -84,20 +84,13 @@ const createDevice = async (req, res) => {
       company_id,
       sector_id
     );
-    const { broadcastToAdmins, clients } = req.app.locals;
-    const fullDeviceDetails = await getFullDeviceDetailsForBroadcast(
-      newDevice.id,
-      clients
-    );
-    if (fullDeviceDetails) {
-      broadcastToAdmins({
-        type: "DEVICE_CREATED",
-        payload: {
-          ...fullDeviceDetails,
-          message: `Dispositivo "${fullDeviceDetails.name}" criado.`,
-        },
-      });
-    }
+    const { broadcastToAdmins } = req.app.locals;
+    broadcastToAdmins({
+      type: "DEVICE_CREATED",
+      payload: {
+        message: `Dispositivo "${name}" criado com sucesso.`,
+      },
+    });
 
     res.json({ message: "Dispositivo cadastrado com sucesso." });
   } catch (err) {
@@ -159,7 +152,12 @@ const deleteDevice = async (req, res) => {
   try {
     await deviceService.deleteDevice(id);
     const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
-    broadcastToAdmins({ type: "DEVICE_DELETED", payload: { deviceId: id } });
+    broadcastToAdmins({
+      type: "DEVICE_DELETED",
+      payload: {
+        message: "Dispositivo excluído e sessão encerrada com sucesso.",
+      },
+    });
     sendUpdateToDevice(id, { type: "DEVICE_REVOKED" });
     res.status(200).json({
       message: "Dispositivo excluído e sessão encerrada com sucesso.",

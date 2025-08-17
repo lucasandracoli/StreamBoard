@@ -73,11 +73,8 @@ const deleteProduct = async (req, res) => {
 
     const { broadcastToAdmins, sendUpdateToDevice } = req.app.locals;
     broadcastToAdmins({
-      type: "PRODUCT_DELETED",
-      payload: {
-        productId: id,
-        companyId: product.company_id,
-      },
+      type: "PRODUCT_OPERATION_SUCCESS",
+      payload: { message: "Produto excluído com sucesso." },
     });
     notifyPlayers(product.company_id, { sendUpdateToDevice });
 
@@ -95,7 +92,8 @@ const triggerSyncForCompany = async (req, res) => {
       companyId: parseInt(companyId, 10),
     });
     res.status(202).json({
-      message: "Sincronização da loja iniciada em segundo plano.",
+      message:
+        "Sincronização da loja iniciada. Você será notificado quando terminar.",
     });
   } catch (err) {
     logger.error(
@@ -142,7 +140,7 @@ const uploadProducts = async (req, res) => {
       });
     }
 
-    const productCodes = products.map((p) => p.sysmo_product_code);
+    const productCodes = products.map((p) => String(p.sysmo_product_code));
 
     await productSyncQueue.add("import-products-from-sheet", {
       companyId: parseInt(companyId, 10),
@@ -150,8 +148,7 @@ const uploadProducts = async (req, res) => {
     });
 
     res.status(202).json({
-      message:
-        "Importação iniciada em segundo plano. Você será notificado quando terminar.",
+      message: "Importação iniciada. Você será notificado quando terminar.",
     });
   } catch (error) {
     logger.error("Erro ao processar a planilha de produtos.", error);
@@ -211,14 +208,15 @@ const addSingleProduct = async (req, res) => {
 
     const { broadcastToAdmins, sendUpdateToDevice } = req.app.locals;
     broadcastToAdmins({
-      type: "PRODUCT_CREATED",
-      payload: newProduct,
+      type: "PRODUCT_OPERATION_SUCCESS",
+      payload: {
+        message: `Produto "${newProduct.product_name}" foi adicionado.`,
+      },
     });
     notifyPlayers(companyId, { sendUpdateToDevice });
 
     res.status(201).json({
-      message: `Produto "${newProduct.product_name}" foi adicionado.`,
-      product: newProduct,
+      message: "Produto adicionado com sucesso.",
     });
   } catch (error) {
     if (error.code === "23505") {

@@ -2,21 +2,14 @@ import { notyf, handleFetchError } from "./utils.js";
 
 export function setupDeviceModal() {
   const deviceModal = document.getElementById("deviceModal");
-  if (!deviceModal) return;
+  if (!deviceModal) return { openCreateModal: () => {}, openEditModal: () => {} };
 
-  const openBtn = document.getElementById("openDeviceModal");
   const cancelBtn = document.getElementById("cancelDeviceModal");
   const form = document.getElementById("deviceForm");
   const modalTitle = document.getElementById("deviceModalTitle");
   const submitButton = document.getElementById("deviceSubmitButton");
   const companySelect = document.getElementById("newDeviceCompany");
   const sectorSelect = document.getElementById("newDeviceSector");
-
-  if (companySelect && companySelect.options.length <= 1) {
-    companySelect.disabled = true;
-    companySelect.querySelector("option").textContent =
-      "Nenhuma empresa cadastrada";
-  }
 
   const populateSectors = async (companyId, selectedSectorId = null) => {
     sectorSelect.innerHTML =
@@ -79,7 +72,6 @@ export function setupDeviceModal() {
     }
   };
 
-  openBtn?.addEventListener("click", openCreateModal);
   cancelBtn?.addEventListener(
     "click",
     () => (deviceModal.style.display = "none")
@@ -112,5 +104,5 @@ export function setupDeviceModal() {
     }
   });
 
-  return { openEditModal };
+  return { openCreateModal, openEditModal };
 }

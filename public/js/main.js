@@ -7,30 +7,27 @@ import { setupConfirmationModal } from "./admin/confirmationModal.js";
 import { setupGlobalListeners } from "./admin/globalListeners.js";
 import { connectAdminWs } from "./admin/adminWs.js";
 import { setupProductModal } from "./admin/productModal.js";
-import { setupProductsPage } from "./admin/productsPage.js";
 import { setupTableSearch } from "./admin/tableSearch.js";
 
-document.addEventListener("DOMContentLoaded", () => {
+function initializePage() {
   setupLoginForm();
-  const companyModalHandler = setupCompanyModal();
-  const deviceModalHandler = setupDeviceModal();
-  const campaignModalHandler = setupCampaignModal();
-  const detailsModalHandler = setupDetailsModal();
+
+  const modalHandlers = {
+    company: setupCompanyModal(),
+    device: setupDeviceModal(),
+    campaign: setupCampaignModal(),
+    details: setupDetailsModal(),
+  };
 
   setupConfirmationModal();
-
-  setupGlobalListeners({
-    details: detailsModalHandler,
-    device: deviceModalHandler,
-    company: companyModalHandler,
-    campaign: campaignModalHandler,
-  });
-
-  connectAdminWs(detailsModalHandler);
+  setupGlobalListeners(modalHandlers);
+  connectAdminWs(modalHandlers);
   setupProductModal();
-  setupProductsPage();
 
   setupTableSearch("companies-search-input", "companies-table-body");
   setupTableSearch("devices-search-input", "devices-table-body");
   setupTableSearch("campaigns-search-input", "campaigns-table-body");
-});
+}
+
+document.addEventListener("DOMContentLoaded", initializePage);
+document.addEventListener("page-content-refreshed", initializePage);

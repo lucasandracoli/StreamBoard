@@ -1,7 +1,7 @@
 import { notyf } from "./utils.js";
 import { setupTableSearch } from "./tableSearch.js";
 
-const createProductRow = (product) => {
+function createProductRow(product) {
   const row = document.createElement("tr");
   row.dataset.productId = product.id;
 
@@ -28,13 +28,20 @@ const createProductRow = (product) => {
         </td>
     `;
   return row;
-};
+}
 
-export const addProductRow = (product) => {
+export function addProductRow(product) {
+  const container = document.querySelector(".container");
   const tableBody = document.querySelector(
     "#products-page .device-table tbody"
   );
-  if (!tableBody) return;
+  if (!tableBody || !container) return;
+
+  const emptyState = container.querySelector(".empty-state-container");
+  if (emptyState) {
+    refreshProductTable();
+    return;
+  }
 
   const noProductsRow = document.getElementById("no-products-row");
   if (noProductsRow) {
@@ -43,17 +50,17 @@ export const addProductRow = (product) => {
 
   const newRow = createProductRow(product);
   tableBody.prepend(newRow);
-};
+}
 
-export const updateProductRow = (product) => {
+export function updateProductRow(product) {
   const row = document.querySelector(`tr[data-product-id="${product.id}"]`);
   if (row) {
     const newRow = createProductRow(product);
     row.innerHTML = newRow.innerHTML;
   }
-};
+}
 
-export const removeProductRow = (productId) => {
+export function removeProductRow(productId) {
   const row = document.querySelector(`tr[data-product-id="${productId}"]`);
   if (row) {
     row.remove();
@@ -62,13 +69,9 @@ export const removeProductRow = (productId) => {
     "#products-page .device-table tbody"
   );
   if (tableBody && tableBody.rows.length === 0) {
-    tableBody.innerHTML = `
-            <tr id="no-products-row">
-                <td colspan="5" style="text-align: center">Nenhum item encontrado.</td>
-            </tr>
-        `;
+    refreshProductTable();
   }
-};
+}
 
 export function resetSyncButton() {
   const syncCompanyBtn = document.getElementById("syncCompanyProductsBtn");
@@ -88,22 +91,13 @@ export async function refreshProductTable() {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
-    const newTableWrapper = doc.querySelector(".device-table-wrapper");
-    const oldTableWrapper = document.querySelector(".device-table-wrapper");
-    const newPagination = doc.querySelector(".pagination-container");
-    const oldPagination = document.querySelector(".pagination-container");
+    const newContent = doc.querySelector("main.container");
+    const oldContent = document.querySelector("main.container");
 
-    if (newTableWrapper && oldTableWrapper) {
-      oldTableWrapper.innerHTML = newTableWrapper.innerHTML;
+    if (newContent && oldContent) {
+      oldContent.innerHTML = newContent.innerHTML;
+      document.dispatchEvent(new CustomEvent("page-content-refreshed"));
     }
-
-    if (oldPagination) {
-      oldPagination.remove();
-    }
-    if (newPagination && oldTableWrapper) {
-      oldTableWrapper.insertAdjacentElement("afterend", newPagination);
-    }
-
     resetSyncButton();
   } catch (err) {
     notyf.error(

@@ -247,15 +247,10 @@ const createCampaign = async (req, res) => {
       });
     });
 
-    const fullCampaignDetails = await getFullCampaignDetailsForBroadcast(
-      newCampaign.id
-    );
-    if (fullCampaignDetails) {
-      broadcastToAdmins({
-        type: "CAMPAIGN_CREATED",
-        payload: { ...fullCampaignDetails, affectedDeviceIds },
-      });
-    }
+    broadcastToAdmins({
+      type: "CAMPAIGN_CREATED",
+      payload: { message: `Campanha "${newCampaign.name}" criada.` },
+    });
 
     res
       .status(200)
@@ -294,7 +289,7 @@ const deleteCampaign = async (req, res) => {
     });
     broadcastToAdmins({
       type: "CAMPAIGN_DELETED",
-      payload: { campaignId: Number(id), affectedDeviceIds },
+      payload: { message: "Campanha excluída com sucesso." },
     });
 
     res.status(200).json({
@@ -534,6 +529,7 @@ const editCampaign = async (req, res) => {
         payload: {
           ...fullCampaignDetails,
           affectedDeviceIds: allAffectedDeviceIds,
+          message: `Campanha "${fullCampaignDetails.name}" atualizada.`,
         },
       });
     }

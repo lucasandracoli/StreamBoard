@@ -686,8 +686,7 @@ export function setupCampaignModal() {
 
         if (currentPriority < conflictingCampaign.priority) {
           messageHtml = `A prioridade da sua campanha já é mais alta que a da concorrente:<br><br>
-                       <span class="highlight-campaign">${conflictingCampaign.name} (Prioridade ${conflictingCampaign.priority})</span><br><br>
-                       Sua campanha será exibida. Deseja salvar mesmo assim?`;
+                       <span class="highlight-campaign">${conflictingCampaign.name} (Prioridade ${conflictingCampaign.priority})</span>`;
           actions.push({
             text: "Salvar Campanha",
             class: "confirmation-modal-confirm",

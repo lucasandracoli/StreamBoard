@@ -67,60 +67,41 @@ app.use("/", mainRouter);
 
 const queueEvents = new QueueEvents("Product Sync", { connection });
 
-queueEvents.on("completed", ({ jobId, returnvalue }) => {
-  productSyncQueue.getJob(jobId).then((job) => {
-    if (!job) return;
+queueEvents.on("completed", async ({ jobId, returnvalue }) => {
+  const job = await productSyncQueue.getJob(jobId);
+  if (!job) return;
 
-    if (job.name === "sync-single-company") {
-      const { companyId } = job.data;
-      const { updatedCount } = returnvalue;
-      logger.info(
-        `Job de sincronização para empresa ${companyId} concluído. ${updatedCount} produtos atualizados.`
-      );
+  const { companyId } = job.data;
+  let message = "";
 
-      webSocketManager.broadcastToAdmins({
-        type: "PRODUCT_SYNC_COMPLETED",
-        payload: {
-          companyId: companyId,
-          message: `Sincronização concluída! ${updatedCount} produtos foram atualizados.`,
-        },
-      });
-    } else if (job.name === "import-products-from-sheet") {
-      const { companyId } = job.data;
-      const { importedCount } = returnvalue;
-      logger.info(
-        `Job de importação para empresa ${companyId} concluído. ${importedCount} produtos importados.`
-      );
+  if (job.name === "sync-single-company") {
+    const { updatedCount } = returnvalue;
+    message = `Sincronização concluída! ${updatedCount} produtos foram atualizados.`;
+  } else if (job.name === "import-products-from-sheet") {
+    const { importedCount } = returnvalue;
+    message = `Importação concluída! ${importedCount} produtos foram importados/atualizados.`;
+  }
 
-      webSocketManager.broadcastToAdmins({
-        type: "PRODUCT_SYNC_COMPLETED",
-        payload: {
-          companyId: companyId,
-          message: `Importação concluída! ${importedCount} produtos foram importados/atualizados.`,
-        },
-      });
-    }
-  });
+  if (message) {
+    webSocketManager.broadcastToAdmins({
+      type: "PRODUCT_OPERATION_SUCCESS",
+      payload: { companyId, message },
+    });
+  }
 });
 
-queueEvents.on("failed", ({ jobId, failedReason }) => {
+queueEvents.on("failed", async ({ jobId, failedReason }) => {
   logger.error(`Job ${jobId} falhou: ${failedReason}`);
-  productSyncQueue.getJob(jobId).then((job) => {
-    if (!job) return;
-    const { companyId } = job.data;
+  const job = await productSyncQueue.getJob(jobId);
+  if (!job) return;
 
-    if (
-      job.name === "sync-single-company" ||
-      job.name === "import-products-from-sheet"
-    ) {
-      webSocketManager.broadcastToAdmins({
-        type: "PRODUCT_SYNC_FAILED",
-        payload: {
-          companyId: companyId,
-          message: `A operação em segundo plano falhou. Tente novamente.`,
-        },
-      });
-    }
+  const { companyId } = job.data;
+  webSocketManager.broadcastToAdmins({
+    type: "PRODUCT_OPERATION_FAILURE",
+    payload: {
+      companyId,
+      message: "A operação em segundo plano falhou. Verifique os logs.",
+    },
   });
 });
 

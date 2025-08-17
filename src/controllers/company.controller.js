@@ -158,6 +158,8 @@ const addSectorToCompany = async (req, res) => {
   }
   try {
     const newSector = await companyService.createSector(company_id, name);
+    const { broadcastToAdmins } = req.app.locals;
+    broadcastToAdmins({ type: "REFRESH_PAGE_CONTENT" });
     res.status(201).json(newSector);
   } catch (err) {
     logger.error("Erro ao adicionar setor.", err);
@@ -174,6 +176,8 @@ const removeSector = async (req, res) => {
   const { id } = req.params;
   try {
     await companyService.deleteSector(id);
+    const { broadcastToAdmins } = req.app.locals;
+    broadcastToAdmins({ type: "REFRESH_PAGE_CONTENT" });
     res.status(200).json({ message: "Setor excluído com sucesso." });
   } catch (err) {
     logger.error(`Erro ao excluir setor ${id}.`, err);
