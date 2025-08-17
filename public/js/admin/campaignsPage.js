@@ -1,4 +1,5 @@
 import { notyf } from "./utils.js";
+import { setupTableSearch } from "./tableSearch.js";
 
 const createCampaignRow = (campaign) => {
   const row = document.createElement("tr");
@@ -55,6 +56,52 @@ const createCampaignRow = (campaign) => {
   return row;
 };
 
+export const addCampaignRow = (campaign) => {
+  const tableBody = document.getElementById("campaigns-table-body");
+  if (!tableBody) return;
+
+  const emptyState = document.querySelector(".empty-state-container");
+  if (emptyState) {
+    const tableWrapper = document.querySelector(".device-table-wrapper");
+    emptyState.parentElement.replaceChild(tableWrapper, emptyState);
+  }
+
+  const noCampaignsRow = document.querySelector(
+    "#campaigns-table-body tr > td[colspan='8']"
+  );
+  if (noCampaignsRow) {
+    noCampaignsRow.parentElement.remove();
+  }
+
+  const newRow = createCampaignRow(campaign);
+  tableBody.prepend(newRow);
+};
+
+export const updateCampaignRow = (campaign) => {
+  const row = document.querySelector(`tr[data-campaign-id="${campaign.id}"]`);
+  if (row) {
+    const newRow = createCampaignRow(campaign);
+    row.innerHTML = newRow.innerHTML;
+  } else {
+    addCampaignRow(campaign);
+  }
+};
+
+export const removeCampaignRow = (campaignId) => {
+  const row = document.querySelector(`tr[data-campaign-id="${campaignId}"]`);
+  if (row) {
+    row.remove();
+  }
+  const tableBody = document.getElementById("campaigns-table-body");
+  if (tableBody && tableBody.rows.length === 0) {
+    tableBody.innerHTML = `
+        <tr>
+            <td colspan="8" style="text-align: center">Nenhuma campanha criada.</td>
+        </tr>
+        `;
+  }
+};
+
 export async function refreshCampaignsTable() {
   try {
     const response = await fetch(window.location.href);
@@ -69,6 +116,7 @@ export async function refreshCampaignsTable() {
 
     if (newContent && oldContent) {
       oldContent.innerHTML = newContent.innerHTML;
+      setupTableSearch("campaigns-search-input", "campaigns-table-body");
     }
   } catch (err) {
     notyf.error(

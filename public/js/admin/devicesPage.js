@@ -1,4 +1,5 @@
 import { notyf, deviceTypeNames } from "./utils.js";
+import { setupTableSearch } from "./tableSearch.js";
 
 const createDeviceRow = (device) => {
   const row = document.createElement("tr");
@@ -101,21 +102,24 @@ export const removeDeviceRow = (deviceId) => {
 };
 
 export async function refreshDevicesTable() {
-    try {
-      const response = await fetch(window.location.href);
-      if (!response.ok) throw new Error("Falha ao buscar dados atualizados.");
-  
-      const html = await response.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-  
-      const newContent = doc.querySelector("main.container");
-      const oldContent = document.querySelector("main.container");
-  
-      if (newContent && oldContent) {
-        oldContent.innerHTML = newContent.innerHTML;
-      }
-    } catch (err) {
-      notyf.error(err.message || "Não foi possível atualizar a lista de dispositivos.");
+  try {
+    const response = await fetch(window.location.href);
+    if (!response.ok) throw new Error("Falha ao buscar dados atualizados.");
+
+    const html = await response.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+
+    const newContent = doc.querySelector("main.container");
+    const oldContent = document.querySelector("main.container");
+
+    if (newContent && oldContent) {
+      oldContent.innerHTML = newContent.innerHTML;
+      setupTableSearch("devices-search-input", "devices-table-body");
     }
+  } catch (err) {
+    notyf.error(
+      err.message || "Não foi possível atualizar a lista de dispositivos."
+    );
   }
+}

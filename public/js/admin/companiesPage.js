@@ -1,3 +1,6 @@
+import { notyf } from "./utils.js";
+import { setupTableSearch } from "./tableSearch.js";
+
 const createCompanyRow = (company) => {
   const row = document.createElement("tr");
   row.dataset.companyId = company.id;
@@ -70,22 +73,26 @@ export async function refreshCompaniesTable() {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
-    const newTable = doc.querySelector(".device-table-wrapper");
-    const oldTable = document.querySelector(".device-table-wrapper");
+    const newTableWrapper = doc.querySelector(".device-table-wrapper");
+    const oldTableWrapper = document.querySelector(".device-table-wrapper");
     const newPagination = doc.querySelector(".pagination-container");
     const oldPagination = document.querySelector(".pagination-container");
 
-    if (newTable && oldTable) {
-      oldTable.innerHTML = newTable.innerHTML;
+    if (newTableWrapper && oldTableWrapper) {
+      oldTableWrapper.innerHTML = newTableWrapper.innerHTML;
     }
 
     if (oldPagination) {
       oldPagination.remove();
     }
-    if (newPagination && oldTable) {
-      oldTable.insertAdjacentElement("afterend", newPagination);
+    if (newPagination && oldTableWrapper) {
+      oldTableWrapper.insertAdjacentElement("afterend", newPagination);
     }
+
+    setupTableSearch("companies-search-input", "companies-table-body");
   } catch (err) {
-    notyf.error(err.message || "Não foi possível atualizar a lista de empresas.");
+    notyf.error(
+      err.message || "Não foi possível atualizar a lista de empresas."
+    );
   }
 }

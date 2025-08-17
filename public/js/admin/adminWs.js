@@ -1,34 +1,25 @@
 import { notyf } from "./utils.js";
-import { refreshCompaniesTable } from "./companiesPage.js";
-import { refreshDevicesTable, updateDeviceRow } from "./devicesPage.js";
-import { refreshCampaignsTable } from "./campaignsPage.js";
+import {
+  addCompanyRow,
+  updateCompanyRow,
+  removeCompanyRow,
+} from "./companiesPage.js";
+import {
+  addDeviceRow,
+  updateDeviceRow,
+  removeDeviceRow,
+} from "./devicesPage.js";
+import {
+  addCampaignRow,
+  updateCampaignRow,
+  removeCampaignRow,
+} from "./campaignsPage.js";
 import {
   addProductRow,
   refreshProductTable,
+  removeProductRow,
   resetSyncButton,
 } from "./productsPage.js";
-
-function updateDeviceStatusOnPage(payload) {
-  const { deviceId, status, deviceName } = payload;
-  const row = document.querySelector(`tr[data-device-id="${deviceId}"]`);
-  if (!row) return;
-
-  const statusCell = row.querySelector("[data-status-cell]");
-  const nameCell = row.querySelector('td[data-label="Nome"]');
-
-  if (nameCell) {
-    nameCell.textContent = deviceName;
-  }
-
-  if (statusCell) {
-    const statusSpan = statusCell.querySelector(".online-status");
-    const statusText = statusCell.querySelector("[data-status-text]");
-    if (statusSpan && statusText) {
-      statusSpan.className = `online-status ${status.class}`;
-      statusText.textContent = status.text;
-    }
-  }
-}
 
 export function connectAdminWs(detailsModalHandler) {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -45,10 +36,26 @@ export function connectAdminWs(detailsModalHandler) {
 
       switch (data.type) {
         case "DEVICE_STATUS_UPDATE":
-          if (isDevicesPage) updateDeviceStatusOnPage(data.payload);
+          if (isDevicesPage) {
+            const row = document.querySelector(
+              `tr[data-device-id="${data.payload.deviceId}"]`
+            );
+            if (row) {
+              const statusCell = row.querySelector("[data-status-cell]");
+              if (statusCell) {
+                const statusSpan = statusCell.querySelector(".online-status");
+                const statusText =
+                  statusCell.querySelector("[data-status-text]");
+                if (statusSpan && statusText) {
+                  statusSpan.className = `online-status ${data.payload.status.class}`;
+                  statusText.textContent = data.payload.status.text;
+                }
+              }
+            }
+          }
           break;
         case "DEVICE_CREATED":
-          if (isDevicesPage) refreshDevicesTable();
+          if (isDevicesPage) addDeviceRow(data.payload);
           notyf.success(data.payload.message || "Dispositivo criado.");
           break;
         case "DEVICE_UPDATED":
@@ -65,33 +72,33 @@ export function connectAdminWs(detailsModalHandler) {
           if (data.payload.message) notyf.success(data.payload.message);
           break;
         case "DEVICE_DELETED":
-          if (isDevicesPage) refreshDevicesTable();
+          if (isDevicesPage) removeDeviceRow(data.payload.deviceId);
           notyf.success(`Dispositivo removido com sucesso.`);
           break;
 
         case "COMPANY_CREATED":
-          if (isCompaniesPage) refreshCompaniesTable();
+          if (isCompaniesPage) addCompanyRow(data.payload);
           notyf.success(`Empresa "${data.payload.name}" criada.`);
           break;
         case "COMPANY_UPDATED":
-          if (isCompaniesPage) refreshCompaniesTable();
+          if (isCompaniesPage) updateCompanyRow(data.payload);
           notyf.success(`Empresa "${data.payload.name}" atualizada.`);
           break;
         case "COMPANY_DELETED":
-          if (isCompaniesPage) refreshCompaniesTable();
+          if (isCompaniesPage) removeCompanyRow(data.payload.companyId);
           notyf.success(`Empresa removida com sucesso.`);
           break;
 
         case "CAMPAIGN_CREATED":
-          if (isCampaignsPage) refreshCampaignsTable();
+          if (isCampaignsPage) addCampaignRow(data.payload);
           notyf.success(`Campanha "${data.payload.name}" criada.`);
           break;
         case "CAMPAIGN_UPDATED":
-          if (isCampaignsPage) refreshCampaignsTable();
+          if (isCampaignsPage) updateCampaignRow(data.payload);
           notyf.success(`Campanha "${data.payload.name}" atualizada.`);
           break;
         case "CAMPAIGN_DELETED":
-          if (isCampaignsPage) refreshCampaignsTable();
+          if (isCampaignsPage) removeCampaignRow(data.payload.campaignId);
           notyf.success(`Campanha removida com sucesso.`);
           break;
 
@@ -100,7 +107,7 @@ export function connectAdminWs(detailsModalHandler) {
           notyf.success(`Produto "${data.payload.product_name}" adicionado.`);
           break;
         case "PRODUCT_DELETED":
-          if (isProductsPage) refreshProductTable();
+          if (isProductsPage) removeProductRow(data.payload.productId);
           notyf.success(`Produto removido com sucesso.`);
           break;
         case "PRODUCT_SYNC_COMPLETED":

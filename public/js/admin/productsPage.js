@@ -1,4 +1,5 @@
 import { notyf } from "./utils.js";
+import { setupTableSearch } from "./tableSearch.js";
 
 const createProductRow = (product) => {
   const row = document.createElement("tr");
@@ -87,16 +88,28 @@ export async function refreshProductTable() {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
-    const newContent = doc.querySelector("main.container");
-    const oldContent = document.querySelector("main.container");
+    const newTableWrapper = doc.querySelector(".device-table-wrapper");
+    const oldTableWrapper = document.querySelector(".device-table-wrapper");
+    const newPagination = doc.querySelector(".pagination-container");
+    const oldPagination = document.querySelector(".pagination-container");
 
-    if (newContent && oldContent) {
-      oldContent.innerHTML = newContent.innerHTML;
+    if (newTableWrapper && oldTableWrapper) {
+      oldTableWrapper.innerHTML = newTableWrapper.innerHTML;
     }
+
+    if (oldPagination) {
+      oldPagination.remove();
+    }
+    if (newPagination && oldTableWrapper) {
+      oldTableWrapper.insertAdjacentElement("afterend", newPagination);
+    }
+
+    resetSyncButton();
   } catch (err) {
-    notyf.error(err.message || "Não foi possível atualizar a lista de produtos.");
+    notyf.error(
+      err.message || "Não foi possível atualizar a lista de produtos."
+    );
   }
 }
-
 
 export function setupProductsPage() {}
