@@ -180,8 +180,10 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     if (isImage) {
-      const duration = (mediaItem.duration || 10) * 1000;
-      mediaTimers[zone] = setTimeout(setupNext, duration);
+      if (playlist.length > 1) {
+        const duration = (mediaItem.duration || 10) * 1000;
+        mediaTimers[zone] = setTimeout(setupNext, duration);
+      }
       if (newElement.complete) {
         onMediaReady();
       } else {
@@ -189,6 +191,12 @@ document.addEventListener("DOMContentLoaded", () => {
         newElement.onerror = setupNext;
       }
     } else if (isVideo) {
+      if (playlist.length > 1) {
+        newElement.onended = setupNext;
+      } else {
+        newElement.loop = true;
+      }
+
       newElement.oncanplay = () => {
         const playPromise = newElement.play();
         if (playPromise !== undefined) {
@@ -198,7 +206,6 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         }
       };
-      newElement.onended = setupNext;
       newElement.onerror = setupNext;
     }
   };

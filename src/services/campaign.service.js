@@ -186,7 +186,7 @@ const getOverwriteReason = (winner, loser) => {
       : campaign.sector_ids?.length > 0
       ? 2
       : 1;
-  const specMap = { 3: "Dispositivo", 2: "Setor", 1: "Geral (Toda a Loja)" };
+  const specMap = { 3: "Dispositivo Específico", 2: "Setor", 1: "Toda a Loja" };
 
   const winnerSpec = getSpec(winner);
   const loserSpec = getSpec(loser);
@@ -194,18 +194,18 @@ const getOverwriteReason = (winner, loser) => {
   let reason = "";
 
   if (winnerSpec > loserSpec) {
-    reason = `Segmentação mais específica (${specMap[winnerSpec]} vs. ${specMap[loserSpec]})`;
+    reason = `Uma campanha com alvo mais específico (${specMap[winnerSpec]}) tem preferência.`;
   } else if (winner.priority < loser.priority) {
-    reason = `Prioridade manual superior (${getPriorityName(
+    reason = `A campanha "${winner.name}" tem prioridade "${getPriorityName(
       winner.priority
-    )} vs. ${getPriorityName(loser.priority)})`;
+    )}", que é superior.`;
   } else {
     const winnerPlays = parseInt(winner.plays_last_24h, 10);
     const loserPlays = parseInt(loser.plays_last_24h, 10);
     if (winnerPlays !== loserPlays) {
-      reason = `Maior número de exibições recentes (${winnerPlays} vs. ${loserPlays} nas últimas 24h)`;
+      reason = `Como desempate, a campanha "${winner.name}" foi exibida mais vezes recentemente.`;
     } else {
-      reason = "Critério de desempate (criada mais recentemente)";
+      reason = `Como desempate, a campanha "${winner.name}" foi criada primeiro.`;
     }
   }
 
@@ -306,7 +306,7 @@ const getCampaignPipeline = async () => {
   deviceEffectiveCampaign.forEach((campaign) => {
     effectiveCampaignIds.add(campaign.id);
   });
-  
+
   const pausedCampaigns = new Map();
   for (const campaign of activeTimeCampaigns) {
     if (!effectiveCampaignIds.has(campaign.id)) {
@@ -314,7 +314,10 @@ const getCampaignPipeline = async () => {
       for (const deviceId of targetDevices) {
         const winningCampaign = deviceEffectiveCampaign.get(deviceId);
         if (winningCampaign && winningCampaign.id !== campaign.id) {
-          pausedCampaigns.set(campaign.id, getOverwriteReason(winningCampaign, campaign));
+          pausedCampaigns.set(
+            campaign.id,
+            getOverwriteReason(winningCampaign, campaign)
+          );
           break;
         }
       }
@@ -358,7 +361,10 @@ const getCampaignPipeline = async () => {
         const pausedInfo = pausedCampaigns.get(campaign.id);
         campaignStatus.pausedBy = pausedInfo
           ? pausedInfo
-          : { winnerName: "outra campanha", reason: "Critério de sobreposição mais forte." };
+          : {
+              winnerName: "outra campanha",
+              reason: "Critério de sobreposição mais forte.",
+            };
       }
     }
 
