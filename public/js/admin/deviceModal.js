@@ -1,6 +1,8 @@
 import { handleFetchError } from "./utils.js";
 import { showSuccess, showError } from "./notification.js";
 
+let isInitialized = false;
+
 export function setupDeviceModal() {
   const deviceModal = document.getElementById("deviceModal");
   if (!deviceModal) return { openCreateModal: () => {}, openEditModal: () => {} };
@@ -39,9 +41,45 @@ export function setupDeviceModal() {
     }
   };
 
-  companySelect?.addEventListener("change", () =>
-    populateSectors(companySelect.value)
-  );
+  if (!isInitialized) {
+    companySelect?.addEventListener("change", () =>
+      populateSectors(companySelect.value)
+    );
+
+    cancelBtn?.addEventListener(
+      "click",
+      () => (deviceModal.style.display = "none")
+    );
+
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      const originalButtonText = submitButton.textContent;
+      submitButton.disabled = true;
+      submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
+
+      try {
+        const res = await fetch(this.action, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(Object.fromEntries(new FormData(this))),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          showError(json.message || `Erro ${res.status}`);
+          return;
+        }
+        deviceModal.style.display = "none";
+      } catch (err) {
+        showError("Falha na comunicação com o servidor.");
+      } finally {
+        submitButton.disabled = false;
+        submitButton.innerHTML = originalButtonText;
+      }
+    });
+
+    isInitialized = true;
+  }
 
   const openCreateModal = () => {
     form.reset();
@@ -72,38 +110,6 @@ export function setupDeviceModal() {
       showError(error.message || "Erro ao carregar dispositivo.");
     }
   };
-
-  cancelBtn?.addEventListener(
-    "click",
-    () => (deviceModal.style.display = "none")
-  );
-
-  form.addEventListener("submit", async function (e) {
-    e.preventDefault();
-
-    const originalButtonText = submitButton.textContent;
-    submitButton.disabled = true;
-    submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
-
-    try {
-      const res = await fetch(this.action, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(Object.fromEntries(new FormData(this))),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        showError(json.message || `Erro ${res.status}`);
-        return;
-      }
-      deviceModal.style.display = "none";
-    } catch (err) {
-      showError("Falha na comunicação com o servidor.");
-    } finally {
-      submitButton.disabled = false;
-      submitButton.innerHTML = originalButtonText;
-    }
-  });
 
   return { openCreateModal, openEditModal };
 }

@@ -2,6 +2,8 @@ import { handleFetchError } from "./utils.js";
 import { showSuccess, showError } from "./notification.js";
 import { showConfirmationModal } from "./confirmationModal.js";
 
+let isInitialized = false;
+
 export function setupCompanyModal() {
   const companyModal = document.getElementById("companyModal");
   if (!companyModal) return;
@@ -75,63 +77,114 @@ export function setupCompanyModal() {
     }
   };
 
-  addSectorBtn.addEventListener("click", async () => {
-    const name = newSectorNameInput.value.trim();
-    if (!name) return showError("O nome do setor é obrigatório.");
+  if (!isInitialized) {
+    addSectorBtn.addEventListener("click", async () => {
+      const name = newSectorNameInput.value.trim();
+      if (!name) return showError("O nome do setor é obrigatório.");
 
-    if (currentCompanyId) {
-      try {
-        const res = await fetch("/api/sectors", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ company_id: currentCompanyId, name }),
-        });
-        if (!res.ok) throw new Error(await handleFetchError(res));
-        newSectorNameInput.value = "";
-      } catch (error) {
-        showError(error.message || "Falha ao adicionar setor.");
-      }
-    } else {
-      if (stagedSectors.includes(name)) {
-        return showError("Este setor já foi adicionado.");
-      }
-      stagedSectors.push(name);
-      newSectorNameInput.value = "";
-      renderStagedSectors();
-    }
-  });
-
-  sectorList.addEventListener("click", (e) => {
-    const deleteButton = e.target.closest(".delete-sector-btn");
-    if (!deleteButton) return;
-
-    const sectorId = deleteButton.dataset.id;
-    const stagedIndex = deleteButton.dataset.index;
-
-    if (sectorId) {
-      const handleConfirm = async () => {
+      if (currentCompanyId) {
         try {
-          const res = await fetch(`/api/sectors/${sectorId}/delete`, {
+          const res = await fetch("/api/sectors", {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ company_id: currentCompanyId, name }),
           });
           if (!res.ok) throw new Error(await handleFetchError(res));
+          newSectorNameInput.value = "";
         } catch (error) {
-          showError(error.message || "Falha ao excluir setor.");
+          showError(error.message || "Falha ao adicionar setor.");
         }
-      };
+      } else {
+        if (stagedSectors.includes(name)) {
+          return showError("Este setor já foi adicionado.");
+        }
+        stagedSectors.push(name);
+        newSectorNameInput.value = "";
+        renderStagedSectors();
+      }
+    });
 
-      showConfirmationModal({
-        title: "Confirmar Exclusão",
-        message: "Deseja realmente excluir este setor?",
-        confirmText: "Excluir",
-        type: "danger",
-        onConfirm: handleConfirm,
-      });
-    } else if (stagedIndex !== undefined) {
-      stagedSectors.splice(parseInt(stagedIndex, 10), 1);
-      renderStagedSectors();
-    }
-  });
+    sectorList.addEventListener("click", (e) => {
+      const deleteButton = e.target.closest(".delete-sector-btn");
+      if (!deleteButton) return;
+
+      const sectorId = deleteButton.dataset.id;
+      const stagedIndex = deleteButton.dataset.index;
+
+      if (sectorId) {
+        const handleConfirm = async () => {
+          try {
+            const res = await fetch(`/api/sectors/${sectorId}/delete`, {
+              method: "POST",
+            });
+            if (!res.ok) throw new Error(await handleFetchError(res));
+          } catch (error) {
+            showError(error.message || "Falha ao excluir setor.");
+          }
+        };
+
+        showConfirmationModal({
+          title: "Confirmar Exclusão",
+          message: "Deseja realmente excluir este setor?",
+          confirmText: "Excluir",
+          type: "danger",
+          onConfirm: handleConfirm,
+        });
+      } else if (stagedIndex !== undefined) {
+        stagedSectors.splice(parseInt(stagedIndex, 10), 1);
+        renderStagedSectors();
+      }
+    });
+
+    openBtn?.addEventListener("click", openCreateModal);
+
+    cancelBtn?.addEventListener(
+      "click",
+      () => (companyModal.style.display = "none")
+    );
+
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      const originalButtonText = submitButton.textContent;
+      submitButton.disabled = true;
+      submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
+
+      const body = Object.fromEntries(new FormData(this));
+
+      if (cnpjMask) {
+        body.cnpj = cnpjMask.unmaskedValue;
+      }
+      if (cepMask) {
+        body.cep = cepMask.unmaskedValue;
+      }
+
+      if (!currentCompanyId) {
+        body.sectors = stagedSectors;
+      }
+
+      try {
+        const res = await fetch(this.action, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          showError(json.message || `Erro ${res.status}`);
+          return;
+        }
+        companyModal.style.display = "none";
+      } catch (err) {
+        showError("Falha na comunicação com o servidor.");
+      } finally {
+        submitButton.disabled = false;
+        submitButton.innerHTML = originalButtonText;
+      }
+    });
+
+    isInitialized = true;
+  }
 
   const openCreateModal = () => {
     form.reset();
@@ -198,52 +251,6 @@ export function setupCompanyModal() {
       showError(error.message || "Erro ao carregar empresa.");
     }
   };
-
-  openBtn?.addEventListener("click", openCreateModal);
-  cancelBtn?.addEventListener(
-    "click",
-    () => (companyModal.style.display = "none")
-  );
-
-  form.addEventListener("submit", async function (e) {
-    e.preventDefault();
-
-    const originalButtonText = submitButton.textContent;
-    submitButton.disabled = true;
-    submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
-
-    const body = Object.fromEntries(new FormData(this));
-
-    if (cnpjMask) {
-      body.cnpj = cnpjMask.unmaskedValue;
-    }
-    if (cepMask) {
-      body.cep = cepMask.unmaskedValue;
-    }
-
-    if (!currentCompanyId) {
-      body.sectors = stagedSectors;
-    }
-
-    try {
-      const res = await fetch(this.action, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        showError(json.message || `Erro ${res.status}`);
-        return;
-      }
-      companyModal.style.display = "none";
-    } catch (err) {
-      showError("Falha na comunicação com o servidor.");
-    } finally {
-      submitButton.disabled = false;
-      submitButton.innerHTML = originalButtonText;
-    }
-  });
 
   return { openEditModal };
 }

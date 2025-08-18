@@ -1,6 +1,8 @@
 import { deviceTypeNames, handleFetchError } from "./utils.js";
 import { showSuccess, showError } from "./notification.js";
 
+let isInitialized = false;
+
 export function setupDetailsModal() {
   const detailsModal = document.getElementById("deviceDetailsModal");
   if (!detailsModal) return;
@@ -123,119 +125,123 @@ export function setupDetailsModal() {
     }
   };
 
-  const copyTextToClipboard = async (text) => {
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "fixed";
-      textArea.style.left = "-9999px";
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textArea);
-    }
-  };
+  if (!isInitialized) {
+    const copyTextToClipboard = async (text) => {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
+    };
 
-  document
-    .getElementById("closeDetailsModal")
-    ?.addEventListener("click", () => {
-      hideOtpView();
-      detailsModal.style.display = "none";
-      detailsModal.dataset.showingDeviceId = "";
-    });
+    const handleDeviceAction = async (url) => {
+      try {
+        const res = await fetch(url, { method: "POST" });
+        if (!res.ok) throw new Error(await handleFetchError(res));
+      } catch (err) {
+        showError(err.message || "Falha na comunicação.");
+      }
+    };
 
-  const handleDeviceAction = async (url) => {
-    try {
-      const res = await fetch(url, { method: "POST" });
-      if (!res.ok) throw new Error(await handleFetchError(res));
-    } catch (err) {
-      showError(err.message || "Falha na comunicação.");
-    }
-  };
+    const handleRemoteCommand = async (e) => {
+      const button = e.target.closest("button[data-command]");
+      if (!button) return;
 
-  const handleRemoteCommand = async (e) => {
-    const button = e.target.closest("button[data-command]");
-    if (!button) return;
+      const command = button.dataset.command;
+      const deviceId = button.closest("[data-id]").dataset.id;
 
-    const command = button.dataset.command;
-    const deviceId = button.closest("[data-id]").dataset.id;
-
-    button.disabled = true;
-    try {
-      const res = await fetch(`/api/devices/${deviceId}/command`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command }),
+      button.disabled = true;
+      try {
+        const res = await fetch(`/api/devices/${deviceId}/command`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.message);
+        showSuccess(json.message);
+      } catch (err) {
+        showError(err.message || "Falha ao enviar comando.");
+      } finally {
+        button.disabled = false;
+      }
+    };
+    
+    document
+      .getElementById("closeDetailsModal")
+      ?.addEventListener("click", () => {
+        hideOtpView();
+        detailsModal.style.display = "none";
+        detailsModal.dataset.showingDeviceId = "";
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message);
-      showSuccess(json.message);
-    } catch (err) {
-      showError(err.message || "Falha ao enviar comando.");
-    } finally {
-      button.disabled = false;
-    }
-  };
 
-  document
-    .getElementById("remote-commands-fieldset")
-    ?.addEventListener("click", handleRemoteCommand);
+    document
+      .getElementById("remote-commands-fieldset")
+      ?.addEventListener("click", handleRemoteCommand);
 
-  document
-    .getElementById("modalRevokeButton")
-    ?.addEventListener("click", function () {
-      handleDeviceAction(`/devices/${this.dataset.id}/revoke`);
-    });
+    document
+      .getElementById("modalRevokeButton")
+      ?.addEventListener("click", function () {
+        handleDeviceAction(`/devices/${this.dataset.id}/revoke`);
+      });
 
-  document
-    .getElementById("modalReactivateButton")
-    ?.addEventListener("click", function () {
-      handleDeviceAction(`/devices/${this.dataset.id}/reactivate`);
-    });
+    document
+      .getElementById("modalReactivateButton")
+      ?.addEventListener("click", function () {
+        handleDeviceAction(`/devices/${this.dataset.id}/reactivate`);
+      });
 
-  document
-    .getElementById("modalGenerateOtpButton")
-    ?.addEventListener("click", async function (e) {
-      e.stopPropagation();
-      this.disabled = true;
-      try {
-        const res = await fetch(`/devices/${this.dataset.id}/otp`, {
-          method: "POST",
-        });
-        if (!res.ok)
-          throw new Error((await res.json()).message || "Falha ao gerar OTP.");
-        const { otp, expiresAt } = await res.json();
-        displayOtp(otp, expiresAt);
-      } catch (err) {
-        showError(err.message || "Não foi possível gerar o OTP.");
-      } finally {
-        this.disabled = false;
-      }
-    });
+    document
+      .getElementById("modalGenerateOtpButton")
+      ?.addEventListener("click", async function (e) {
+        e.stopPropagation();
+        this.disabled = true;
+        try {
+          const res = await fetch(`/devices/${this.dataset.id}/otp`, {
+            method: "POST",
+          });
+          if (!res.ok)
+            throw new Error((await res.json()).message || "Falha ao gerar OTP.");
+          const { otp, expiresAt } = await res.json();
+          displayOtp(otp, expiresAt);
+        } catch (err) {
+          showError(err.message || "Não foi possível gerar o OTP.");
+        } finally {
+          this.disabled = false;
+        }
+      });
 
-  document
-    .getElementById("modalGenerateMagicLinkButton")
-    ?.addEventListener("click", async function (e) {
-      e.stopPropagation();
-      this.disabled = true;
-      try {
-        const res = await fetch(`/devices/${this.dataset.id}/magicLink`, {
-          method: "POST",
-        });
-        if (!res.ok)
-          throw new Error((await res.json()).message || "Falha ao gerar link.");
-        const { magicLink } = await res.json();
-        await copyTextToClipboard(magicLink);
-        showSuccess("Link mágico copiado!");
-      } catch (err) {
-        showError(err.message || "Não foi possível copiar o link.");
-      } finally {
-        this.disabled = false;
-      }
-    });
+    document
+      .getElementById("modalGenerateMagicLinkButton")
+      ?.addEventListener("click", async function (e) {
+        e.stopPropagation();
+        this.disabled = true;
+        try {
+          const res = await fetch(`/devices/${this.dataset.id}/magicLink`, {
+            method: "POST",
+          });
+          if (!res.ok)
+            throw new Error((await res.json()).message || "Falha ao gerar link.");
+          const { magicLink } = await res.json();
+          await copyTextToClipboard(magicLink);
+          showSuccess("Link mágico copiado!");
+        } catch (err) {
+          showError(err.message || "Não foi possível copiar o link.");
+        } finally {
+          this.disabled = false;
+        }
+      });
+      
+    isInitialized = true;
+  }
 
   return { openDetailsModal, hideOtpView, element: detailsModal };
 }

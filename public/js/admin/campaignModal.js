@@ -2,6 +2,8 @@ import { handleFetchError } from "./utils.js";
 import { showSuccess, showError } from "./notification.js";
 import { showConfirmationModal } from "./confirmationModal.js";
 
+let isInitialized = false;
+
 export function setupCampaignModal() {
   const campaignModal = document.getElementById("campaignModal");
   if (!campaignModal) return;
@@ -11,6 +13,7 @@ export function setupCampaignModal() {
   let sortableInstances = { main: null, secondary: null };
   let mediaHasBeenTouched = false;
   const thumbnailCache = new Map();
+  let currentUploadZone = "main";
 
   const elements = {
     openBtn: document.getElementById("openCampaignModal"),
@@ -241,11 +244,7 @@ export function setupCampaignModal() {
 
     renderStagedFiles();
   };
-
-  elements.layoutRadios.forEach((radio) => {
-    radio.addEventListener("change", handleLayoutChange);
-  });
-
+  
   const handleSegmentationChange = () => {
     const selectedValue = document.querySelector(
       'input[name="segmentation_type"]:checked'
@@ -265,14 +264,6 @@ export function setupCampaignModal() {
       tomSelectSectors.clear();
     }
   };
-
-  elements.segmentationRadios.forEach((radio) => {
-    radio.addEventListener("change", handleSegmentationChange);
-  });
-
-  elements.companySelect?.addEventListener("change", () =>
-    populateCampaignSelectors(elements.companySelect.value)
-  );
 
   const createAddCard = (zone) => {
     const addItem = document.createElement("li");
@@ -526,39 +517,7 @@ export function setupCampaignModal() {
       showError(error.message || "Erro ao carregar campanha.");
     }
   };
-
-  let currentUploadZone = "main";
-
-  document.body.addEventListener("click", (e) => {
-    const addMediaLabel = e.target.closest(".add-media-label");
-    if (addMediaLabel) {
-      e.preventDefault();
-      currentUploadZone = addMediaLabel.dataset.zone;
-      elements.fileInput.click();
-    }
-  });
-
-  elements.fileInput?.addEventListener("change", (e) => {
-    mediaHasBeenTouched = true;
-    const newFiles = Array.from(e.target.files).map((f) =>
-      Object.assign(f, { duration: 10 })
-    );
-
-    if (
-      currentUploadZone === "secondary" &&
-      stagedFiles.secondary.length + newFiles.length > 1
-    ) {
-      showError("A zona secundária só pode conter uma mídia.");
-      elements.fileInput.value = "";
-      return;
-    }
-
-    stagedFiles[currentUploadZone].push(...newFiles);
-
-    renderStagedFiles();
-    elements.fileInput.value = "";
-  });
-
+  
   const handleInputOrClick = (e) => {
     const target = e.target;
     if (target.classList.contains("media-duration-input")) {
@@ -578,23 +537,6 @@ export function setupCampaignModal() {
       renderStagedFiles();
     }
   };
-
-  elements.mainPreviewWrapper.addEventListener("input", handleInputOrClick);
-  elements.mainPreviewWrapper.addEventListener("click", handleInputOrClick);
-  elements.secondaryPreviewWrapper.addEventListener(
-    "input",
-    handleInputOrClick
-  );
-  elements.secondaryPreviewWrapper.addEventListener(
-    "click",
-    handleInputOrClick
-  );
-
-  elements.openBtn?.addEventListener("click", openCreateCampaignModal);
-  elements.cancelBtn?.addEventListener(
-    "click",
-    () => (campaignModal.style.display = "none")
-  );
 
   const submitForm = async (force = false) => {
     elements.submitButton.disabled = true;
@@ -747,39 +689,102 @@ export function setupCampaignModal() {
     }
   };
 
-  elements.form.addEventListener("submit", async function (e) {
-    e.preventDefault();
+  if (!isInitialized) {
+    elements.layoutRadios.forEach((radio) => {
+      radio.addEventListener("change", handleLayoutChange);
+    });
 
-    const selectedLayout = document.querySelector(
-      'input[name="layout_type"]:checked'
-    ).value;
+    elements.segmentationRadios.forEach((radio) => {
+      radio.addEventListener("change", handleSegmentationChange);
+    });
 
-    if (stagedFiles.main.length === 0) {
-      showError("A zona Principal deve conter pelo menos uma mídia.");
-      return;
-    }
+    elements.companySelect?.addEventListener("change", () =>
+      populateCampaignSelectors(elements.companySelect.value)
+    );
 
-    if (
-      selectedLayout === "split-80-20" &&
-      stagedFiles.secondary.length === 0
-    ) {
-      showError(
-        "Para o layout 80/20, a zona Secundária também deve conter ao menos uma mídia."
+    document.body.addEventListener("click", (e) => {
+      const addMediaLabel = e.target.closest(".add-media-label");
+      if (addMediaLabel) {
+        e.preventDefault();
+        currentUploadZone = addMediaLabel.dataset.zone;
+        elements.fileInput.click();
+      }
+    });
+
+    elements.fileInput?.addEventListener("change", (e) => {
+      mediaHasBeenTouched = true;
+      const newFiles = Array.from(e.target.files).map((f) =>
+        Object.assign(f, { duration: 10 })
       );
-      return;
-    }
 
-    if (
-      fpStart.selectedDates[0] &&
-      fpEnd.selectedDates[0] &&
-      fpEnd.selectedDates[0] < fpStart.selectedDates[0]
-    ) {
-      showError("A data de término não pode ser anterior à data de início.");
-      return;
-    }
+      if (
+        currentUploadZone === "secondary" &&
+        stagedFiles.secondary.length + newFiles.length > 1
+      ) {
+        showError("A zona secundária só pode conter uma mídia.");
+        elements.fileInput.value = "";
+        return;
+      }
 
-    submitForm(false);
-  });
+      stagedFiles[currentUploadZone].push(...newFiles);
+
+      renderStagedFiles();
+      elements.fileInput.value = "";
+    });
+
+    elements.mainPreviewWrapper.addEventListener("input", handleInputOrClick);
+    elements.mainPreviewWrapper.addEventListener("click", handleInputOrClick);
+    elements.secondaryPreviewWrapper.addEventListener(
+      "input",
+      handleInputOrClick
+    );
+    elements.secondaryPreviewWrapper.addEventListener(
+      "click",
+      handleInputOrClick
+    );
+
+    elements.openBtn?.addEventListener("click", openCreateCampaignModal);
+    elements.cancelBtn?.addEventListener(
+      "click",
+      () => (campaignModal.style.display = "none")
+    );
+
+    elements.form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      const selectedLayout = document.querySelector(
+        'input[name="layout_type"]:checked'
+      ).value;
+
+      if (stagedFiles.main.length === 0) {
+        showError("A zona Principal deve conter pelo menos uma mídia.");
+        return;
+      }
+
+      if (
+        selectedLayout === "split-80-20" &&
+        stagedFiles.secondary.length === 0
+      ) {
+        showError(
+          "Para o layout 80/20, a zona Secundária também deve conter ao menos uma mídia."
+        );
+        return;
+      }
+
+      if (
+        fpStart.selectedDates[0] &&
+        fpEnd.selectedDates[0] &&
+        fpEnd.selectedDates[0] < fpStart.selectedDates[0]
+      ) {
+        showError("A data de término não pode ser anterior à data de início.");
+        return;
+      }
+
+      submitForm(false);
+    });
+
+    isInitialized = true;
+  }
 
   return { openEditCampaignModal };
 }

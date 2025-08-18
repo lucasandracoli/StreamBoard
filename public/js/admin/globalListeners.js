@@ -1,7 +1,11 @@
 import { showSuccess, showError } from "./notification.js";
 import { showConfirmationModal } from "./confirmationModal.js";
 
+let isInitialized = false;
+
 export function setupGlobalListeners(modalHandlers) {
+  if (isInitialized) return;
+
   document.body.addEventListener("click", async (e) => {
     const target = e.target;
     const pageId = document.body.id;
@@ -96,4 +100,6 @@ export function setupGlobalListeners(modalHandlers) {
       });
     }
   });
+
+  isInitialized = true;
 }

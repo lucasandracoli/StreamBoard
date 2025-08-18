@@ -1,6 +1,16 @@
 import { showSuccess, showError } from "./notification.js";
 
+function checkForLogoutNotification() {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has("logout")) {
+    showSuccess("Logout efetuado com sucesso!");
+    history.replaceState(null, "", window.location.pathname);
+  }
+}
+
 export function setupLoginForm() {
+  checkForLogoutNotification();
+
   const loginForm = document.getElementById("loginForm");
   if (!loginForm) return;
 
