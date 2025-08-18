@@ -190,11 +190,22 @@ const createCampaign = async (req, res) => {
       newSectorIds
     );
     if (overlapping.length > 0) {
-      return res.status(409).json({
-        conflict: true,
-        message: `Esta campanha irá sobrepor a(s) seguinte(s) campanha(s) para os mesmos alvos.`,
-        overlapping_campaigns: overlapping,
-      });
+      const winningConflict = overlapping[0];
+      const newCampaignSpecificity =
+        newDeviceIds.length > 0 ? 1 : newSectorIds.length > 0 ? 2 : 3;
+      const newCampaignPriority = parseInt(priority, 10);
+
+      if (
+        newCampaignSpecificity > winningConflict.specificity ||
+        (newCampaignSpecificity === winningConflict.specificity &&
+          newCampaignPriority >= winningConflict.priority)
+      ) {
+        return res.status(409).json({
+          conflict: true,
+          message: `Esta campanha será sobreposta pela campanha "${winningConflict.name}".`,
+          overlapping_campaigns: overlapping,
+        });
+      }
     }
   }
 
@@ -217,11 +228,13 @@ const createCampaign = async (req, res) => {
     });
   }
 
+  const parsedPriority = parseInt(priority, 10);
+
   const serviceData = {
     name,
     company_id,
     layout_type: layout_type || "fullscreen",
-    priority: parseInt(priority, 10),
+    priority: isNaN(parsedPriority) ? 50 : parsedPriority,
     parsedStartDate,
     parsedEndDate,
     media_metadata: mediaMetadata,
@@ -372,11 +385,22 @@ const editCampaign = async (req, res) => {
       id
     );
     if (overlapping.length > 0) {
-      return res.status(409).json({
-        conflict: true,
-        message: `Esta campanha irá sobrepor a(s) seguinte(s) campanha(s) para os mesmos alvos.`,
-        overlapping_campaigns: overlapping,
-      });
+      const winningConflict = overlapping[0];
+      const newCampaignSpecificity =
+        newDeviceIds.length > 0 ? 1 : newSectorIds.length > 0 ? 2 : 3;
+      const newCampaignPriority = parseInt(priority, 10);
+
+      if (
+        newCampaignSpecificity > winningConflict.specificity ||
+        (newCampaignSpecificity === winningConflict.specificity &&
+          newCampaignPriority >= winningConflict.priority)
+      ) {
+        return res.status(409).json({
+          conflict: true,
+          message: `Esta campanha será sobreposta pela campanha "${winningConflict.name}".`,
+          overlapping_campaigns: overlapping,
+        });
+      }
     }
   }
 
@@ -402,7 +426,7 @@ const editCampaign = async (req, res) => {
       });
     }
   }
-
+  const parsedPriority = parseInt(priority, 10);
   const client = await db.connect();
   try {
     const oldAffectedDeviceIds =
@@ -417,7 +441,7 @@ const editCampaign = async (req, res) => {
         parsedEndDate,
         company_id,
         layout_type || "fullscreen",
-        priority || 99,
+        isNaN(parsedPriority) ? 50 : parsedPriority,
         id,
       ]
     );
