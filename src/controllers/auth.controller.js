@@ -5,7 +5,6 @@ const renderLoginPage = (req, res) => {
   if (req.session.userId) {
     return res.redirect("/dashboard");
   }
-  // A notificação agora é tratada pelo script do lado do cliente
   res.render("login");
 };
 

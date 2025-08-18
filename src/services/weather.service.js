@@ -2,7 +2,6 @@ const axios = require("axios");
 const logger = require("../utils/logger");
 
 const GEO_API_URL = "https://api.openweathermap.org/geo/1.0/direct";
-// Alterado para o endpoint gratuito da API de Clima Atual (v2.5)
 const WEATHER_API_URL = "https://api.openweathermap.org/data/2.5/weather";
 
 const getCoordinates = async (city, state) => {
@@ -75,7 +74,6 @@ const getWeather = async (city, state, cep) => {
       return null;
     }
 
-    // Adaptado para a estrutura de resposta da nova API
     const weatherData = {
       current: {
         temperature_2m: main.temp,
