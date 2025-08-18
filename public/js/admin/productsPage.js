@@ -82,6 +82,13 @@ export function resetSyncButton() {
   }
 }
 
+export function updateSyncButtonState(productCount) {
+  const syncCompanyBtn = document.getElementById("syncCompanyProductsBtn");
+  if (syncCompanyBtn) {
+    syncCompanyBtn.disabled = productCount === 0;
+  }
+}
+
 export async function refreshProductTable() {
   try {
     const response = await fetch(window.location.href);

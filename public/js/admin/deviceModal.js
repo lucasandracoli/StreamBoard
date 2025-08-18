@@ -14,6 +14,36 @@ export function setupDeviceModal() {
   const companySelect = document.getElementById("newDeviceCompany");
   const sectorSelect = document.getElementById("newDeviceSector");
 
+  const openCreateModal = () => {
+    form.reset();
+    sectorSelect.innerHTML =
+      '<option value="" disabled selected>Selecione uma empresa</option>';
+    sectorSelect.disabled = true;
+    modalTitle.textContent = "Cadastrar Dispositivo";
+    submitButton.textContent = "Adicionar";
+    form.action = "/devices";
+    deviceModal.style.display = "flex";
+  };
+
+  const openEditModal = async (deviceId) => {
+    try {
+      const response = await fetch(`/api/deviceDetails/${deviceId}`);
+      if (!response.ok) throw new Error(await handleFetchError(response));
+      const device = await response.json();
+      form.reset();
+      modalTitle.textContent = "Editar Dispositivo";
+      submitButton.textContent = "Salvar";
+      form.action = `/devices/${device.id}/edit`;
+      form.name.value = device.name;
+      form.device_type.value = device.device_type;
+      form.company_id.value = device.company_id;
+      await populateSectors(device.company_id, device.sector_id);
+      deviceModal.style.display = "flex";
+    } catch (error) {
+      showError(error.message || "Erro ao carregar dispositivo.");
+    }
+  };
+
   const populateSectors = async (companyId, selectedSectorId = null) => {
     sectorSelect.innerHTML =
       '<option value="" disabled selected>Carregando...</option>';
@@ -80,36 +110,6 @@ export function setupDeviceModal() {
 
     isInitialized = true;
   }
-
-  const openCreateModal = () => {
-    form.reset();
-    sectorSelect.innerHTML =
-      '<option value="" disabled selected>Selecione uma empresa</option>';
-    sectorSelect.disabled = true;
-    modalTitle.textContent = "Cadastrar Dispositivo";
-    submitButton.textContent = "Adicionar";
-    form.action = "/devices";
-    deviceModal.style.display = "flex";
-  };
-
-  const openEditModal = async (deviceId) => {
-    try {
-      const response = await fetch(`/api/deviceDetails/${deviceId}`);
-      if (!response.ok) throw new Error(await handleFetchError(response));
-      const device = await response.json();
-      form.reset();
-      modalTitle.textContent = "Editar Dispositivo";
-      submitButton.textContent = "Salvar";
-      form.action = `/devices/${device.id}/edit`;
-      form.name.value = device.name;
-      form.device_type.value = device.device_type;
-      form.company_id.value = device.company_id;
-      await populateSectors(device.company_id, device.sector_id);
-      deviceModal.style.display = "flex";
-    } catch (error) {
-      showError(error.message || "Erro ao carregar dispositivo.");
-    }
-  };
 
   return { openCreateModal, openEditModal };
 }

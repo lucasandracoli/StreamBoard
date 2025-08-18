@@ -14,6 +14,7 @@ const productSyncQueue = require("./src/jobs/productSyncQueue");
 const logger = require("./src/utils/logger");
 const { QueueEvents } = require("bullmq");
 const connection = require("./src/jobs/connection");
+const localProductService = require("./src/services/localProduct.service");
 
 Settings.defaultZone = "America/Sao_Paulo";
 
@@ -88,6 +89,19 @@ queueEvents.on("completed", async ({ jobId, returnvalue }) => {
       payload: { companyId, message },
     });
   }
+
+  const productData = await localProductService.getProductsByCompany(
+    companyId,
+    1,
+    1
+  );
+  webSocketManager.broadcastToAdmins({
+    type: "PRODUCT_COUNT_UPDATED",
+    payload: {
+      companyId: companyId,
+      productCount: productData.totalProducts,
+    },
+  });
 });
 
 queueEvents.on("failed", async ({ jobId, failedReason }) => {

@@ -82,6 +82,19 @@ const deleteProduct = async (req, res) => {
       },
     });
 
+    const productData = await localProductService.getProductsByCompany(
+      product.company_id,
+      1,
+      1
+    );
+    broadcastToAdmins({
+      type: "PRODUCT_COUNT_UPDATED",
+      payload: {
+        companyId: product.company_id,
+        productCount: productData.totalProducts,
+      },
+    });
+
     res.status(200).json({ message: "Produto excluído com sucesso." });
   } catch (err) {
     logger.error(`Erro ao excluir o produto ${id}.`, err);
@@ -216,6 +229,19 @@ const addSingleProduct = async (req, res) => {
       payload: {
         ...newProduct,
         message: `Produto "${newProduct.product_name}" adicionado.`,
+      },
+    });
+
+    const productsData = await localProductService.getProductsByCompany(
+      companyId,
+      1,
+      1
+    );
+    broadcastToAdmins({
+      type: "PRODUCT_COUNT_UPDATED",
+      payload: {
+        companyId: companyId,
+        productCount: productsData.totalProducts,
       },
     });
 

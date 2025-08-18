@@ -8,7 +8,6 @@ export function setupCompanyModal() {
   const companyModal = document.getElementById("companyModal");
   if (!companyModal) return;
 
-  const openBtn = document.getElementById("openCompanyModal");
   const cancelBtn = document.getElementById("cancelCompanyModal");
   const form = document.getElementById("companyForm");
   const modalTitle = document.getElementById("companyModalTitle");
@@ -24,6 +23,72 @@ export function setupCompanyModal() {
   let cepMask = null;
   const cnpjInput = document.getElementById("companyCnpj");
   const cepInput = document.getElementById("companyCep");
+
+  const openCreateModal = () => {
+    form.reset();
+    if (cnpjMask) cnpjMask.value = "";
+    if (cepMask) cepMask.value = "";
+    currentCompanyId = null;
+    stagedSectors = [];
+    sectorsSection.style.display = "block";
+    renderStagedSectors();
+    modalTitle.textContent = "Cadastrar Empresa";
+    submitButton.textContent = "Adicionar";
+    form.action = "/companies";
+    companyModal.style.display = "flex";
+  };
+
+  const openEditModal = async (companyId) => {
+    try {
+      let company;
+      const cachedCompanyData = sessionStorage.getItem(
+        `company_cache_${companyId}`
+      );
+
+      if (cachedCompanyData) {
+        company = JSON.parse(cachedCompanyData);
+        sessionStorage.removeItem(`company_cache_${companyId}`);
+      } else {
+        const response = await fetch(`/api/companies/${companyId}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error(await handleFetchError(response));
+        company = await response.json();
+      }
+
+      form.reset();
+      currentCompanyId = company.id;
+      stagedSectors = [];
+      sectorsSection.style.display = "block";
+      modalTitle.textContent = "Editar Empresa";
+      submitButton.textContent = "Salvar";
+      form.action = `/companies/${company.id}/edit`;
+      form.name.value = company.name;
+
+      if (cnpjMask) {
+        cnpjMask.unmaskedValue = company.cnpj || "";
+        cnpjMask.updateValue();
+      } else {
+        form.cnpj.value = company.cnpj;
+      }
+
+      if (cepMask) {
+        cepMask.unmaskedValue = company.cep || "";
+        cepMask.updateValue();
+      } else {
+        form.cep.value = company.cep;
+      }
+
+      form.city.value = company.city || "";
+      form.address.value = company.address || "";
+      form.state.value = company.state || "";
+
+      await fetchAndRenderSectors(company.id);
+      companyModal.style.display = "flex";
+    } catch (error) {
+      showError(error.message || "Erro ao carregar empresa.");
+    }
+  };
 
   if (cnpjInput) {
     cnpjMask = IMask(cnpjInput, {
@@ -136,8 +201,6 @@ export function setupCompanyModal() {
       }
     });
 
-    openBtn?.addEventListener("click", openCreateModal);
-
     cancelBtn?.addEventListener(
       "click",
       () => (companyModal.style.display = "none")
@@ -186,71 +249,5 @@ export function setupCompanyModal() {
     isInitialized = true;
   }
 
-  const openCreateModal = () => {
-    form.reset();
-    if (cnpjMask) cnpjMask.value = "";
-    if (cepMask) cepMask.value = "";
-    currentCompanyId = null;
-    stagedSectors = [];
-    sectorsSection.style.display = "block";
-    renderStagedSectors();
-    modalTitle.textContent = "Cadastrar Empresa";
-    submitButton.textContent = "Adicionar";
-    form.action = "/companies";
-    companyModal.style.display = "flex";
-  };
-
-  const openEditModal = async (companyId) => {
-    try {
-      let company;
-      const cachedCompanyData = sessionStorage.getItem(
-        `company_cache_${companyId}`
-      );
-
-      if (cachedCompanyData) {
-        company = JSON.parse(cachedCompanyData);
-        sessionStorage.removeItem(`company_cache_${companyId}`);
-      } else {
-        const response = await fetch(`/api/companies/${companyId}`, {
-          cache: "no-store",
-        });
-        if (!response.ok) throw new Error(await handleFetchError(response));
-        company = await response.json();
-      }
-
-      form.reset();
-      currentCompanyId = company.id;
-      stagedSectors = [];
-      sectorsSection.style.display = "block";
-      modalTitle.textContent = "Editar Empresa";
-      submitButton.textContent = "Salvar";
-      form.action = `/companies/${company.id}/edit`;
-      form.name.value = company.name;
-
-      if (cnpjMask) {
-        cnpjMask.unmaskedValue = company.cnpj || "";
-        cnpjMask.updateValue();
-      } else {
-        form.cnpj.value = company.cnpj;
-      }
-
-      if (cepMask) {
-        cepMask.unmaskedValue = company.cep || "";
-        cepMask.updateValue();
-      } else {
-        form.cep.value = company.cep;
-      }
-
-      form.city.value = company.city || "";
-      form.address.value = company.address || "";
-      form.state.value = company.state || "";
-
-      await fetchAndRenderSectors(company.id);
-      companyModal.style.display = "flex";
-    } catch (error) {
-      showError(error.message || "Erro ao carregar empresa.");
-    }
-  };
-
-  return { openEditModal };
+  return { openCreateModal, openEditModal };
 }

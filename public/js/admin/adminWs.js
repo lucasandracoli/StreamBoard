@@ -7,6 +7,7 @@ import {
   refreshProductTable,
   resetSyncButton,
   removeProductRow,
+  updateSyncButtonState,
 } from "./productsPage.js";
 
 export function connectAdminWs(detailsModalHandler) {
@@ -86,6 +87,15 @@ export function connectAdminWs(detailsModalHandler) {
               String(data.payload.companyId) === currentCompanyId
             ) {
               resetSyncButton();
+            }
+          }
+          break;
+        }
+        case "PRODUCT_COUNT_UPDATED": {
+          if (document.body.id === "products-page") {
+            const currentCompanyId = window.location.pathname.split("/").pop();
+            if (String(data.payload.companyId) === currentCompanyId) {
+              updateSyncButtonState(data.payload.productCount);
             }
           }
           break;

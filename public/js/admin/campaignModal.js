@@ -3,12 +3,13 @@ import { showSuccess, showError } from "./notification.js";
 import { showConfirmationModal } from "./confirmationModal.js";
 
 let isInitialized = false;
+let tomSelectDevices, tomSelectSectors;
+let fpStart, fpEnd;
 
 export function setupCampaignModal() {
   const campaignModal = document.getElementById("campaignModal");
   if (!campaignModal) return;
 
-  let tomSelectDevices, tomSelectSectors;
   let stagedFiles = { main: [], secondary: [] };
   let sortableInstances = { main: null, secondary: null };
   let mediaHasBeenTouched = false;
@@ -43,7 +44,95 @@ export function setupCampaignModal() {
     ),
   };
 
-  const fpStart = flatpickr(elements.startDateInput, {
+  const openCreateCampaignModal = () => {
+    resetModal();
+    renderStagedFiles();
+    elements.modalTitle.textContent = "Cadastrar Campanha";
+    elements.form.action = "/campaigns";
+    elements.idInput.value = "";
+    campaignModal.style.display = "flex";
+  };
+
+  const openEditCampaignModal = async (campaignId) => {
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}`);
+      if (!response.ok) throw new Error(await handleFetchError(response));
+      const campaign = await response.json();
+
+      resetModal();
+
+      const videoFiles = (campaign.uploads || []).filter((file) =>
+        file.file_type.startsWith("video/")
+      );
+      const thumbnailPromises = videoFiles.map((file) =>
+        generateVideoThumbnail(file)
+      );
+      await Promise.all(thumbnailPromises);
+
+      elements.modalTitle.textContent = "Editar Campanha";
+      elements.form.action = `/campaigns/${campaign.id}/edit`;
+      elements.idInput.value = campaign.id;
+      elements.nameInput.value = campaign.name;
+      elements.companySelect.value = campaign.company_id;
+
+      const priorityValue = campaign.priority || 50;
+      let priorityRadio = elements.form.querySelector(
+        `input[name="priority"][value="${priorityValue}"]`
+      );
+      if (!priorityRadio) {
+        priorityRadio = document.getElementById("priority-normal");
+      }
+      priorityRadio.checked = true;
+
+      const layoutRadio = document.querySelector(
+        `input[name="layout_type"][value="${
+          campaign.layout_type || "fullscreen"
+        }"]`
+      );
+      if (layoutRadio) {
+        layoutRadio.checked = true;
+      } else {
+        document.getElementById("layout-fullscreen").checked = true;
+      }
+
+      fpStart.setDate(campaign.start_date, true);
+      fpEnd.setDate(campaign.end_date, true);
+
+      stagedFiles = { main: [], secondary: [] };
+      (campaign.uploads || []).forEach((file) => {
+        const zone = file.zone || "main";
+        if (stagedFiles[zone]) {
+          stagedFiles[zone].push({
+            ...file,
+            name: file.file_name,
+            type: file.file_type,
+          });
+        }
+      });
+
+      handleLayoutChange();
+
+      await populateCampaignSelectors(campaign.company_id);
+
+      if (campaign.sector_ids && campaign.sector_ids.length > 0) {
+        document.getElementById("seg-sectors").checked = true;
+        tomSelectSectors.setValue(campaign.sector_ids);
+      } else if (campaign.device_ids && campaign.device_ids.length > 0) {
+        document.getElementById("seg-devices").checked = true;
+        tomSelectDevices.setValue(campaign.device_ids);
+      } else {
+        document.getElementById("seg-all").checked = true;
+      }
+      handleSegmentationChange();
+
+      campaignModal.style.display = "flex";
+    } catch (error) {
+      showError(error.message || "Erro ao carregar campanha.");
+    }
+  };
+
+  if (fpStart) fpStart.destroy();
+  fpStart = flatpickr(elements.startDateInput, {
     enableTime: true,
     dateFormat: "d/m/Y H:i",
     locale: "pt",
@@ -51,7 +140,9 @@ export function setupCampaignModal() {
     defaultHour: 6,
     defaultMinute: 0,
   });
-  const fpEnd = flatpickr(elements.endDateInput, {
+
+  if (fpEnd) fpEnd.destroy();
+  fpEnd = flatpickr(elements.endDateInput, {
     enableTime: true,
     dateFormat: "d/m/Y H:i",
     locale: "pt",
@@ -66,6 +157,7 @@ export function setupCampaignModal() {
       "Nenhuma empresa cadastrada";
   }
 
+  if (tomSelectDevices) tomSelectDevices.destroy();
   if (elements.deviceSelect) {
     tomSelectDevices = new TomSelect(elements.deviceSelect, {
       plugins: ["remove_button"],
@@ -77,6 +169,7 @@ export function setupCampaignModal() {
     });
   }
 
+  if (tomSelectSectors) tomSelectSectors.destroy();
   if (elements.sectorSelect) {
     tomSelectSectors = new TomSelect(elements.sectorSelect, {
       plugins: ["remove_button"],
@@ -244,7 +337,7 @@ export function setupCampaignModal() {
 
     renderStagedFiles();
   };
-  
+
   const handleSegmentationChange = () => {
     const selectedValue = document.querySelector(
       'input[name="segmentation_type"]:checked'
@@ -431,93 +524,6 @@ export function setupCampaignModal() {
     handleLayoutChange();
   };
 
-  const openCreateCampaignModal = () => {
-    resetModal();
-    renderStagedFiles();
-    elements.modalTitle.textContent = "Cadastrar Campanha";
-    elements.form.action = "/campaigns";
-    elements.idInput.value = "";
-    campaignModal.style.display = "flex";
-  };
-
-  const openEditCampaignModal = async (campaignId) => {
-    try {
-      const response = await fetch(`/api/campaigns/${campaignId}`);
-      if (!response.ok) throw new Error(await handleFetchError(response));
-      const campaign = await response.json();
-
-      resetModal();
-
-      const videoFiles = (campaign.uploads || []).filter((file) =>
-        file.file_type.startsWith("video/")
-      );
-      const thumbnailPromises = videoFiles.map((file) =>
-        generateVideoThumbnail(file)
-      );
-      await Promise.all(thumbnailPromises);
-
-      elements.modalTitle.textContent = "Editar Campanha";
-      elements.form.action = `/campaigns/${campaign.id}/edit`;
-      elements.idInput.value = campaign.id;
-      elements.nameInput.value = campaign.name;
-      elements.companySelect.value = campaign.company_id;
-
-      const priorityValue = campaign.priority || 50;
-      let priorityRadio = elements.form.querySelector(
-        `input[name="priority"][value="${priorityValue}"]`
-      );
-      if (!priorityRadio) {
-        priorityRadio = document.getElementById("priority-normal");
-      }
-      priorityRadio.checked = true;
-
-      const layoutRadio = document.querySelector(
-        `input[name="layout_type"][value="${
-          campaign.layout_type || "fullscreen"
-        }"]`
-      );
-      if (layoutRadio) {
-        layoutRadio.checked = true;
-      } else {
-        document.getElementById("layout-fullscreen").checked = true;
-      }
-
-      fpStart.setDate(campaign.start_date, true);
-      fpEnd.setDate(campaign.end_date, true);
-
-      stagedFiles = { main: [], secondary: [] };
-      (campaign.uploads || []).forEach((file) => {
-        const zone = file.zone || "main";
-        if (stagedFiles[zone]) {
-          stagedFiles[zone].push({
-            ...file,
-            name: file.file_name,
-            type: file.file_type,
-          });
-        }
-      });
-
-      handleLayoutChange();
-
-      await populateCampaignSelectors(campaign.company_id);
-
-      if (campaign.sector_ids && campaign.sector_ids.length > 0) {
-        document.getElementById("seg-sectors").checked = true;
-        tomSelectSectors.setValue(campaign.sector_ids);
-      } else if (campaign.device_ids && campaign.device_ids.length > 0) {
-        document.getElementById("seg-devices").checked = true;
-        tomSelectDevices.setValue(campaign.device_ids);
-      } else {
-        document.getElementById("seg-all").checked = true;
-      }
-      handleSegmentationChange();
-
-      campaignModal.style.display = "flex";
-    } catch (error) {
-      showError(error.message || "Erro ao carregar campanha.");
-    }
-  };
-  
   const handleInputOrClick = (e) => {
     const target = e.target;
     if (target.classList.contains("media-duration-input")) {

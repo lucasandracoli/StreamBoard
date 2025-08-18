@@ -44,7 +44,7 @@ export function setupProductModal() {
     uploadArea.classList.remove("has-file");
     uploadSubmitBtn.disabled = true;
   };
-  
+
   const handleFile = (file) => {
     if (
       file &&
@@ -155,21 +155,18 @@ export function setupProductModal() {
     });
 
     fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
-    
     ["dragover", "dragenter"].forEach((eventName) => {
       uploadArea.addEventListener(eventName, (e) => {
         e.preventDefault();
         uploadArea.classList.add("is-dragging");
       });
     });
-    
     ["dragleave", "drop"].forEach((eventName) => {
       uploadArea.addEventListener(eventName, (e) => {
         e.preventDefault();
         uploadArea.classList.remove("is-dragging");
       });
     });
-
     uploadArea.addEventListener("drop", (e) => {
       const file = e.dataTransfer.files[0];
       fileInput.files = e.dataTransfer.files;
@@ -219,7 +216,7 @@ export function setupProductModal() {
         }
       }, 2000);
     });
-    
+
     isInitialized = true;
   }
 }
