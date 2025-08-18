@@ -23,7 +23,7 @@ export function setupGlobalListeners(modalHandlers) {
           modalHandlers.company?.openCreateModal();
           break;
         case "openCampaignModal":
-          modalHandlers.campaign?.openCreateModal();
+          modalHandlers.campaign?.openCreateCampaignModal();
           break;
         case "openAddProductModalBtn":
           document.getElementById("addProductModal").style.display = "flex";
