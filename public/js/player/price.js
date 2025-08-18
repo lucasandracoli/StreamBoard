@@ -100,7 +100,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const showIdleWithBackground = () => {
     isDisplayingPrice = false;
     Object.values(mediaTimers).forEach(clearTimeout);
-    viewWrapper.innerHTML = `<div id="idle-screen" style="width: 100%; height: 100%;"><div class="background-image" style="background-image: url('/assets/price.jpg');"></div></div>`;
+    viewWrapper.innerHTML = `<div id="idle-screen"><div class="background-image" style="background-image: url('/assets/price.jpg');"></div></div>`;
     viewWrapper.className = "";
     footer.style.display = "flex";
     hideBlurredBackground();
@@ -187,7 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         newElement.loop = true;
       }
-      
+
       newElement.oncanplay = () => {
         const playPromise = newElement.play();
         if (playPromise !== undefined) {

@@ -16,7 +16,7 @@
   --color-gray-medium: #4b5563;
   --color-gray-light: #6b7280;
   --color-gray-extra-light: #f3f4f6;
-  --color-info-dark: #2563eb;
+  --color-info-dark: #2563eb; 
   --color-info-light: #dbeafe;
   --color-warning-dark: #d97706;
   --color-warning-light: #fef3c7;
@@ -3107,4 +3107,46 @@ body.player-body {
 }
 .confirmation-modal-confirm.danger:hover {
   background-color: var(--color-error-hover);
+}
+
+body.login-body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 0 24px;
+  flex-direction: column;
+  background-color: var(--color-background);
+}
+
+html.player-body,
+body.player-body {
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--color-background);
+}
+
+#idle-screen {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+#idle-screen .background-image {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  z-index: 1;
 }
