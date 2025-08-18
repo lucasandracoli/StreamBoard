@@ -8,7 +8,7 @@ const logger = require("../utils/logger");
 
 let wss;
 const clients = {};
-const adminClients = new Set();
+const adminClients = new Map();
 const deviceStatusCache = new Map();
 
 const updateAndCacheDeviceStatus = (deviceId, deviceDetails) => {
@@ -25,6 +25,13 @@ const broadcastToAdmins = (data) => {
       client.send(message);
     }
   });
+};
+
+const sendNotificationToUser = (userId, data) => {
+  const client = adminClients.get(userId);
+  if (client && client.readyState === WebSocket.OPEN) {
+    client.send(JSON.stringify(data));
+  }
 };
 
 const sendUpdateToDevice = (deviceId, data) => {
@@ -80,8 +87,10 @@ const initializeWebSocket = (server, sessionParser) => {
     const { pathname, query } = url.parse(req.url, true);
 
     if (pathname === "/admin-ws") {
-      adminClients.add(ws);
-      ws.on("close", () => adminClients.delete(ws));
+      const userId = req.session.userId;
+      ws.userId = userId;
+      adminClients.set(userId, ws);
+      ws.on("close", () => adminClients.delete(userId));
 
       deviceStatusCache.forEach((value, deviceId) => {
         ws.send(
@@ -203,6 +212,7 @@ module.exports = {
   initializeWebSocket,
   sendUpdateToDevice,
   broadcastToAdmins,
+  sendNotificationToUser,
   getClients: () => clients,
   getWss: () => wss,
 };
