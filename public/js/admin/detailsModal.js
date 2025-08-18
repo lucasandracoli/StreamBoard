@@ -24,21 +24,16 @@ export function setupDetailsModal() {
 
   const displayOtp = (otp, expiresAt) => {
     if (!otpView || !otpCodeEl || !otpExpiryEl) {
-      showError("Elementos da OTP não encontrados no HTML.");
+      showError("Elementos do OTP não encontrados no HTML.");
       return;
     }
-
     hideOtpView();
-
     otpView.style.display = "flex";
     otpCodeEl.textContent = otp.match(/.{1,3}/g).join(" ");
-
     const expiryTime = new Date(expiresAt).getTime();
-
     otpCountdownInterval = setInterval(() => {
       const now = new Date().getTime();
       const distance = expiryTime - now;
-
       if (distance < 0) {
         hideOtpView();
         otpExpiryEl.textContent = "Expirado";
@@ -113,7 +108,8 @@ export function setupDetailsModal() {
     try {
       const res = await fetch(`/api/deviceDetails/${deviceId}`);
       if (!res.ok) throw new Error("Falha ao carregar dados do dispositivo.");
-      populateDetailsModal(await res.json());
+      const device = await res.json();
+      populateDetailsModal(device);
     } catch (err) {
       showError(err.message);
       detailsModal.style.display = "none";
@@ -142,22 +138,40 @@ export function setupDetailsModal() {
       }
     };
 
-    const handleDeviceAction = async (url) => {
-      try {
-        const res = await fetch(url, { method: "POST" });
-        if (!res.ok) throw new Error(await handleFetchError(res));
-      } catch (err) {
-        showError(err.message || "Falha na comunicação.");
+    const handleDeviceActionWithSpinner = async (
+      button,
+      url,
+      isRevoke = false
+    ) => {
+      const originalContent = button.innerHTML;
+      button.disabled = true;
+      button.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
+
+      const action = async () => {
+        try {
+          const res = await fetch(url, { method: "POST" });
+          if (!res.ok) throw new Error(await handleFetchError(res));
+          await openDetailsModal(button.dataset.id);
+        } catch (err) {
+          showError(err.message || "Falha na comunicação.");
+        } finally {
+          button.disabled = false;
+          button.innerHTML = originalContent;
+        }
+      };
+
+      if (isRevoke) {
+        setTimeout(action, 3000);
+      } else {
+        await action();
       }
     };
 
     const handleRemoteCommand = async (e) => {
       const button = e.target.closest("button[data-command]");
       if (!button) return;
-
       const command = button.dataset.command;
       const deviceId = button.closest("[data-id]").dataset.id;
-
       button.disabled = true;
       try {
         const res = await fetch(`/api/devices/${deviceId}/command`, {
@@ -174,7 +188,7 @@ export function setupDetailsModal() {
         button.disabled = false;
       }
     };
-    
+
     document
       .getElementById("closeDetailsModal")
       ?.addEventListener("click", () => {
@@ -190,13 +204,20 @@ export function setupDetailsModal() {
     document
       .getElementById("modalRevokeButton")
       ?.addEventListener("click", function () {
-        handleDeviceAction(`/devices/${this.dataset.id}/revoke`);
+        handleDeviceActionWithSpinner(
+          this,
+          `/devices/${this.dataset.id}/revoke`,
+          true
+        );
       });
 
     document
       .getElementById("modalReactivateButton")
       ?.addEventListener("click", function () {
-        handleDeviceAction(`/devices/${this.dataset.id}/reactivate`);
+        handleDeviceActionWithSpinner(
+          this,
+          `/devices/${this.dataset.id}/reactivate`
+        );
       });
 
     document
@@ -209,7 +230,9 @@ export function setupDetailsModal() {
             method: "POST",
           });
           if (!res.ok)
-            throw new Error((await res.json()).message || "Falha ao gerar OTP.");
+            throw new Error(
+              (await res.json()).message || "Falha ao gerar OTP."
+            );
           const { otp, expiresAt } = await res.json();
           displayOtp(otp, expiresAt);
         } catch (err) {
@@ -229,7 +252,9 @@ export function setupDetailsModal() {
             method: "POST",
           });
           if (!res.ok)
-            throw new Error((await res.json()).message || "Falha ao gerar link.");
+            throw new Error(
+              (await res.json()).message || "Falha ao gerar link."
+            );
           const { magicLink } = await res.json();
           await copyTextToClipboard(magicLink);
           showSuccess("Link mágico copiado!");
@@ -239,7 +264,7 @@ export function setupDetailsModal() {
           this.disabled = false;
         }
       });
-      
+
     isInitialized = true;
   }
 
