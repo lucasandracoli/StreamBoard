@@ -1,5 +1,7 @@
 import { showSuccess, showError } from "./notification.js";
 
+let isModalInitialized = false;
+
 export function setupProductModal() {
   const pageBody = document.getElementById("products-page");
   if (!pageBody) return;
@@ -8,6 +10,42 @@ export function setupProductModal() {
   const syncCompanyBtn = document.getElementById("syncCompanyProductsBtn");
   const modal = document.getElementById("addProductModal");
   if (!modal) return;
+
+  const companyId =
+    syncCompanyBtn?.dataset.companyId ||
+    window.location.pathname.split("/").pop();
+
+  openModalBtn?.addEventListener("click", () => {
+    modal.style.display = "flex";
+    const productCodeInput = document.getElementById("productCode");
+    if (productCodeInput) {
+      setTimeout(() => productCodeInput.focus(), 100);
+    }
+  });
+
+  syncCompanyBtn?.addEventListener("click", async () => {
+    const originalText = syncCompanyBtn.querySelector("span").textContent;
+    const icon = syncCompanyBtn.querySelector("i");
+
+    syncCompanyBtn.disabled = true;
+    syncCompanyBtn.querySelector("span").textContent = "Sincronizando...";
+    icon.classList.add("spinning");
+
+    try {
+      const res = await fetch(`/products/sync/${companyId}`, {
+        method: "POST",
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message);
+    } catch (error) {
+      syncCompanyBtn.disabled = false;
+      syncCompanyBtn.querySelector("span").textContent = originalText;
+      icon.classList.remove("spinning");
+      showError(error.message || "Falha ao iniciar sincronização.");
+    }
+  });
+
+  if (isModalInitialized) return;
 
   const cancelBtns = modal.querySelectorAll(".device-button-cancel");
   const tabs = modal.querySelectorAll(".tab-button");
@@ -24,10 +62,6 @@ export function setupProductModal() {
   const uploadSubmitBtn = uploadForm.querySelector('button[type="submit"]');
   const removeFileBtn = uploadForm.querySelector(".file-remove-btn");
   const fileNameSpan = uploadForm.querySelector(".file-name");
-
-  const companyId =
-    syncCompanyBtn?.dataset.companyId ||
-    window.location.pathname.split("/").pop();
 
   let isSubmitting = false;
 
@@ -61,15 +95,6 @@ export function setupProductModal() {
       resetUploadForm();
     }
   };
-
-  openModalBtn?.addEventListener("click", () => {
-    resetSingleProductForm();
-    resetUploadForm();
-    modal.style.display = "flex";
-    setTimeout(() => {
-      if (productCodeInput) productCodeInput.focus();
-    }, 100);
-  });
 
   cancelBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -211,25 +236,5 @@ export function setupProductModal() {
     }
   });
 
-  syncCompanyBtn?.addEventListener("click", async () => {
-    const originalText = syncCompanyBtn.querySelector("span").textContent;
-    const icon = syncCompanyBtn.querySelector("i");
-
-    syncCompanyBtn.disabled = true;
-    syncCompanyBtn.querySelector("span").textContent = "Sincronizando...";
-    icon.classList.add("spinning");
-
-    try {
-      const res = await fetch(`/products/sync/${companyId}`, {
-        method: "POST",
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message);
-    } catch (error) {
-      syncCompanyBtn.disabled = false;
-      syncCompanyBtn.querySelector("span").textContent = originalText;
-      icon.classList.remove("spinning");
-      showError(error.message || "Falha ao iniciar sincronização.");
-    }
-  });
+  isModalInitialized = true;
 }
