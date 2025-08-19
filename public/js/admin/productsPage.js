@@ -31,9 +31,10 @@ function createProductRow(product) {
 }
 
 function getProductRowCount(tableBody) {
-  if (!tableBody) return 0;
-  return tableBody.querySelectorAll("tr[data-product-id]").length;
+    if (!tableBody) return 0;
+    return tableBody.querySelectorAll("tr[data-product-id]").length;
 }
+
 
 export function addProductRow(product) {
   const container = document.querySelector(".container");
@@ -75,7 +76,7 @@ export function removeProductRow(productId) {
     "#products-page .device-table tbody"
   );
   if (tableBody) {
-    const productCount = getProductRowCount(tableBody);
+      const productCount = getProductRowCount(tableBody);
     if (productCount === 0) {
       refreshProductTable();
     } else {
