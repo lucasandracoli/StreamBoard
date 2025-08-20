@@ -156,6 +156,7 @@ export function setupCompanyModal() {
           });
           if (!res.ok) throw new Error(await handleFetchError(res));
           newSectorNameInput.value = "";
+          await fetchAndRenderSectors(currentCompanyId);
         } catch (error) {
           showError(error.message || "Falha ao adicionar setor.");
         }
@@ -183,6 +184,7 @@ export function setupCompanyModal() {
               method: "POST",
             });
             if (!res.ok) throw new Error(await handleFetchError(res));
+            await fetchAndRenderSectors(currentCompanyId);
           } catch (error) {
             showError(error.message || "Falha ao excluir setor.");
           }
