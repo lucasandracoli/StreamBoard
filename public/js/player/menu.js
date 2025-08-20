@@ -178,9 +178,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const productListEl = document.getElementById("product-list");
     categoryTitle.textContent = item.category;
 
-    const productsToShow = Array.isArray(item.products)
-      ? item.products.slice(0, 8)
-      : [];
+    const productsToShow = Array.isArray(item.products) ? item.products : [];
     productsToShow.forEach((p, index) => {
       const li = document.createElement("li");
       li.style.opacity = "0";
@@ -320,17 +318,20 @@ document.addEventListener("DOMContentLoaded", () => {
       );
       productIndex++;
       if (productIndex >= productGroups.length) {
-        isDisplayingProducts = false;
         productIndex = 0;
+        if (primaryMedia.length > 0) {
+          isDisplayingProducts = false;
+        }
       }
     } else if (primaryMedia.length > 0) {
       const currentMediaItem = primaryMedia[mediaIndex];
       renderMedia({ type: "media", ...currentMediaItem });
       mediaIndex = (mediaIndex + 1) % primaryMedia.length;
-      isDisplayingProducts = true;
+      if (productGroups.length > 0) {
+        isDisplayingProducts = true;
+      }
     } else if (productGroups.length > 0) {
       isDisplayingProducts = true;
-      productIndex = 0;
       playNextItem();
     } else {
       showWaitingScreen();
@@ -348,7 +349,22 @@ document.addEventListener("DOMContentLoaded", () => {
       showWaitingScreen();
       return;
     }
-    productGroups = data.product_groups || [];
+
+    const paginatedProductGroups = [];
+    if (data.product_groups && data.product_groups.length > 0) {
+      data.product_groups.forEach((group) => {
+        const products = group.products;
+        const pageSize = 8;
+        for (let i = 0; i < products.length; i += pageSize) {
+          paginatedProductGroups.push({
+            ...group,
+            products: products.slice(i, i + pageSize),
+          });
+        }
+      });
+    }
+    productGroups = paginatedProductGroups;
+
     primaryMedia = data.primary_media || [];
     secondaryMedia = data.secondary_media || null;
     productIndex = 0;

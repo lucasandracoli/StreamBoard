@@ -62,6 +62,14 @@ export function connectAdminWs(detailsModalHandler) {
           if (pageId === "campaigns-page") updateCampaignRow(data.payload);
           if (data.payload.message) showSuccess(data.payload.message);
           break;
+        case "PRODUCT_ADDED":
+          if (pageId === "products-page") {
+            const currentCompanyId = window.location.pathname.split("/").pop();
+            if (String(data.payload.company_id) === currentCompanyId) {
+              addProductRow(data.payload);
+            }
+          }
+          break;
         case "PRODUCT_LIST_UPDATED":
           if (document.body.id === "products-page") {
             const currentCompanyId = window.location.pathname.split("/").pop();

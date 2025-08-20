@@ -237,8 +237,8 @@ const addSingleProduct = async (req, res) => {
     });
 
     broadcastToAdmins({
-      type: "PRODUCT_LIST_UPDATED",
-      payload: { companyId: companyId },
+      type: "PRODUCT_ADDED",
+      payload: newProduct,
     });
 
     const productsData = await localProductService.getProductsByCompany(
