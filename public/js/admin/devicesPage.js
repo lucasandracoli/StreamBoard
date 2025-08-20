@@ -63,6 +63,21 @@ export async function refreshDevicesTable() {
 
     if (newContent && oldContent) {
       oldContent.innerHTML = newContent.innerHTML;
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const currentPage = parseInt(urlParams.get("page") || "1", 10);
+      const newTableBody = oldContent.querySelector(".device-table tbody");
+      const deviceRowCount = newTableBody
+        ? newTableBody.querySelectorAll("tr[data-device-id]").length
+        : 0;
+
+      if (deviceRowCount === 0 && currentPage > 1) {
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set("page", currentPage - 1);
+        window.location.href = newUrl.href;
+        return;
+      }
+
       document.dispatchEvent(new CustomEvent("page-content-refreshed"));
     }
   } catch (err) {

@@ -9,49 +9,72 @@ const findOverlappingCampaigns = async (
   sectorIds,
   campaignIdToIgnore = null
 ) => {
-  const hasDeviceTargets = deviceIds && deviceIds.length > 0;
-  const hasSectorTargets = sectorIds && sectorIds.length > 0;
-  const isTargetingAll = !hasDeviceTargets && !hasSectorTargets;
+  const client = await db.connect();
+  try {
+    let effectiveDeviceIds;
 
-  let params = [startDate, endDate, companyId, campaignIdToIgnore || 0];
-  let paramIndex = 5;
-  let conflictConditions = [];
+    if (deviceIds && deviceIds.length > 0) {
+      effectiveDeviceIds = deviceIds;
+    } else if (sectorIds && sectorIds.length > 0) {
+      const result = await client.query(
+        `SELECT id FROM devices WHERE sector_id = ANY($1::int[])`,
+        [sectorIds]
+      );
+      effectiveDeviceIds = result.rows.map((r) => r.id);
+    } else {
+      const result = await client.query(
+        `SELECT id FROM devices WHERE company_id = $1`,
+        [companyId]
+      );
+      effectiveDeviceIds = result.rows.map((r) => r.id);
+    }
 
-  conflictConditions.push(`(
-    NOT EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id) AND
-    NOT EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id)
-  )`);
+    if (effectiveDeviceIds.length === 0) {
+      return [];
+    }
 
-  if (hasDeviceTargets) {
-    conflictConditions.push(
-      `c.id IN (SELECT campaign_id FROM campaign_device WHERE device_id = ANY($${paramIndex}::uuid[]))`
-    );
-    params.push(deviceIds);
-    paramIndex++;
+    const query = `
+      SELECT DISTINCT
+        c.id,
+        c.name,
+        c.priority,
+        c.created_at,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id) THEN 1
+          WHEN EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id) THEN 2
+          ELSE 3
+        END as specificity
+      FROM campaigns c
+      WHERE c.company_id = $1
+        AND c.id != $2
+        AND (c.start_date, c.end_date) OVERLAPS ($3::timestamptz, $4::timestamptz)
+        AND EXISTS (
+          SELECT 1 FROM devices d
+          WHERE d.id = ANY($5::uuid[]) AND (
+            EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id AND cd.device_id = d.id)
+            OR EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id AND cs.sector_id = d.sector_id)
+            OR (
+              NOT EXISTS (SELECT 1 FROM campaign_device cd WHERE cd.campaign_id = c.id) AND
+              NOT EXISTS (SELECT 1 FROM campaign_sector cs WHERE cs.campaign_id = c.id)
+            )
+          )
+        )
+      ORDER BY specificity ASC, c.priority ASC, c.created_at DESC
+    `;
+
+    const params = [
+      companyId,
+      campaignIdToIgnore || 0,
+      startDate,
+      endDate,
+      effectiveDeviceIds,
+    ];
+
+    const result = await client.query(query, params);
+    return result.rows;
+  } finally {
+    client.release();
   }
-
-  if (hasSectorTargets) {
-    conflictConditions.push(
-      `c.id IN (SELECT campaign_id FROM campaign_sector WHERE sector_id = ANY($${paramIndex}::int[]))`
-    );
-    params.push(sectorIds);
-    paramIndex++;
-  }
-
-  const conflictQueryPart = isTargetingAll
-    ? "true"
-    : `(${conflictConditions.join(" OR ")})`;
-
-  const query = `
-    SELECT c.id, c.name, c.priority FROM campaigns c
-    WHERE c.company_id = $3
-      AND c.id != $4
-      AND (c.start_date, c.end_date) OVERLAPS ($1::timestamptz, $2::timestamptz)
-      AND ${conflictQueryPart}
-  `;
-
-  const result = await db.query(query, params);
-  return result.rows;
 };
 
 const getAllCampaigns = async (page = 1, limit = 8) => {

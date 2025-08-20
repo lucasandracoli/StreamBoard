@@ -384,12 +384,12 @@ document.addEventListener("DOMContentLoaded", () => {
       case "TYPE_CHANGED":
         connector.disconnect(false);
         const newType = data.payload.newType;
-        if (newType === "terminal_consulta") {
-          window.location.href = "/price";
-        } else if (newType === "midia_indoor") {
-          window.location.href = "/player";
-        } else {
+        if (newType === "digital_menu") {
           window.location.href = "/menu";
+        } else if (newType === "terminal_consulta") {
+          window.location.href = "/price";
+        } else {
+          window.location.href = "/player";
         }
         break;
     }

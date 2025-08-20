@@ -66,15 +66,13 @@ export function setupCompanyModal() {
       form.name.value = company.name;
 
       if (cnpjMask) {
-        cnpjMask.unmaskedValue = company.cnpj || "";
-        cnpjMask.updateValue();
+        cnpjMask.value = company.cnpj || "";
       } else {
         form.cnpj.value = company.cnpj;
       }
 
       if (cepMask) {
-        cepMask.unmaskedValue = company.cep || "";
-        cepMask.updateValue();
+        cepMask.value = company.cep || "";
       } else {
         form.cep.value = company.cep;
       }
@@ -156,6 +154,7 @@ export function setupCompanyModal() {
           });
           if (!res.ok) throw new Error(await handleFetchError(res));
           newSectorNameInput.value = "";
+          await fetchAndRenderSectors(currentCompanyId);
         } catch (error) {
           showError(error.message || "Falha ao adicionar setor.");
         }
@@ -183,6 +182,7 @@ export function setupCompanyModal() {
               method: "POST",
             });
             if (!res.ok) throw new Error(await handleFetchError(res));
+            await fetchAndRenderSectors(currentCompanyId);
           } catch (error) {
             showError(error.message || "Falha ao excluir setor.");
           }

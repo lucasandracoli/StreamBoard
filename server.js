@@ -47,6 +47,7 @@ app.locals.wss = webSocketManager.getWss();
 app.locals.clients = webSocketManager.getClients();
 app.locals.sendUpdateToDevice = webSocketManager.sendUpdateToDevice;
 app.locals.broadcastToAdmins = webSocketManager.broadcastToAdmins;
+app.locals.sendNotificationToUser = webSocketManager.sendNotificationToUser;
 
 app.use(cookieParser());
 app.use(sessionMiddleware);

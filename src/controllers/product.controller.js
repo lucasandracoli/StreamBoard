@@ -71,15 +71,20 @@ const deleteProduct = async (req, res) => {
 
     await localProductService.deleteProduct(id);
 
-    const { sendUpdateToDevice, broadcastToAdmins } = req.app.locals;
+    const { sendUpdateToDevice, broadcastToAdmins, sendNotificationToUser } =
+      req.app.locals;
     notifyPlayers(product.company_id, { sendUpdateToDevice });
 
-    broadcastToAdmins({
-      type: "PRODUCT_OPERATION_SUCCESS",
+    sendNotificationToUser(req.user.id, {
+      type: "OPERATION_SUCCESS",
       payload: {
-        companyId: product.company_id,
         message: "Produto excluído com sucesso.",
       },
+    });
+
+    broadcastToAdmins({
+      type: "PRODUCT_LIST_UPDATED",
+      payload: { companyId: product.company_id },
     });
 
     const productData = await localProductService.getProductsByCompany(
@@ -223,13 +228,17 @@ const addSingleProduct = async (req, res) => {
       section_name: sectionMap[productData.sec] || `SEÇÃO ${productData.sec}`,
     });
 
-    const { broadcastToAdmins } = req.app.locals;
-    broadcastToAdmins({
-      type: "PRODUCT_CREATED",
+    const { broadcastToAdmins, sendNotificationToUser } = req.app.locals;
+    sendNotificationToUser(req.user.id, {
+      type: "OPERATION_SUCCESS",
       payload: {
-        ...newProduct,
-        message: `Produto "${newProduct.product_name}" adicionado.`,
+        message: `Produto "${newProduct.product_name}" foi adicionado.`,
       },
+    });
+
+    broadcastToAdmins({
+      type: "PRODUCT_LIST_UPDATED",
+      payload: { companyId: companyId },
     });
 
     const productsData = await localProductService.getProductsByCompany(
@@ -246,7 +255,7 @@ const addSingleProduct = async (req, res) => {
     });
 
     res.status(201).json({
-      message: `Produto "${newProduct.product_name}" foi adicionado.`,
+      message: "Produto adicionado.",
       product: newProduct,
     });
   } catch (error) {

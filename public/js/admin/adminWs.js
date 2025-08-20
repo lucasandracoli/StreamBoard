@@ -10,10 +10,16 @@ import {
   updateSyncButtonState,
 } from "./productsPage.js";
 
+let ws = null;
+
 export function connectAdminWs(detailsModalHandler) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    return;
+  }
+
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const wsUrl = `${protocol}//${window.location.host}/admin-ws`;
-  const ws = new WebSocket(wsUrl);
+  ws = new WebSocket(wsUrl);
 
   ws.onmessage = (event) => {
     try {
@@ -56,14 +62,19 @@ export function connectAdminWs(detailsModalHandler) {
           if (pageId === "campaigns-page") updateCampaignRow(data.payload);
           if (data.payload.message) showSuccess(data.payload.message);
           break;
-        case "PRODUCT_CREATED":
-          if (data.payload.message) showSuccess(data.payload.message);
+        case "PRODUCT_LIST_UPDATED":
           if (document.body.id === "products-page") {
             const currentCompanyId = window.location.pathname.split("/").pop();
-            if (String(data.payload.company_id) === currentCompanyId) {
-              addProductRow(data.payload);
+            if (
+              !data.payload.companyId ||
+              String(data.payload.companyId) === currentCompanyId
+            ) {
+              refreshProductTable();
             }
           }
+          break;
+        case "OPERATION_SUCCESS":
+          if (data.payload.message) showSuccess(data.payload.message);
           break;
         case "PRODUCT_OPERATION_SUCCESS": {
           if (data.payload.message) showSuccess(data.payload.message);
@@ -75,6 +86,7 @@ export function connectAdminWs(detailsModalHandler) {
             ) {
               refreshProductTable();
             }
+            resetSyncButton();
           }
           break;
         }
@@ -107,6 +119,7 @@ export function connectAdminWs(detailsModalHandler) {
   };
 
   ws.onclose = () => {
+    ws = null;
     setTimeout(() => connectAdminWs(detailsModalHandler), 5000);
   };
 

@@ -30,6 +30,11 @@ function createProductRow(product) {
   return row;
 }
 
+function getProductRowCount(tableBody) {
+  if (!tableBody) return 0;
+  return tableBody.querySelectorAll("tr[data-product-id]").length;
+}
+
 export function addProductRow(product) {
   const container = document.querySelector(".container");
   const tableBody = document.querySelector(
@@ -50,6 +55,7 @@ export function addProductRow(product) {
 
   const newRow = createProductRow(product);
   tableBody.prepend(newRow);
+  updateSyncButtonState(getProductRowCount(tableBody));
 }
 
 export function updateProductRow(product) {
@@ -68,8 +74,13 @@ export function removeProductRow(productId) {
   const tableBody = document.querySelector(
     "#products-page .device-table tbody"
   );
-  if (tableBody && tableBody.rows.length === 0) {
-    refreshProductTable();
+  if (tableBody) {
+    const productCount = getProductRowCount(tableBody);
+    if (productCount === 0) {
+      refreshProductTable();
+    } else {
+      updateSyncButtonState(productCount);
+    }
   }
 }
 
@@ -103,9 +114,28 @@ export async function refreshProductTable() {
 
     if (newContent && oldContent) {
       oldContent.innerHTML = newContent.innerHTML;
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const currentPage = parseInt(urlParams.get("page") || "1", 10);
+      const newTableBody = oldContent.querySelector(".device-table tbody");
+      const productRowCount = getProductRowCount(newTableBody);
+
+      if (productRowCount === 0 && currentPage > 1) {
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set("page", currentPage - 1);
+        window.location.href = newUrl.href;
+        return;
+      }
+
       document.dispatchEvent(new CustomEvent("page-content-refreshed"));
     }
     resetSyncButton();
+    const newTableBody = document.querySelector(
+      "#products-page .device-table tbody"
+    );
+    if (newTableBody) {
+      updateSyncButtonState(getProductRowCount(newTableBody));
+    }
   } catch (err) {
     showError(err.message || "Não foi possível atualizar a lista de produtos.");
   }

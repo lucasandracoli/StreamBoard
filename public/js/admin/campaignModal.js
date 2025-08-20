@@ -749,7 +749,6 @@ export function setupCampaignModal() {
       handleInputOrClick
     );
 
-    elements.openBtn?.addEventListener("click", openCreateCampaignModal);
     elements.cancelBtn?.addEventListener(
       "click",
       () => (campaignModal.style.display = "none")
@@ -792,5 +791,5 @@ export function setupCampaignModal() {
     isInitialized = true;
   }
 
-  return { openEditCampaignModal };
+  return { openCreateCampaignModal, openEditCampaignModal };
 }
