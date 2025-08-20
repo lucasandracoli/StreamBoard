@@ -66,15 +66,13 @@ export function setupCompanyModal() {
       form.name.value = company.name;
 
       if (cnpjMask) {
-        cnpjMask.unmaskedValue = company.cnpj || "";
-        cnpjMask.updateValue();
+        cnpjMask.value = company.cnpj || "";
       } else {
         form.cnpj.value = company.cnpj;
       }
 
       if (cepMask) {
-        cepMask.unmaskedValue = company.cep || "";
-        cepMask.updateValue();
+        cepMask.value = company.cep || "";
       } else {
         form.cep.value = company.cep;
       }
