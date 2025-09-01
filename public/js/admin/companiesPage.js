@@ -29,23 +29,7 @@ function createCompanyRow(company) {
 }
 
 export function addCompanyRow(company) {
-  const container = document.querySelector(".container");
-  const tableBody = document.getElementById("companies-table-body");
-  if (!tableBody || !container) return;
-
-  const emptyState = container.querySelector(".empty-state-container");
-  if (emptyState) {
-    refreshCompaniesTable();
-    return;
-  }
-
-  const noCompaniesRow = document.getElementById("no-companies-row");
-  if (noCompaniesRow) {
-    noCompaniesRow.remove();
-  }
-
-  const newRow = createCompanyRow(company);
-  tableBody.prepend(newRow);
+  refreshCompaniesTable();
 }
 
 export function updateCompanyRow(company) {
@@ -59,15 +43,7 @@ export function updateCompanyRow(company) {
 }
 
 export function removeCompanyRow(companyId) {
-  const row = document.querySelector(`tr[data-company-id="${companyId}"]`);
-  if (row) {
-    row.remove();
-  }
-
-  const tableBody = document.getElementById("companies-table-body");
-  if (tableBody && tableBody.rows.length === 0) {
-    refreshCompaniesTable();
-  }
+  refreshCompaniesTable();
 }
 
 export async function refreshCompaniesTable() {
@@ -103,8 +79,6 @@ export async function refreshCompaniesTable() {
       document.dispatchEvent(new CustomEvent("page-content-refreshed"));
     }
   } catch (err) {
-    showError(
-      err.message || "Não foi possível atualizar a lista de empresas."
-    );
+    showError(err.message || "Não foi possível atualizar a lista de empresas.");
   }
 }

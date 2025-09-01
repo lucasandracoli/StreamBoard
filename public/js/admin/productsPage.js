@@ -36,26 +36,7 @@ function getProductRowCount(tableBody) {
 }
 
 export function addProductRow(product) {
-  const container = document.querySelector(".container");
-  const tableBody = document.querySelector(
-    "#products-page .device-table tbody"
-  );
-  if (!tableBody || !container) return;
-
-  const emptyState = container.querySelector(".empty-state-container");
-  if (emptyState) {
-    refreshProductTable();
-    return;
-  }
-
-  const noProductsRow = document.getElementById("no-products-row");
-  if (noProductsRow) {
-    noProductsRow.remove();
-  }
-
-  const newRow = createProductRow(product);
-  tableBody.prepend(newRow);
-  updateSyncButtonState(getProductRowCount(tableBody));
+  refreshProductTable();
 }
 
 export function updateProductRow(product) {
@@ -67,21 +48,7 @@ export function updateProductRow(product) {
 }
 
 export function removeProductRow(productId) {
-  const row = document.querySelector(`tr[data-product-id="${productId}"]`);
-  if (row) {
-    row.remove();
-  }
-  const tableBody = document.querySelector(
-    "#products-page .device-table tbody"
-  );
-  if (tableBody) {
-    const productCount = getProductRowCount(tableBody);
-    if (productCount === 0) {
-      refreshProductTable();
-    } else {
-      updateSyncButtonState(productCount);
-    }
-  }
+  refreshProductTable();
 }
 
 export function resetSyncButton() {
