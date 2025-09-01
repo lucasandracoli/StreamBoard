@@ -111,7 +111,7 @@ const upsertProductsFromSheet = async (products, companyId) => {
   try {
     await client.query("BEGIN");
 
-    const sectionMap = { 1: "BOVINO", 2: "SUÍNO", 3: "AVES", 4: "OVINO" };
+    const sectionMap = { 1: "AVES", 2: "BOVINO", 3: "SUINO" };
 
     for (const product of products) {
       const sectionName =

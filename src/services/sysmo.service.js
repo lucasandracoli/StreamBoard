@@ -3,19 +3,20 @@ const logger = require("../utils/logger");
 
 const fetchProductFromSysmoByCode = async (productCode, companyId) => {
   const query = `
-        SELECT
-            TRIM(
-                CASE
-                    WHEN pro.dsc LIKE 'CARNE BOV %' THEN REPLACE(pro.dsc, 'CARNE BOV', 'CARNE BOVINA')
-                    WHEN pro.dsc LIKE '% BOV %' THEN REPLACE(pro.dsc, 'BOV', 'BOVINA')
-                    ELSE pro.dsc
-                END
-            ) AS dsc,
+        SELECT pre.emp,
+            pro.cod,
+            pro.dsc AS dsc,
             pre.pv2,
-            pro.sec
-        FROM gcepro02 AS pro
-        INNER JOIN gcepro04 AS pre ON pre.cod = pro.cod
-        WHERE pro.cod = $1 AND pre.emp = $2 AND pre.pv2 > 0 AND pro.dep = 6 AND fl_situacao = 'A'
+            pro.grp as sec
+            FROM gcepro02 AS pro
+            INNER JOIN gcepro04 AS pre ON pre.cod = pro.cod
+            WHERE pre.emp = $2
+            AND pro.cod = $1
+            AND pro.dep = 41
+            AND pro.sec = 410
+            AND pro.grp IN ('1','2','3') -- 1-Aves | 2-Bovino | 3-Suino
+            AND pre.pv2 > 0
+            AND fl_situacao = 'A'
         LIMIT 1;
     `;
   try {

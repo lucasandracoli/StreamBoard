@@ -217,7 +217,7 @@ const addSingleProduct = async (req, res) => {
       });
     }
 
-    const sectionMap = { 1: "BOVINO", 2: "SUÍNO", 3: "AVES", 4: "OVINO" };
+    const sectionMap = { 1: "AVES", 2: "BOVINO", 3: "SUINO" };
 
     const newProduct = await localProductService.addProduct({
       company_id: companyId,
