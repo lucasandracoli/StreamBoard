@@ -29,11 +29,7 @@
       <div class="device-header">
         <div class="search-wrapper">
           <i class="bi bi-search"></i>
-          <input
-            type="text"
-            id="campaigns-search-input"
-            class="search-input"
-          />
+          <input type="text" id="campaigns-search-input" class="search-input" />
         </div>
         <div class="page-actions-group">
           <button class="device-button" id="openCampaignModal">
@@ -200,10 +196,8 @@
           </tbody>
         </table>
       </div>
-      <% if (totalPages > 1) { %>
-        <%- include('partials/pagination', { currentPage, totalPages, baseUrl: '/campaigns' }) %>
-      <% } %>
-      <% } %>
+      <% if (totalPages > 1) { %> <%- include('partials/pagination', {
+      currentPage, totalPages, baseUrl: '/campaigns' }) %> <% } %> <% } %>
     </main>
 
     <div id="campaignModal" class="modal-overlay campaign-modal">
@@ -525,7 +519,7 @@
                 type="file"
                 id="file-upload"
                 name="media"
-                accept="image/*,video/*"
+                accept="image/png, image/jpeg, image/gif, video/mp4, video/webm, video/quicktime"
                 multiple
                 hidden
               />
@@ -567,9 +561,8 @@
       </div>
     </div>
 
-    <%- include("partials/confirmationModal") %>
-
-    <%- include("partials/footer") %>
+    <%- include("partials/confirmationModal") %> <%- include("partials/footer")
+    %>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/notyf@3.10.0/notyf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>

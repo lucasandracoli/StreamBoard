@@ -545,6 +545,7 @@ export function setupCampaignModal() {
   };
 
   const submitForm = async (force = false) => {
+    console.log("--- DEBUG: Iniciando submitForm ---");
     elements.submitButton.disabled = true;
     elements.submitButton.innerHTML = `<div class="spinner" style="width: 20px; height: 20px; border-width: 2px; margin: 0 auto;"></div>`;
 
@@ -592,6 +593,9 @@ export function setupCampaignModal() {
     }
 
     if (mediaHasBeenTouched) {
+      console.log(
+        "--- DEBUG: Mídia foi alterada (mediaHasBeenTouched = true) ---"
+      );
       formData.append("media_touched", "true");
 
       const mediaMetadata = [];
@@ -613,8 +617,28 @@ export function setupCampaignModal() {
         });
       });
 
+      console.log(
+        "--- DEBUG: Metadados da mídia a serem enviados:",
+        mediaMetadata
+      );
       formData.append("media_metadata", JSON.stringify(mediaMetadata));
-      newFilesToUpload.forEach((file) => formData.append("media", file));
+
+      console.log("--- DEBUG: Novos arquivos para upload:", newFilesToUpload);
+      newFilesToUpload.forEach((file) => {
+        formData.append("media", file, file.name);
+        console.log(
+          `--- DEBUG: Anexando arquivo "${file.name}" ao FormData ---`
+        );
+      });
+    } else {
+      console.log(
+        "--- DEBUG: Mídia não foi alterada (mediaHasBeenTouched = false) ---"
+      );
+    }
+
+    console.log("--- DEBUG: FormData final antes do envio ---");
+    for (let [key, value] of formData.entries()) {
+      console.log(`${key}:`, value);
     }
 
     try {
@@ -624,6 +648,10 @@ export function setupCampaignModal() {
       });
 
       const json = await res.json();
+      console.log("--- DEBUG: Resposta do servidor:", {
+        status: res.status,
+        body: json,
+      });
 
       if (res.status === 409 && json.conflict) {
         const conflictingCampaigns = json.overlapping_campaigns;
@@ -688,6 +716,7 @@ export function setupCampaignModal() {
 
       campaignModal.style.display = "none";
     } catch (err) {
+      console.error("--- DEBUG: Erro no fetch ---", err);
       showError("Falha na comunicação com o servidor.");
     } finally {
       elements.submitButton.disabled = false;
@@ -722,6 +751,7 @@ export function setupCampaignModal() {
       const newFiles = Array.from(e.target.files).map((f) =>
         Object.assign(f, { duration: 10 })
       );
+      console.log("--- DEBUG: Arquivos selecionados:", newFiles);
 
       if (
         currentUploadZone === "secondary" &&

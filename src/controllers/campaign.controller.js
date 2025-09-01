@@ -209,9 +209,9 @@ const createCampaign = async (req, res) => {
     }
   }
 
-  const mediaMetadata = media_metadata ? JSON.parse(media_metadata) : [];
-  const hasMainMedia = mediaMetadata.some((item) => item.zone === "main");
-  const hasSecondaryMedia = mediaMetadata.some(
+  const parsedMediaMetadata = media_metadata ? JSON.parse(media_metadata) : [];
+  const hasMainMedia = parsedMediaMetadata.some((item) => item.zone === "main");
+  const hasSecondaryMedia = parsedMediaMetadata.some(
     (item) => item.zone === "secondary"
   );
 
@@ -237,7 +237,7 @@ const createCampaign = async (req, res) => {
     priority: isNaN(parsedPriority) ? 50 : parsedPriority,
     parsedStartDate,
     parsedEndDate,
-    media_metadata: mediaMetadata,
+    media_metadata: parsedMediaMetadata,
     created_by_user_id: req.user.id,
   };
 
@@ -404,12 +404,14 @@ const editCampaign = async (req, res) => {
     }
   }
 
+  const parsedMediaMetadata = req.body.media_metadata
+    ? JSON.parse(req.body.media_metadata)
+    : [];
   if (media_touched === "true") {
-    const mediaMetadata = req.body.media_metadata
-      ? JSON.parse(req.body.media_metadata)
-      : [];
-    const hasMainMedia = mediaMetadata.some((item) => item.zone === "main");
-    const hasSecondaryMedia = mediaMetadata.some(
+    const hasMainMedia = parsedMediaMetadata.some(
+      (item) => item.zone === "main"
+    );
+    const hasSecondaryMedia = parsedMediaMetadata.some(
       (item) => item.zone === "secondary"
     );
 
@@ -447,10 +449,7 @@ const editCampaign = async (req, res) => {
     );
 
     if (media_touched === "true") {
-      const mediaMetadata = req.body.media_metadata
-        ? JSON.parse(req.body.media_metadata)
-        : [];
-      const keptMediaIds = mediaMetadata
+      const keptMediaIds = parsedMediaMetadata
         .filter((m) => m.id !== null)
         .map((m) => m.id);
 
@@ -479,7 +478,7 @@ const editCampaign = async (req, res) => {
         );
       }
 
-      for (const meta of mediaMetadata) {
+      for (const meta of parsedMediaMetadata) {
         if (meta.id !== null) {
           await client.query(
             "UPDATE campaign_uploads SET execution_order = $1, duration = $2, zone = $3 WHERE id = $4",
@@ -488,12 +487,12 @@ const editCampaign = async (req, res) => {
         }
       }
 
-      const fileMap = new Map(req.files.map((f) => [f.originalname, f]));
-      const newFilesMetadata = mediaMetadata.filter((m) => m.id === null);
+      const newFilesMetadata = parsedMediaMetadata.filter((m) => m.id === null);
+      let fileUploadIndex = 0;
 
       for (const meta of newFilesMetadata) {
-        const file = fileMap.get(meta.name);
-        if (file) {
+        if (fileUploadIndex < req.files.length) {
+          const file = req.files[fileUploadIndex];
           const newFilePath = `/uploads/${file.filename}`;
           await client.query(
             `INSERT INTO campaign_uploads (campaign_id, file_name, file_path, file_type, execution_order, duration, zone) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -507,6 +506,7 @@ const editCampaign = async (req, res) => {
               meta.zone,
             ]
           );
+          fileUploadIndex++;
         }
       }
     }
