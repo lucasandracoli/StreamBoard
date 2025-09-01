@@ -47,7 +47,7 @@ export function setupCampaignModal() {
   const openCreateCampaignModal = () => {
     resetModal();
     renderStagedFiles();
-    elements.modalTitle.textContent = "Cadastrar Campanha";
+    elements.modalTitle.textContent = "Cadastrar Nova Campanha";
     elements.form.action = "/campaigns";
     elements.idInput.value = "";
     campaignModal.style.display = "flex";
@@ -718,6 +718,7 @@ export function setupCampaignModal() {
     });
 
     elements.fileInput?.addEventListener("change", (e) => {
+      console.log("[FRONTEND DEBUG] Arquivos selecionados:", e.target.files);
       mediaHasBeenTouched = true;
       const newFiles = Array.from(e.target.files).map((f) =>
         Object.assign(f, { duration: 10 })

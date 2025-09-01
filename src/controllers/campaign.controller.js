@@ -7,6 +7,16 @@ const companyService = require("../services/company.service");
 const formatUtils = require("../utils/format.utils");
 const logger = require("../utils/logger");
 
+const fixFileEncoding = (files) => {
+  if (files && Array.isArray(files)) {
+    files.forEach((file) => {
+      file.originalname = Buffer.from(file.originalname, "latin1").toString(
+        "utf8"
+      );
+    });
+  }
+};
+
 const getFullCampaignDetailsForBroadcast = async (campaignId) => {
   const campaign = await campaignService.getCampaignWithDetails(campaignId);
   if (!campaign) return null;
@@ -137,6 +147,7 @@ const renderCampaignPipelinePage = async (req, res) => {
 };
 
 const createCampaign = async (req, res) => {
+  fixFileEncoding(req.files);
   let {
     name,
     start_date,
@@ -329,6 +340,7 @@ const getCampaignDetails = async (req, res) => {
 };
 
 const editCampaign = async (req, res) => {
+  fixFileEncoding(req.files);
   const { id } = req.params;
   let {
     name,

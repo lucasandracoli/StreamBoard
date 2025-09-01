@@ -16,13 +16,33 @@ const storage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    const fileExtension = path.extname(file.originalname);
+    const originalname = Buffer.from(file.originalname, "latin1").toString(
+      "utf8"
+    );
+    const fileExtension = path.extname(originalname);
     const fileName = `${uuidv4()}${fileExtension}`;
     cb(null, fileName);
   },
 });
 
-const upload = multer({ storage });
+const fileFilter = (req, file, cb) => {
+  const allowedMimeTypes = ["image/jpeg", "image/png", "video/mp4"];
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(
+      new Error(
+        "Apenas arquivos de imagem (jpg, png) e vídeo (mp4) são permitidos."
+      ),
+      false
+    );
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+});
 
 router.get(
   "/campaigns",
